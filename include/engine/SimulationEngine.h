@@ -7,19 +7,12 @@
 class SimulationEngine
 {
 public:
-    // Constructor takes the path to the JSON recipe file.
     explicit SimulationEngine(const std::string &json_recipe_path);
-
-    // The main public method to run the simulation.
     std::vector<double> run();
 
 private:
-    // A private method to handle parsing the JSON file.
     void parse_recipe();
-
-    // The recipe object that holds our entire simulation plan.
+    double get_value(const std::string &arg, const std::unordered_map<std::string, double> &context);
     SimulationRecipe m_recipe;
-
-    // The path to the JSON file, stored for later use.
     std::string m_recipe_path;
 };

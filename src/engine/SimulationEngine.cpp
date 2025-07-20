@@ -72,7 +72,29 @@ SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     this->parse_recipe();
 }
 
-// run() method (remains the same)
+double SimulationEngine::get_value(const std::string &arg, const std::unordered_map<std::string, double> &context)
+{
+    // 1. First, try to find 'arg' as a key in the context map.
+    auto it = context.find(arg);
+    if (it != context.end())
+    {
+        // Found it. Return the corresponding value.
+        return it->second;
+    }
+
+    // 2. If not found, assume 'arg' is a literal number and try to convert it.
+    try
+    {
+        // std::stod attempts to convert a string to a double.
+        return std::stod(arg);
+    }
+    catch (const std::invalid_argument &e)
+    {
+        // This catch block runs if std::stod fails because the string is not a number.
+        throw std::runtime_error("Argument '" + arg + "' is not a valid variable name or a numeric literal.");
+    }
+}
+
 std::vector<double> SimulationEngine::run()
 {
     std::cout << "Starting simulation..." << std::endl;
@@ -99,82 +121,83 @@ std::vector<double> SimulationEngine::run()
         {
             switch (op.op_code)
             {
-            case OpCode::MULTIPLY:
-            {
-                double val1 = trial_context.at(op.args[0]);
-                double val2 = trial_context.at(op.args[1]);
-                trial_context[op.result_name] = val1 * val2;
-                break;
-            }
             case OpCode::ADD:
             {
-                double val1 = trial_context.at(op.args[0]);
-                double val2 = trial_context.at(op.args[1]);
+                double val1 = get_value(op.args[0], trial_context);
+                double val2 = get_value(op.args[1], trial_context);
                 trial_context[op.result_name] = val1 + val2;
                 break;
             }
             case OpCode::SUBTRACT:
             {
-                double val1 = trial_context.at(op.args[0]);
-                double val2 = trial_context.at(op.args[1]);
+                double val1 = get_value(op.args[0], trial_context);
+                double val2 = get_value(op.args[1], trial_context);
                 trial_context[op.result_name] = val1 - val2;
+                break;
+            }
+            case OpCode::MULTIPLY:
+            {
+                double val1 = get_value(op.args[0], trial_context);
+                double val2 = get_value(op.args[1], trial_context);
+                trial_context[op.result_name] = val1 * val2;
                 break;
             }
             case OpCode::DIVIDE:
             {
-                double val1 = trial_context.at(op.args[0]);
-                double val2 = trial_context.at(op.args[1]);
-                if (val2 == 0)
+                double val1 = get_value(op.args[0], trial_context);
+                double val2 = get_value(op.args[1], trial_context);
+                if (val2 == 0.0)
                 {
-                    throw std::runtime_error("Division by zero in op: " + op.result_name);
+                    throw std::runtime_error("Division by zero in op '" + op.result_name + "'");
                 }
                 trial_context[op.result_name] = val1 / val2;
                 break;
             }
             case OpCode::POWER:
             {
-                double base = trial_context.at(op.args[0]);
-                double exponent = trial_context.at(op.args[1]);
+                double base = get_value(op.args[0], trial_context);
+                double exponent = get_value(op.args[1], trial_context);
                 trial_context[op.result_name] = std::pow(base, exponent);
                 break;
             }
             case OpCode::LOG:
             {
-                double val = trial_context.at(op.args[0]);
+                double val = get_value(op.args[0], trial_context);
                 trial_context[op.result_name] = std::log(val);
                 break;
             }
             case OpCode::LOG10:
             {
-                double val = trial_context.at(op.args[0]);
+                double val = get_value(op.args[0], trial_context);
                 trial_context[op.result_name] = std::log10(val);
                 break;
             }
             case OpCode::EXP:
             {
-                double val = trial_context.at(op.args[0]);
+                double val = get_value(op.args[0], trial_context);
                 trial_context[op.result_name] = std::exp(val);
                 break;
             }
             case OpCode::SIN:
             {
-                double val = trial_context.at(op.args[0]);
+                double val = get_value(op.args[0], trial_context);
                 trial_context[op.result_name] = std::sin(val);
                 break;
             }
             case OpCode::COS:
             {
-                double val = trial_context.at(op.args[0]);
+                double val = get_value(op.args[0], trial_context);
                 trial_context[op.result_name] = std::cos(val);
                 break;
             }
             case OpCode::TAN:
             {
-                double val = trial_context.at(op.args[0]);
+                double val = get_value(op.args[0], trial_context);
                 trial_context[op.result_name] = std::tan(val);
                 break;
             }
             case OpCode::UNKNOWN:
+            default:
                 throw std::runtime_error("Encountered an unknown or unsupported op_code during simulation.");
             }
         }
@@ -185,7 +208,6 @@ std::vector<double> SimulationEngine::run()
     return final_results;
 }
 
-// The private parser method with the fully expanded Distribution Factory switch
 void SimulationEngine::parse_recipe()
 {
     std::ifstream file_stream(m_recipe_path);
