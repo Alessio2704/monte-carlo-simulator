@@ -29,6 +29,13 @@ enum class OpCode
     MULTIPLY,
     SUBTRACT,
     DIVIDE,
+    POWER, // e.g., pow(base, exponent)
+    LOG,   // Natural logarithm
+    LOG10, // Base-10 logarithm
+    EXP,   // e^x
+    SIN,
+    COS,
+    TAN,
     UNKNOWN
 };
 

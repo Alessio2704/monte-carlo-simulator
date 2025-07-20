@@ -27,6 +27,20 @@ OpCode string_to_opcode(const std::string &s)
         return OpCode::SUBTRACT;
     if (s == "divide")
         return OpCode::DIVIDE;
+    if (s == "power")
+        return OpCode::POWER;
+    if (s == "log")
+        return OpCode::LOG;
+    if (s == "log10")
+        return OpCode::LOG10;
+    if (s == "exp")
+        return OpCode::EXP;
+    if (s == "sin")
+        return OpCode::SIN;
+    if (s == "cos")
+        return OpCode::COS;
+    if (s == "tan")
+        return OpCode::TAN;
     return OpCode::UNKNOWN;
 }
 
@@ -110,11 +124,54 @@ std::vector<double> SimulationEngine::run()
             {
                 double val1 = trial_context.at(op.args[0]);
                 double val2 = trial_context.at(op.args[1]);
-                if (val2 == 0.0)
+                if (val2 == 0)
                 {
-                    throw std::runtime_error("Division by zero encountered in operation: " + op.result_name);
+                    throw std::runtime_error("Division by zero in op: " + op.result_name);
                 }
                 trial_context[op.result_name] = val1 / val2;
+                break;
+            }
+            case OpCode::POWER:
+            {
+                double base = trial_context.at(op.args[0]);
+                double exponent = trial_context.at(op.args[1]);
+                trial_context[op.result_name] = std::pow(base, exponent);
+                break;
+            }
+            case OpCode::LOG:
+            {
+                double val = trial_context.at(op.args[0]);
+                trial_context[op.result_name] = std::log(val);
+                break;
+            }
+            case OpCode::LOG10:
+            {
+                double val = trial_context.at(op.args[0]);
+                trial_context[op.result_name] = std::log10(val);
+                break;
+            }
+            case OpCode::EXP:
+            {
+                double val = trial_context.at(op.args[0]);
+                trial_context[op.result_name] = std::exp(val);
+                break;
+            }
+            case OpCode::SIN:
+            {
+                double val = trial_context.at(op.args[0]);
+                trial_context[op.result_name] = std::sin(val);
+                break;
+            }
+            case OpCode::COS:
+            {
+                double val = trial_context.at(op.args[0]);
+                trial_context[op.result_name] = std::cos(val);
+                break;
+            }
+            case OpCode::TAN:
+            {
+                double val = trial_context.at(op.args[0]);
+                trial_context[op.result_name] = std::tan(val);
                 break;
             }
             case OpCode::UNKNOWN:
