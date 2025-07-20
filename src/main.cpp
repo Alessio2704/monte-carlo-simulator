@@ -1,58 +1,70 @@
+#include "engine/SimulationEngine.h"
 #include <iostream>
 #include <vector>
-#include <memory>
-#include <string>
-#include <numeric>
+#include <numeric>   // Required for std::accumulate
+#include <algorithm> // Required for std::min_element and std::max_element
+#include <cmath>     // Required for std::sqrt
 
-#include "distributions/IDistribution.h"
-#include "distributions/NormalDistribution.h"
-#include "distributions/PertDistribution.h"
-#include "distributions/UniformDistribution.h"
-#include "distributions/LognormalDistribution.h"
-#include "distributions/TriangularDistribution.h"
-#include "distributions/BernoulliDistribution.h"
-#include "distributions/BetaDistribution.h"
-
-// Helper function remains the same
-void runSimulation(IDistribution* dist, int num_samples, const std::string& dist_name) {
-    std::cout << "\n--- Running Simulation for " << dist_name << " ---" << std::endl;
-    std::vector<double> results;
-    results.reserve(num_samples);
-
-    for (int i = 0; i < num_samples; ++i) {
-        results.push_back(dist->getSample());
+// A helper function to compute and display statistics for a vector of data.
+void print_statistics(const std::vector<double> &data)
+{
+    if (data.empty())
+    {
+        std::cout << "No simulation data to analyze." << std::endl;
+        return;
     }
 
-    double sum = std::accumulate(results.begin(), results.end(), 0.0);
-    double mean = sum / results.size();
+    // --- Calculate Mean ---
+    // std::accumulate sums up all elements in the vector.
+    double sum = std::accumulate(data.begin(), data.end(), 0.0);
+    double mean = sum / data.size();
 
-    std::cout << "Generated " << num_samples << " samples." << std::endl;
-    std::cout << "Average value: " << mean << std::endl;
-    std::cout << "First 5 samples: ";
-    for(int i = 0; i < std::min((int)results.size(), 5); ++i) {
-        std::cout << results[i] << " ";
+    // --- Calculate Standard Deviation ---
+    // This requires a second pass to sum the squared differences from the mean.
+    double sum_of_squares = 0.0;
+    for (const double val : data)
+    {
+        sum_of_squares += (val - mean) * (val - mean);
     }
-    std::cout << std::endl;
+    // The standard deviation is the square root of the variance.
+    double stddev = std::sqrt(sum_of_squares / data.size());
+
+    // --- Find Min/Max Range ---
+    // std::min_element returns an "iterator" to the smallest element.
+    // We use the '*' operator to "dereference" it and get the actual value.
+    double min_value = *std::min_element(data.begin(), data.end());
+    double max_value = *std::max_element(data.begin(), data.end());
+
+    // --- Display Results ---
+    std::cout << "\n--- Simulation Statistics ---" << std::endl;
+    std::cout << "Trials:     " << data.size() << std::endl;
+    std::cout << "Mean:       " << mean << std::endl;
+    std::cout << "Std. Dev:   " << stddev << std::endl;
+    std::cout << "Min Value:  " << min_value << std::endl;
+    std::cout << "Max Value:  " << max_value << std::endl;
 }
 
-int main() {
-    // Use a vector to hold our distributions. This is a clean way to manage them.
-    // The vector stores unique_ptrs, ensuring memory is handled automatically.
-    std::vector<std::pair<std::string, std::unique_ptr<IDistribution>>> distributions;
+int main()
+{
+    try
+    {
+        // Create the engine, passing the path to our recipe.
+        SimulationEngine engine("mvp_recipe.json");
 
-    // Add all our distributions to the list
-    distributions.emplace_back("Revenue Growth (Normal)", std::make_unique<NormalDistribution>(100.0, 15.0));
-    distributions.emplace_back("Operating Margin (PERT)", std::make_unique<PertDistribution>(0.15, 0.22, 0.28));
-    distributions.emplace_back("Competitor Price (Uniform)", std::make_unique<UniformDistribution>(250.0, 300.0));
-    distributions.emplace_back("Stock Price (Lognormal)", std::make_unique<LognormalDistribution>(5.0, 0.5));
-    distributions.emplace_back("Cost Estimate (Triangular)", std::make_unique<TriangularDistribution>(1000.0, 1100.0, 1500.0));
-    distributions.emplace_back("Contract Win (Bernoulli)", std::make_unique<BernoulliDistribution>(0.75)); // 75% chance of success
-    distributions.emplace_back("Recovery Rate (Beta)", std::make_unique<BetaDistribution>(2.0, 5.0));
-    
-    // Loop through and run a simulation for each one
-    for (const auto& pair : distributions) {
-        runSimulation(pair.second.get(), 10000, pair.first);
+        // Run the simulation and store the results.
+        std::vector<double> results = engine.run();
+
+        // Pass the results to our new helper function to be analyzed.
+        print_statistics(results);
+
+        std::cout << "\nMVP main execution finished." << std::endl;
     }
-
-    return 0;
+    catch (const std::exception &e)
+    {
+        // If anything goes wrong (file not found, JSON parse error, etc.),
+        // we will catch the exception and print a friendly error message.
+        std::cerr << "An error occurred: " << e.what() << std::endl;
+        return 1; // Return a non-zero value to indicate failure.
+    }
+    return 0; // Success.
 }
