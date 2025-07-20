@@ -14,6 +14,7 @@ private:
     void parse_recipe();
     double resolve_value(const json &arg, const std::unordered_map<std::string, double> &context);
     double evaluate_operation(const Operation &op, const std::unordered_map<std::string, double> &context);
+    void run_batch(int num_trials_for_thread, std::vector<double> &thread_results);
 
     SimulationRecipe m_recipe;
     std::string m_recipe_path;

@@ -1,6 +1,6 @@
 #include "engine/SimulationEngine.h"
 #include "engine/datastructures.h"
-// Include all our distribution class headers
+
 #include "distributions/NormalDistribution.h"
 #include "distributions/PertDistribution.h"
 #include "distributions/UniformDistribution.h"
@@ -9,20 +9,17 @@
 #include "distributions/BernoulliDistribution.h"
 #include "distributions/BetaDistribution.h"
 
-// The header for the nlohmann/json library
 #include <nlohmann/json.hpp>
-
 #include <fstream>
 #include <stdexcept>
 #include <iostream>
-#include <cmath> // Required for std::pow, std::log, etc.
+#include <thread>
+#include <vector>
+#include <cmath>
+#include <algorithm>
 
-// Use the 'json' alias for convenience
 using json = nlohmann::json;
 
-// --- Helper function implementations ---
-
-// Converts a string from the recipe to its corresponding OpCode enum
 OpCode string_to_opcode(const std::string &s)
 {
     if (s == "multiply")
@@ -50,7 +47,6 @@ OpCode string_to_opcode(const std::string &s)
     return OpCode::UNKNOWN;
 }
 
-// Converts a string from the recipe to its corresponding DistributionType enum
 DistributionType string_to_dist_type(const std::string &s)
 {
     if (s == "Normal")
@@ -70,9 +66,6 @@ DistributionType string_to_dist_type(const std::string &s)
     return DistributionType::Unknown;
 }
 
-// --- SimulationEngine Method Implementations ---
-
-// Constructor: Stores the path and immediately calls the parser.
 SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     : m_recipe_path(json_recipe_path)
 {
@@ -80,50 +73,13 @@ SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     this->parse_recipe();
 }
 
-// The main public method to run the simulation loop.
-std::vector<double> SimulationEngine::run()
-{
-    std::cout << "Starting simulation..." << std::endl;
-    std::vector<double> final_results;
-    final_results.reserve(m_recipe.num_trials);
-
-    for (int i = 0; i < m_recipe.num_trials; ++i)
-    {
-        // This map is the "scratchpad" for the current trial's calculations.
-        std::unordered_map<std::string, double> trial_context;
-
-        // Populate the context with initial values for this trial (sampling from distributions).
-        for (const auto &[name, input_var] : m_recipe.inputs)
-        {
-            trial_context[name] = (input_var.type == "fixed")
-                                      ? input_var.fixed_value
-                                      : m_recipe.distributions.at(name)->getSample();
-        }
-
-        // Execute the main operations list, storing results back into the context.
-        for (const auto &op : m_recipe.operations)
-        {
-            trial_context[op.result_name] = evaluate_operation(op, trial_context);
-        }
-
-        // After all operations are done, store the designated final output value.
-        final_results.push_back(trial_context.at(m_recipe.output_variable));
-    }
-
-    std::cout << "Simulation run complete. " << m_recipe.num_trials << " trials executed." << std::endl;
-    return final_results;
-}
-
-// --- Private Helper Methods for Execution ---
-
-// Recursively resolves any JSON argument (variable, literal, or nested operation) into a double.
 double SimulationEngine::resolve_value(const json &arg, const std::unordered_map<std::string, double> &context)
 {
     if (arg.is_object())
     {
         Operation nested_op;
-        nested_op.op_code = string_to_opcode(arg.at("op_code"));
-        nested_op.args = arg.at("args");
+        nested_op.op_code = string_to_opcode(arg["op_code"]);
+        nested_op.args = arg["args"];
         return evaluate_operation(nested_op, context);
     }
     else if (arg.is_string())
@@ -150,44 +106,109 @@ double SimulationEngine::resolve_value(const json &arg, const std::unordered_map
     throw std::runtime_error("Invalid argument type in recipe.");
 }
 
-// Executes a single operation by dispatching to the correct logic based on its OpCode.
 double SimulationEngine::evaluate_operation(const Operation &op, const std::unordered_map<std::string, double> &context)
 {
     switch (op.op_code)
     {
     case OpCode::ADD:
-        return resolve_value(op.args.at(0), context) + resolve_value(op.args.at(1), context);
+        return resolve_value(op.args[0], context) + resolve_value(op.args[1], context);
     case OpCode::SUBTRACT:
-        return resolve_value(op.args.at(0), context) - resolve_value(op.args.at(1), context);
+        return resolve_value(op.args[0], context) - resolve_value(op.args[1], context);
     case OpCode::MULTIPLY:
-        return resolve_value(op.args.at(0), context) * resolve_value(op.args.at(1), context);
+        return resolve_value(op.args[0], context) * resolve_value(op.args[1], context);
     case OpCode::DIVIDE:
     {
-        double denominator = resolve_value(op.args.at(1), context);
+        double denominator = resolve_value(op.args[1], context);
         if (denominator == 0)
             throw std::runtime_error("Division by zero.");
-        return resolve_value(op.args.at(0), context) / denominator;
+        return resolve_value(op.args[0], context) / denominator;
     }
     case OpCode::POWER:
-        return std::pow(resolve_value(op.args.at(0), context), resolve_value(op.args.at(1), context));
+        return std::pow(resolve_value(op.args[0], context), resolve_value(op.args[1], context));
     case OpCode::LOG:
-        return std::log(resolve_value(op.args.at(0), context));
+        return std::log(resolve_value(op.args[0], context));
     case OpCode::LOG10:
-        return std::log10(resolve_value(op.args.at(0), context));
+        return std::log10(resolve_value(op.args[0], context));
     case OpCode::EXP:
-        return std::exp(resolve_value(op.args.at(0), context));
+        return std::exp(resolve_value(op.args[0], context));
     case OpCode::SIN:
-        return std::sin(resolve_value(op.args.at(0), context));
+        return std::sin(resolve_value(op.args[0], context));
     case OpCode::COS:
-        return std::cos(resolve_value(op.args.at(0), context));
+        return std::cos(resolve_value(op.args[0], context));
     case OpCode::TAN:
-        return std::tan(resolve_value(op.args.at(0), context));
+        return std::tan(resolve_value(op.args[0], context));
     default:
         throw std::runtime_error("Unsupported or unknown op_code during evaluation.");
     }
 }
 
-// Parses the entire JSON recipe file into the m_recipe struct.
+void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<double> &thread_results)
+{
+    thread_results.reserve(num_trials_for_thread);
+
+    for (int i = 0; i < num_trials_for_thread; ++i)
+    {
+        std::unordered_map<std::string, double> trial_context;
+
+        for (const auto &[name, input_var] : m_recipe.inputs)
+        {
+            trial_context[name] = (input_var.type == "fixed")
+                                      ? input_var.fixed_value
+                                      : m_recipe.distributions.at(name)->getSample();
+        }
+
+        for (const auto &op : m_recipe.operations)
+        {
+            trial_context[op.result_name] = evaluate_operation(op, trial_context);
+        }
+
+        thread_results.push_back(trial_context.at(m_recipe.output_variable));
+    }
+}
+
+std::vector<double> SimulationEngine::run()
+{
+    std::cout << "Starting simulation..." << std::endl;
+
+    const unsigned int num_threads = std::max(1u, std::thread::hardware_concurrency());
+    std::cout << "Using " << num_threads << " threads for simulation." << std::endl;
+
+    const int trials_per_thread = m_recipe.num_trials / num_threads;
+    const int remainder_trials = m_recipe.num_trials % num_threads;
+
+    std::vector<std::thread> threads;
+    std::vector<std::vector<double>> thread_results(num_threads);
+
+    for (unsigned int i = 0; i < num_threads; ++i)
+    {
+        int trials_for_this_thread = trials_per_thread;
+        if (i == 0)
+        {
+            trials_for_this_thread += remainder_trials;
+        }
+
+        if (trials_for_this_thread > 0)
+        {
+            threads.emplace_back(&SimulationEngine::run_batch, this, trials_for_this_thread, std::ref(thread_results[i]));
+        }
+    }
+
+    for (auto &t : threads)
+    {
+        t.join();
+    }
+
+    std::vector<double> final_results;
+    final_results.reserve(m_recipe.num_trials);
+    for (const auto &partial_results : thread_results)
+    {
+        final_results.insert(final_results.end(), partial_results.begin(), partial_results.end());
+    }
+
+    std::cout << "Simulation run complete. " << final_results.size() << " trials executed." << std::endl;
+    return final_results;
+}
+
 void SimulationEngine::parse_recipe()
 {
     std::ifstream file_stream(m_recipe_path);
@@ -198,47 +219,58 @@ void SimulationEngine::parse_recipe()
 
     json recipe_json = json::parse(file_stream);
 
-    m_recipe.num_trials = recipe_json.at("simulation_config").at("num_trials");
-    m_recipe.output_variable = recipe_json.at("output_variable");
+    m_recipe.num_trials = recipe_json["simulation_config"]["num_trials"];
+    m_recipe.output_variable = recipe_json["output_variable"];
 
-    for (const auto &[name, input_json] : recipe_json.at("inputs").items())
+    for (const auto &[name, input_json] : recipe_json["inputs"].items())
     {
         InputVariable var;
-        var.type = input_json.at("type");
+        var.type = input_json["type"];
 
         if (var.type == "fixed")
         {
-            var.fixed_value = input_json.at("value");
+            var.fixed_value = input_json["value"];
         }
         else if (var.type == "distribution")
         {
-            var.dist_name = input_json.at("dist_name");
-            var.dist_params = input_json.at("params").get<DistributionParams>();
+            var.dist_name = input_json["dist_name"];
+            for (const auto &[param_name, param_value] : input_json["params"].items())
+            {
+                var.dist_params[param_name] = param_value;
+            }
 
             DistributionType dist_type = string_to_dist_type(var.dist_name);
             switch (dist_type)
             {
             case DistributionType::Normal:
-                m_recipe.distributions[name] = std::make_unique<NormalDistribution>(var.dist_params.at("mean"), var.dist_params.at("stddev"));
+                m_recipe.distributions[name] = std::make_unique<NormalDistribution>(
+                    var.dist_params.at("mean"), var.dist_params.at("stddev"));
                 break;
             case DistributionType::Pert:
-                m_recipe.distributions[name] = std::make_unique<PertDistribution>(var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
+                m_recipe.distributions[name] = std::make_unique<PertDistribution>(
+                    var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
                 break;
             case DistributionType::Uniform:
-                m_recipe.distributions[name] = std::make_unique<UniformDistribution>(var.dist_params.at("min"), var.dist_params.at("max"));
+                m_recipe.distributions[name] = std::make_unique<UniformDistribution>(
+                    var.dist_params.at("min"), var.dist_params.at("max"));
                 break;
             case DistributionType::Lognormal:
-                m_recipe.distributions[name] = std::make_unique<LognormalDistribution>(var.dist_params.at("log_mean"), var.dist_params.at("log_stddev"));
+                m_recipe.distributions[name] = std::make_unique<LognormalDistribution>(
+                    var.dist_params.at("log_mean"), var.dist_params.at("log_stddev"));
                 break;
             case DistributionType::Triangular:
-                m_recipe.distributions[name] = std::make_unique<TriangularDistribution>(var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
+                m_recipe.distributions[name] = std::make_unique<TriangularDistribution>(
+                    var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
                 break;
             case DistributionType::Bernoulli:
-                m_recipe.distributions[name] = std::make_unique<BernoulliDistribution>(var.dist_params.at("p"));
+                m_recipe.distributions[name] = std::make_unique<BernoulliDistribution>(
+                    var.dist_params.at("p"));
                 break;
             case DistributionType::Beta:
-                m_recipe.distributions[name] = std::make_unique<BetaDistribution>(var.dist_params.at("alpha"), var.dist_params.at("beta"));
+                m_recipe.distributions[name] = std::make_unique<BetaDistribution>(
+                    var.dist_params.at("alpha"), var.dist_params.at("beta"));
                 break;
+            case DistributionType::Unknown:
             default:
                 throw std::runtime_error("Unknown distribution type in recipe: " + var.dist_name);
             }
@@ -246,12 +278,14 @@ void SimulationEngine::parse_recipe()
         m_recipe.inputs[name] = var;
     }
 
-    for (const auto &op_json : recipe_json.at("operations"))
+    for (const auto &op_json : recipe_json["operations"])
     {
         Operation op;
-        op.op_code = string_to_opcode(op_json.at("op_code"));
-        op.result_name = op_json.at("result");
-        op.args = op_json.at("args");
+        std::string op_code_str = op_json["op_code"];
+        op.op_code = string_to_opcode(op_code_str);
+
+        op.result_name = op_json["result"];
+        op.args = op_json["args"];
         m_recipe.operations.push_back(op);
     }
 
