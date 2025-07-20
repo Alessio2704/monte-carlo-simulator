@@ -4,25 +4,23 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include "distributions/IDistribution.h"
 
-// A struct to hold the parameters for a distribution.
+using json = nlohmann::json;
+
 using DistributionParams = std::unordered_map<std::string, double>;
 
-// A struct to represent a single input variable from the JSON "inputs" block.
 struct InputVariable
 {
     std::string type; // "fixed" or "distribution"
 
-    // --- Members for a "fixed" type ---
     double fixed_value = 0.0;
 
-    // --- Members for a "distribution" type ---
-    std::string dist_name; // "Normal", "PERT", etc.
+    std::string dist_name;
     DistributionParams dist_params;
 };
 
-// Enum for all possible operations.
 enum class OpCode
 {
     ADD,
@@ -39,7 +37,6 @@ enum class OpCode
     UNKNOWN
 };
 
-// Define an enum for all supported distribution types.
 enum class DistributionType
 {
     Normal,
@@ -52,15 +49,13 @@ enum class DistributionType
     Unknown
 };
 
-// Struct to represent a single calculation step.
 struct Operation
 {
     OpCode op_code = OpCode::UNKNOWN;
-    std::vector<std::string> args;
+    std::vector<json> args;
     std::string result_name;
 };
 
-// Struct to hold the entire, parsed recipe.
 struct SimulationRecipe
 {
     int num_trials = 1000;

@@ -12,7 +12,9 @@ public:
 
 private:
     void parse_recipe();
-    double get_value(const std::string &arg, const std::unordered_map<std::string, double> &context);
+    double resolve_value(const json &arg, const std::unordered_map<std::string, double> &context);
+    double evaluate_operation(const Operation &op, const std::unordered_map<std::string, double> &context);
+
     SimulationRecipe m_recipe;
     std::string m_recipe_path;
 };
