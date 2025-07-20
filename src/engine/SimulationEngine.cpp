@@ -209,6 +209,45 @@ std::vector<double> SimulationEngine::run()
     return final_results;
 }
 
+void SimulationEngine::create_distribution_from_input(const std::string &name, const InputVariable &var)
+{
+    DistributionType dist_type = string_to_dist_type(var.dist_name);
+    switch (dist_type)
+    {
+    case DistributionType::Normal:
+        m_recipe.distributions[name] = std::make_unique<NormalDistribution>(
+            var.dist_params.at("mean"), var.dist_params.at("stddev"));
+        break;
+    case DistributionType::Pert:
+        m_recipe.distributions[name] = std::make_unique<PertDistribution>(
+            var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
+        break;
+    case DistributionType::Uniform:
+        m_recipe.distributions[name] = std::make_unique<UniformDistribution>(
+            var.dist_params.at("min"), var.dist_params.at("max"));
+        break;
+    case DistributionType::Lognormal:
+        m_recipe.distributions[name] = std::make_unique<LognormalDistribution>(
+            var.dist_params.at("log_mean"), var.dist_params.at("log_stddev"));
+        break;
+    case DistributionType::Triangular:
+        m_recipe.distributions[name] = std::make_unique<TriangularDistribution>(
+            var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
+        break;
+    case DistributionType::Bernoulli:
+        m_recipe.distributions[name] = std::make_unique<BernoulliDistribution>(
+            var.dist_params.at("p"));
+        break;
+    case DistributionType::Beta:
+        m_recipe.distributions[name] = std::make_unique<BetaDistribution>(
+            var.dist_params.at("alpha"), var.dist_params.at("beta"));
+        break;
+    case DistributionType::Unknown:
+    default:
+        throw std::runtime_error("Unknown distribution type in recipe: " + var.dist_name);
+    }
+}
+
 void SimulationEngine::parse_recipe()
 {
     std::ifstream file_stream(m_recipe_path);
@@ -239,42 +278,9 @@ void SimulationEngine::parse_recipe()
                 var.dist_params[param_name] = param_value;
             }
 
-            DistributionType dist_type = string_to_dist_type(var.dist_name);
-            switch (dist_type)
-            {
-            case DistributionType::Normal:
-                m_recipe.distributions[name] = std::make_unique<NormalDistribution>(
-                    var.dist_params.at("mean"), var.dist_params.at("stddev"));
-                break;
-            case DistributionType::Pert:
-                m_recipe.distributions[name] = std::make_unique<PertDistribution>(
-                    var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
-                break;
-            case DistributionType::Uniform:
-                m_recipe.distributions[name] = std::make_unique<UniformDistribution>(
-                    var.dist_params.at("min"), var.dist_params.at("max"));
-                break;
-            case DistributionType::Lognormal:
-                m_recipe.distributions[name] = std::make_unique<LognormalDistribution>(
-                    var.dist_params.at("log_mean"), var.dist_params.at("log_stddev"));
-                break;
-            case DistributionType::Triangular:
-                m_recipe.distributions[name] = std::make_unique<TriangularDistribution>(
-                    var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
-                break;
-            case DistributionType::Bernoulli:
-                m_recipe.distributions[name] = std::make_unique<BernoulliDistribution>(
-                    var.dist_params.at("p"));
-                break;
-            case DistributionType::Beta:
-                m_recipe.distributions[name] = std::make_unique<BetaDistribution>(
-                    var.dist_params.at("alpha"), var.dist_params.at("beta"));
-                break;
-            case DistributionType::Unknown:
-            default:
-                throw std::runtime_error("Unknown distribution type in recipe: " + var.dist_name);
-            }
+            create_distribution_from_input(name, var);
         }
+
         m_recipe.inputs[name] = var;
     }
 
