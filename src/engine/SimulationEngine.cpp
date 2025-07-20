@@ -1,6 +1,5 @@
 #include "engine/SimulationEngine.h"
 #include "engine/datastructures.h"
-
 #include "distributions/NormalDistribution.h"
 #include "distributions/PertDistribution.h"
 #include "distributions/UniformDistribution.h"
@@ -17,54 +16,49 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <unordered_map>
 
 using json = nlohmann::json;
 
+static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
+    {"add", OpCode::ADD},
+    {"subtract", OpCode::SUBTRACT},
+    {"multiply", OpCode::MULTIPLY},
+    {"divide", OpCode::DIVIDE},
+    {"power", OpCode::POWER},
+    {"log", OpCode::LOG},
+    {"log10", OpCode::LOG10},
+    {"exp", OpCode::EXP},
+    {"sin", OpCode::SIN},
+    {"cos", OpCode::COS},
+    {"tan", OpCode::TAN}};
+
+static const std::unordered_map<std::string, DistributionType> STRING_TO_DIST_TYPE_MAP = {
+    {"Normal", DistributionType::Normal},
+    {"PERT", DistributionType::Pert},
+    {"Uniform", DistributionType::Uniform},
+    {"Lognormal", DistributionType::Lognormal},
+    {"Triangular", DistributionType::Triangular},
+    {"Bernoulli", DistributionType::Bernoulli},
+    {"Beta", DistributionType::Beta}};
+
 OpCode string_to_opcode(const std::string &s)
 {
-    if (s == "multiply")
-        return OpCode::MULTIPLY;
-    if (s == "add")
-        return OpCode::ADD;
-    if (s == "subtract")
-        return OpCode::SUBTRACT;
-    if (s == "divide")
-        return OpCode::DIVIDE;
-    if (s == "power")
-        return OpCode::POWER;
-    if (s == "log")
-        return OpCode::LOG;
-    if (s == "log10")
-        return OpCode::LOG10;
-    if (s == "exp")
-        return OpCode::EXP;
-    if (s == "sin")
-        return OpCode::SIN;
-    if (s == "cos")
-        return OpCode::COS;
-    if (s == "tan")
-        return OpCode::TAN;
-
+    auto it = STRING_TO_OPCODE_MAP.find(s);
+    if (it != STRING_TO_OPCODE_MAP.end())
+    {
+        return it->second;
+    }
     throw std::runtime_error("Invalid op_code string in recipe: " + s);
 }
 
 DistributionType string_to_dist_type(const std::string &s)
 {
-    if (s == "Normal")
-        return DistributionType::Normal;
-    if (s == "PERT")
-        return DistributionType::Pert;
-    if (s == "Uniform")
-        return DistributionType::Uniform;
-    if (s == "Lognormal")
-        return DistributionType::Lognormal;
-    if (s == "Triangular")
-        return DistributionType::Triangular;
-    if (s == "Bernoulli")
-        return DistributionType::Bernoulli;
-    if (s == "Beta")
-        return DistributionType::Beta;
-
+    auto it = STRING_TO_DIST_TYPE_MAP.find(s);
+    if (it != STRING_TO_DIST_TYPE_MAP.end())
+    {
+        return it->second;
+    }
     throw std::runtime_error("Invalid dist_name string in recipe: " + s);
 }
 
@@ -139,31 +133,26 @@ double SimulationEngine::evaluate_operation(const Operation &op, const std::unor
         return std::cos(resolve_value(op.args[0], context));
     case OpCode::TAN:
         return std::tan(resolve_value(op.args[0], context));
-    default:
-        throw std::logic_error("FATAL: Unhandled OpCode in evaluate_operation. This should not happen.");
     }
+    throw std::logic_error("FATAL: Unhandled OpCode in evaluate_operation. This should not happen.");
 }
 
 void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<double> &thread_results)
 {
     thread_results.reserve(num_trials_for_thread);
-
     for (int i = 0; i < num_trials_for_thread; ++i)
     {
         std::unordered_map<std::string, double> trial_context;
-
         for (const auto &[name, input_var] : m_recipe.inputs)
         {
             trial_context[name] = (input_var.type == "fixed")
                                       ? input_var.fixed_value
                                       : m_recipe.distributions.at(name)->getSample();
         }
-
         for (const auto &op : m_recipe.operations)
         {
             trial_context[op.result_name] = evaluate_operation(op, trial_context);
         }
-
         thread_results.push_back(trial_context.at(m_recipe.output_variable));
     }
 }
@@ -173,11 +162,11 @@ std::vector<double> SimulationEngine::run()
     std::cout << "Starting simulation..." << std::endl;
 
     const unsigned int num_threads = std::max(1u, std::thread::hardware_concurrency());
+
     std::cout << "Using " << num_threads << " threads for simulation." << std::endl;
 
     const int trials_per_thread = m_recipe.num_trials / num_threads;
     const int remainder_trials = m_recipe.num_trials % num_threads;
-
     std::vector<std::thread> threads;
     std::vector<std::vector<double>> thread_results(num_threads);
 
@@ -188,7 +177,6 @@ std::vector<double> SimulationEngine::run()
         {
             trials_for_this_thread += remainder_trials;
         }
-
         if (trials_for_this_thread > 0)
         {
             threads.emplace_back(&SimulationEngine::run_batch, this, trials_for_this_thread, std::ref(thread_results[i]));
@@ -202,12 +190,14 @@ std::vector<double> SimulationEngine::run()
 
     std::vector<double> final_results;
     final_results.reserve(m_recipe.num_trials);
+
     for (const auto &partial_results : thread_results)
     {
         final_results.insert(final_results.end(), partial_results.begin(), partial_results.end());
     }
 
     std::cout << "Simulation run complete. " << final_results.size() << " trials executed." << std::endl;
+
     return final_results;
 }
 
@@ -250,13 +240,13 @@ void SimulationEngine::create_distribution_from_input(const std::string &name, c
 void SimulationEngine::parse_recipe()
 {
     std::ifstream file_stream(m_recipe_path);
+
     if (!file_stream.is_open())
     {
         throw std::runtime_error("Failed to open recipe file: " + m_recipe_path);
     }
 
     json recipe_json = json::parse(file_stream);
-
     m_recipe.num_trials = recipe_json["simulation_config"]["num_trials"];
     m_recipe.output_variable = recipe_json["output_variable"];
 
@@ -276,7 +266,6 @@ void SimulationEngine::parse_recipe()
             {
                 var.dist_params[param_name] = param_value;
             }
-
             create_distribution_from_input(name, var);
         }
 
@@ -288,7 +277,6 @@ void SimulationEngine::parse_recipe()
         Operation op;
         std::string op_code_str = op_json["op_code"];
         op.op_code = string_to_opcode(op_code_str);
-
         op.result_name = op_json["result"];
         op.args = op_json["args"];
         m_recipe.operations.push_back(op);
