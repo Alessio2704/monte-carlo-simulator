@@ -1,0 +1,81 @@
+{
+  "simulation_config": {
+    "num_trials": 100000
+  },
+  "inputs": {
+    "market_cap_equity": { "type": "fixed", "value": 1500.0 },
+    "market_cap_debt": { "type": "fixed", "value": 500.0 },
+    "risk_free_rate": { "type": "fixed", "value": 0.045 },
+    "tax_rate": { "type": "fixed", "value": 0.25 },
+    "cost_of_debt_spread": { "type": "fixed", "value": 0.015 },
+
+    "equity_beta": {
+      "type": "distribution",
+      "dist_name": "Normal",
+      "params": { "mean": 1.1, "stddev": 0.15 }
+    },
+    "market_premium": {
+      "type": "distribution",
+      "dist_name": "PERT",
+      "params": { "min": 0.04, "mostLikely": 0.055, "max": 0.07 }
+    }
+  },
+  "operations": [
+    {
+      "op_code": "add",
+      "args": ["market_cap_equity", "market_cap_debt"],
+      "result": "total_capital"
+    },
+    {
+      "op_code": "divide",
+      "args": ["market_cap_equity", "total_capital"],
+      "result": "weight_equity"
+    },
+    {
+      "op_code": "divide",
+      "args": ["market_cap_debt", "total_capital"],
+      "result": "weight_debt"
+    },
+    {
+      "op_code": "add",
+      "args": [
+        "risk_free_rate",
+        {
+          "op_code": "multiply",
+          "args": ["equity_beta", "market_premium"]
+        }
+      ],
+      "result": "cost_of_equity"
+    },
+    {
+      "op_code": "multiply",
+      "args": [
+        {
+          "op_code": "add",
+          "args": ["risk_free_rate", "cost_of_debt_spread"]
+        },
+        {
+          "op_code": "subtract",
+          "args": [1.0, "tax_rate"]
+        }
+      ],
+      "result": "after_tax_cost_of_debt"
+    },
+    {
+      "op_code": "multiply",
+      "args": ["cost_of_equity", "weight_equity"],
+      "result": "wacc_equity_part"
+    },
+    {
+      "op_code": "multiply",
+      "args": ["after_tax_cost_of_debt", "weight_debt"],
+      "result": "wacc_debt_part"
+    },
+    {
+      "op_code": "add",
+      "args": ["wacc_equity_part", "wacc_debt_part"],
+      "result": "final_wacc"
+    }
+  ],
+  "output_variable": "final_wacc"
+}

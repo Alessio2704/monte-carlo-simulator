@@ -4,7 +4,7 @@
 #----------------------------------------------------------------
 # The primary rule: ignore the entire build directory.
 # This is where all compiled object files and the final executable live.
-/build/
+/build/_deps
 
 # In case CMake is run in the source directory by mistake, ignore its files.
 CMakeCache.txt

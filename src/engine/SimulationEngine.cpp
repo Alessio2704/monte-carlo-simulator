@@ -1,6 +1,7 @@
 #include "engine/SimulationEngine.h"
 #include "engine/datastructures.h"
 
+// Include all distribution class headers
 #include "distributions/NormalDistribution.h"
 #include "distributions/PertDistribution.h"
 #include "distributions/UniformDistribution.h"
@@ -9,6 +10,7 @@
 #include "distributions/BernoulliDistribution.h"
 #include "distributions/BetaDistribution.h"
 
+// Standard library headers
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <stdexcept>
@@ -21,61 +23,57 @@
 #include <variant>
 #include <numeric>
 
+// Use alias for convenience
 using json = nlohmann::json;
-using TrialContext = std::unordered_map<std::string, TrialValue>;
 
-// All helper functions (string_to_opcode, string_to_dist_type) are correct and remain the same.
+// --- Mappings and Helpers (as free functions, they don't depend on class state) ---
+
+static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
+    {"add", OpCode::ADD},
+    {"subtract", OpCode::SUBTRACT},
+    {"multiply", OpCode::MULTIPLY},
+    {"divide", OpCode::DIVIDE},
+    {"power", OpCode::POWER},
+    {"log", OpCode::LOG},
+    {"log10", OpCode::LOG10},
+    {"exp", OpCode::EXP},
+    {"sin", OpCode::SIN},
+    {"cos", OpCode::COS},
+    {"tan", OpCode::TAN},
+    {"grow_series", OpCode::GROW_SERIES},
+    {"npv", OpCode::NPV},
+    {"sum_series", OpCode::SUM_SERIES}};
+
+static const std::unordered_map<std::string, DistributionType> STRING_TO_DIST_TYPE_MAP = {
+    {"Normal", DistributionType::Normal},
+    {"PERT", DistributionType::Pert},
+    {"Uniform", DistributionType::Uniform},
+    {"Lognormal", DistributionType::Lognormal},
+    {"Triangular", DistributionType::Triangular},
+    {"Bernoulli", DistributionType::Bernoulli},
+    {"Beta", DistributionType::Beta}};
+
 OpCode string_to_opcode(const std::string &s)
 {
-    if (s == "multiply")
-        return OpCode::MULTIPLY;
-    if (s == "add")
-        return OpCode::ADD;
-    if (s == "subtract")
-        return OpCode::SUBTRACT;
-    if (s == "divide")
-        return OpCode::DIVIDE;
-    if (s == "power")
-        return OpCode::POWER;
-    if (s == "log")
-        return OpCode::LOG;
-    if (s == "log10")
-        return OpCode::LOG10;
-    if (s == "exp")
-        return OpCode::EXP;
-    if (s == "sin")
-        return OpCode::SIN;
-    if (s == "cos")
-        return OpCode::COS;
-    if (s == "tan")
-        return OpCode::TAN;
-    if (s == "grow_series")
-        return OpCode::GROW_SERIES;
-    if (s == "npv")
-        return OpCode::NPV;
-    if (s == "sum_series")
-        return OpCode::SUM_SERIES;
+    auto it = STRING_TO_OPCODE_MAP.find(s);
+    if (it != STRING_TO_OPCODE_MAP.end())
+    {
+        return it->second;
+    }
     throw std::runtime_error("Invalid op_code string in recipe: " + s);
 }
 
 DistributionType string_to_dist_type(const std::string &s)
 {
-    if (s == "Normal")
-        return DistributionType::Normal;
-    if (s == "PERT")
-        return DistributionType::Pert;
-    if (s == "Uniform")
-        return DistributionType::Uniform;
-    if (s == "Lognormal")
-        return DistributionType::Lognormal;
-    if (s == "Triangular")
-        return DistributionType::Triangular;
-    if (s == "Bernoulli")
-        return DistributionType::Bernoulli;
-    if (s == "Beta")
-        return DistributionType::Beta;
+    auto it = STRING_TO_DIST_TYPE_MAP.find(s);
+    if (it != STRING_TO_DIST_TYPE_MAP.end())
+    {
+        return it->second;
+    }
     throw std::runtime_error("Invalid dist_name string in recipe: " + s);
 }
+
+// --- SimulationEngine Member Function Implementations ---
 
 SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     : m_recipe_path(json_recipe_path)
@@ -84,7 +82,8 @@ SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     this->parse_recipe();
 }
 
-TrialValue SimulationEngine::resolve_value(const json &arg, const TrialContext &context)
+// CORRECTED: context is now non-const to allow recursive calls to evaluate_operation
+TrialValue SimulationEngine::resolve_value(const json &arg, TrialContext &context)
 {
     if (arg.is_object())
     {
@@ -117,7 +116,8 @@ TrialValue SimulationEngine::resolve_value(const json &arg, const TrialContext &
     throw std::runtime_error("Invalid argument type in recipe.");
 }
 
-TrialValue SimulationEngine::evaluate_operation(const Operation &op, const TrialContext &context)
+// CORRECTED: context is now non-const, matching the header
+TrialValue SimulationEngine::evaluate_operation(const Operation &op, TrialContext &context)
 {
     switch (op.op_code)
     {
@@ -142,7 +142,7 @@ TrialValue SimulationEngine::evaluate_operation(const Operation &op, const Trial
                         case OpCode::MULTIPLY: return a * b;
                         case OpCode::POWER: return std::pow(a, b);
                         case OpCode::DIVIDE: if (b == 0.0) throw std::runtime_error("Division by zero"); return a / b;
-                        default: throw std::logic_error("Unsupported binary op in visitor");
+                        default: throw std::logic_error("Internal error: Unsupported binary op in visitor.");
                     }
                 };
 
@@ -178,7 +178,6 @@ TrialValue SimulationEngine::evaluate_operation(const Operation &op, const Trial
     case OpCode::GROW_SERIES:
     {
         double base_val = std::get<double>(resolve_value(op.args[0], context));
-        // FIX: The growth rate is a SCALAR for this operation
         double growth_rate = std::get<double>(resolve_value(op.args[1], context));
         int num_years = static_cast<int>(std::get<double>(resolve_value(op.args[2], context)));
 
@@ -221,7 +220,6 @@ void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<double> 
         TrialContext trial_context;
         for (const auto &[name, input_var] : m_recipe.inputs)
         {
-            // This logic is simplified; a full implementation would handle fixed vectors from JSON
             trial_context[name] = (input_var.type == "fixed")
                                       ? TrialValue(input_var.fixed_value)
                                       : TrialValue(m_recipe.distributions.at(name)->getSample());
@@ -312,8 +310,8 @@ void SimulationEngine::parse_recipe()
     {
         InputVariable var;
         var.type = input_json["type"];
-        // This simplified parser assumes fixed inputs are always scalars for now.
-        // A full implementation would handle fixed vectors here as well.
+        // NOTE: This parser is still simplified and assumes fixed inputs are always scalars.
+        // A full implementation would need to handle fixed arrays here.
         if (var.type == "fixed")
         {
             var.fixed_value = input_json["value"];
