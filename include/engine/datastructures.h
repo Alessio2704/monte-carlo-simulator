@@ -33,8 +33,7 @@ enum class OpCode
     EXP,   // e^x
     SIN,
     COS,
-    TAN,
-    UNKNOWN
+    TAN
 };
 
 enum class DistributionType
@@ -45,13 +44,12 @@ enum class DistributionType
     Lognormal,
     Triangular,
     Bernoulli,
-    Beta,
-    Unknown
+    Beta
 };
 
 struct Operation
 {
-    OpCode op_code = OpCode::UNKNOWN;
+    OpCode op_code;
     std::vector<json> args;
     std::string result_name;
 };

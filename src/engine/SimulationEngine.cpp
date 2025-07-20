@@ -44,7 +44,8 @@ OpCode string_to_opcode(const std::string &s)
         return OpCode::COS;
     if (s == "tan")
         return OpCode::TAN;
-    return OpCode::UNKNOWN;
+
+    throw std::runtime_error("Invalid op_code string in recipe: " + s);
 }
 
 DistributionType string_to_dist_type(const std::string &s)
@@ -63,7 +64,8 @@ DistributionType string_to_dist_type(const std::string &s)
         return DistributionType::Bernoulli;
     if (s == "Beta")
         return DistributionType::Beta;
-    return DistributionType::Unknown;
+
+    throw std::runtime_error("Invalid dist_name string in recipe: " + s);
 }
 
 SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
@@ -138,7 +140,7 @@ double SimulationEngine::evaluate_operation(const Operation &op, const std::unor
     case OpCode::TAN:
         return std::tan(resolve_value(op.args[0], context));
     default:
-        throw std::runtime_error("Unsupported or unknown op_code during evaluation.");
+        throw std::logic_error("FATAL: Unhandled OpCode in evaluate_operation. This should not happen.");
     }
 }
 
@@ -242,9 +244,6 @@ void SimulationEngine::create_distribution_from_input(const std::string &name, c
         m_recipe.distributions[name] = std::make_unique<BetaDistribution>(
             var.dist_params.at("alpha"), var.dist_params.at("beta"));
         break;
-    case DistributionType::Unknown:
-    default:
-        throw std::runtime_error("Unknown distribution type in recipe: " + var.dist_name);
     }
 }
 

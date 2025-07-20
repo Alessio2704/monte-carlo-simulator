@@ -9,6 +9,7 @@ project(MonteCarloSimulator)
 # Set the C++ standard to C++17.
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-Werror=switch")
 
 # --- Add this block to automatically fetch the nlohmann/json library ---
 include(FetchContent)
