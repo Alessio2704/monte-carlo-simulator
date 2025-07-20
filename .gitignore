@@ -1,0 +1,52 @@
+# .gitignore for C++ CMake projects
+
+# 1. Build System & Compiled Artifacts
+#----------------------------------------------------------------
+# The primary rule: ignore the entire build directory.
+# This is where all compiled object files and the final executable live.
+/build/
+
+# In case CMake is run in the source directory by mistake, ignore its files.
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+
+# Ignore compiled object files and libraries no matter where they are.
+*.o
+*.a
+*.so
+*.dylib
+
+# Ignore the final executable by name.
+# This is good practice for clarity.
+monte-carlo-simulator
+# If you build for Windows, ignore .exe files.
+*.exe
+
+
+# 2. Operating System Specific Files
+#----------------------------------------------------------------
+# Ignore macOS system files.
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Ignore thumbnail cache files from Windows.
+Thumbs.db
+ehthumbs.db
+
+
+# 3. IDE & Editor Configuration
+#----------------------------------------------------------------
+# Visual Studio Code
+.vscode/
+
+# CLion
+.idea/
+cmake-build-*/
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
