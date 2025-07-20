@@ -4,19 +4,18 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <variant>
 #include <nlohmann/json.hpp>
 #include "distributions/IDistribution.h"
 
 using json = nlohmann::json;
-
+using TrialValue = std::variant<double, std::vector<double>>;
 using DistributionParams = std::unordered_map<std::string, double>;
 
 struct InputVariable
 {
-    std::string type; // "fixed" or "distribution"
-
+    std::string type;
     double fixed_value = 0.0;
-
     std::string dist_name;
     DistributionParams dist_params;
 };
@@ -27,13 +26,16 @@ enum class OpCode
     MULTIPLY,
     SUBTRACT,
     DIVIDE,
-    POWER, // e.g., pow(base, exponent)
-    LOG,   // Natural logarithm
-    LOG10, // Base-10 logarithm
-    EXP,   // e^x
+    POWER,
+    LOG,
+    LOG10,
+    EXP,
     SIN,
     COS,
-    TAN
+    TAN,
+    GROW_SERIES,
+    NPV,
+    SUM_SERIES
 };
 
 enum class DistributionType

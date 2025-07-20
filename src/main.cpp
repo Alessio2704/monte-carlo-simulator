@@ -49,7 +49,7 @@ int main()
     try
     {
         // Create the engine, passing the path to our recipe.
-        SimulationEngine engine("mvp_recipe.json");
+        SimulationEngine engine("recipe.json");
 
         // Run the simulation and store the results.
         std::vector<double> results = engine.run();
