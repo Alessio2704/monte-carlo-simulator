@@ -38,7 +38,8 @@ enum class OpCode
     SUM_SERIES,
     GET_ELEMENT,
     SERIES_DELTA,
-    COMPOUND_SERIES // Takes base_value (scalar) and vector_of_growth_rates (vector)
+    COMPOUND_SERIES, // Takes base_value (scalar) and vector_of_growth_rates (vector)
+    COMPOSE_VECTOR
 };
 
 enum class DistributionType

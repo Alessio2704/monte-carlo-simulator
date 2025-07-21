@@ -40,7 +40,8 @@ static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
     {"sum_series", OpCode::SUM_SERIES},
     {"get_element", OpCode::GET_ELEMENT},
     {"series_delta", OpCode::SERIES_DELTA},
-    {"compound_series", OpCode::COMPOUND_SERIES}};
+    {"compound_series", OpCode::COMPOUND_SERIES},
+    {"compose_vector", OpCode::COMPOSE_VECTOR}};
 
 static const std::unordered_map<std::string, DistributionType>
     STRING_TO_DIST_TYPE_MAP = {{"Normal", DistributionType::Normal}, {"PERT", DistributionType::Pert}, {"Uniform", DistributionType::Uniform}, {"Lognormal", DistributionType::Lognormal}, {"Triangular", DistributionType::Triangular}, {"Bernoulli", DistributionType::Bernoulli}, {"Beta", DistributionType::Beta}};
@@ -254,6 +255,17 @@ TrialValue SimulationEngine::evaluate_operation(const Operation &op, TrialContex
         }
 
         return delta_series;
+    }
+    case OpCode::COMPOSE_VECTOR:
+    {
+        std::vector<double> composed_vector;
+        composed_vector.reserve(op.args.size());
+
+        for (const auto &arg_json : op.args)
+        {
+            composed_vector.push_back(std::get<double>(resolve_value(arg_json, context)));
+        }
+        return composed_vector;
     }
         throw std::logic_error("FATAL: Unhandled OpCode in evaluate_operation. This is a programmer error.");
     }
