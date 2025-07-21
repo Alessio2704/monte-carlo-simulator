@@ -1,7 +1,6 @@
 #include "engine/SimulationEngine.h"
 #include "engine/datastructures.h"
 
-// Include all distribution class headers
 #include "distributions/NormalDistribution.h"
 #include "distributions/PertDistribution.h"
 #include "distributions/UniformDistribution.h"
@@ -10,7 +9,6 @@
 #include "distributions/BernoulliDistribution.h"
 #include "distributions/BetaDistribution.h"
 
-// Standard library headers
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <stdexcept>
@@ -23,10 +21,7 @@
 #include <variant>
 #include <numeric>
 
-// Use alias for convenience
 using json = nlohmann::json;
-
-// --- Mappings and Helpers (as free functions, they don't depend on class state) ---
 
 static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
     {"add", OpCode::ADD},
@@ -42,16 +37,12 @@ static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
     {"tan", OpCode::TAN},
     {"grow_series", OpCode::GROW_SERIES},
     {"npv", OpCode::NPV},
-    {"sum_series", OpCode::SUM_SERIES}};
+    {"sum_series", OpCode::SUM_SERIES},
+    {"get_element", OpCode::GET_ELEMENT},
+    {"series_delta", OpCode::SERIES_DELTA}};
 
-static const std::unordered_map<std::string, DistributionType> STRING_TO_DIST_TYPE_MAP = {
-    {"Normal", DistributionType::Normal},
-    {"PERT", DistributionType::Pert},
-    {"Uniform", DistributionType::Uniform},
-    {"Lognormal", DistributionType::Lognormal},
-    {"Triangular", DistributionType::Triangular},
-    {"Bernoulli", DistributionType::Bernoulli},
-    {"Beta", DistributionType::Beta}};
+static const std::unordered_map<std::string, DistributionType>
+    STRING_TO_DIST_TYPE_MAP = {{"Normal", DistributionType::Normal}, {"PERT", DistributionType::Pert}, {"Uniform", DistributionType::Uniform}, {"Lognormal", DistributionType::Lognormal}, {"Triangular", DistributionType::Triangular}, {"Bernoulli", DistributionType::Bernoulli}, {"Beta", DistributionType::Beta}};
 
 OpCode string_to_opcode(const std::string &s)
 {
@@ -73,8 +64,6 @@ DistributionType string_to_dist_type(const std::string &s)
     throw std::runtime_error("Invalid dist_name string in recipe: " + s);
 }
 
-// --- SimulationEngine Member Function Implementations ---
-
 SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     : m_recipe_path(json_recipe_path)
 {
@@ -82,7 +71,6 @@ SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     this->parse_recipe();
 }
 
-// CORRECTED: context is now non-const to allow recursive calls to evaluate_operation
 TrialValue SimulationEngine::resolve_value(const json &arg, TrialContext &context)
 {
     if (arg.is_object())
@@ -116,7 +104,6 @@ TrialValue SimulationEngine::resolve_value(const json &arg, TrialContext &contex
     throw std::runtime_error("Invalid argument type in recipe.");
 }
 
-// CORRECTED: context is now non-const, matching the header
 TrialValue SimulationEngine::evaluate_operation(const Operation &op, TrialContext &context)
 {
     switch (op.op_code)
@@ -207,7 +194,49 @@ TrialValue SimulationEngine::evaluate_operation(const Operation &op, TrialContex
         }
         return npv;
     }
-    default:
+    case OpCode::GET_ELEMENT:
+    {
+        const auto series = std::get<std::vector<double>>(resolve_value(op.args[0], context));
+        int index = static_cast<int>(std::get<double>(resolve_value(op.args[1], context)));
+
+        if (series.empty())
+        {
+            throw std::runtime_error("Cannot get element from an empty series.");
+        }
+
+        if (index < 0)
+        {
+            index = series.size() + index;
+        }
+
+        if (index < 0 || static_cast<size_t>(index) >= series.size())
+        {
+            throw std::runtime_error("Index out of bounds for get_element.");
+        }
+
+        return series[static_cast<size_t>(index)];
+    }
+
+    case OpCode::SERIES_DELTA:
+    {
+        const auto series = std::get<std::vector<double>>(resolve_value(op.args[0], context));
+
+        if (series.empty())
+        {
+            return std::vector<double>{};
+        }
+
+        std::vector<double> delta_series;
+        delta_series.reserve(series.size());
+        delta_series.push_back(0.0);
+
+        for (size_t i = 1; i < series.size(); ++i)
+        {
+            delta_series.push_back(series[i] - series[i - 1]);
+        }
+
+        return delta_series;
+    }
         throw std::logic_error("FATAL: Unhandled OpCode in evaluate_operation. This is a programmer error.");
     }
 }
@@ -310,8 +339,6 @@ void SimulationEngine::parse_recipe()
     {
         InputVariable var;
         var.type = input_json["type"];
-        // NOTE: This parser is still simplified and assumes fixed inputs are always scalars.
-        // A full implementation would need to handle fixed arrays here.
         if (var.type == "fixed")
         {
             var.fixed_value = input_json["value"];

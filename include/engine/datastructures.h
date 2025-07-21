@@ -35,7 +35,9 @@ enum class OpCode
     TAN,
     GROW_SERIES,
     NPV,
-    SUM_SERIES
+    SUM_SERIES,
+    GET_ELEMENT,
+    SERIES_DELTA
 };
 
 enum class DistributionType
