@@ -15,7 +15,7 @@ using DistributionParams = std::unordered_map<std::string, double>;
 struct InputVariable
 {
     std::string type;
-    double fixed_value = 0.0;
+    TrialValue value;
     std::string dist_name;
     DistributionParams dist_params;
 };
@@ -37,7 +37,8 @@ enum class OpCode
     NPV,
     SUM_SERIES,
     GET_ELEMENT,
-    SERIES_DELTA
+    SERIES_DELTA,
+    COMPOUND_SERIES // Takes base_value (scalar) and vector_of_growth_rates (vector)
 };
 
 enum class DistributionType

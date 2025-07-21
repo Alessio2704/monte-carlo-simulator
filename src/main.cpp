@@ -40,7 +40,7 @@ int main()
 {
     try
     {
-        SimulationEngine engine("recipe.json");
+        SimulationEngine engine("fixed_series_test.json");
 
         std::vector<double> results = engine.run();
 

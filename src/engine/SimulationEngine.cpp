@@ -39,7 +39,8 @@ static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
     {"npv", OpCode::NPV},
     {"sum_series", OpCode::SUM_SERIES},
     {"get_element", OpCode::GET_ELEMENT},
-    {"series_delta", OpCode::SERIES_DELTA}};
+    {"series_delta", OpCode::SERIES_DELTA},
+    {"compound_series", OpCode::COMPOUND_SERIES}};
 
 static const std::unordered_map<std::string, DistributionType>
     STRING_TO_DIST_TYPE_MAP = {{"Normal", DistributionType::Normal}, {"PERT", DistributionType::Pert}, {"Uniform", DistributionType::Uniform}, {"Lognormal", DistributionType::Lognormal}, {"Triangular", DistributionType::Triangular}, {"Bernoulli", DistributionType::Bernoulli}, {"Beta", DistributionType::Beta}};
@@ -178,6 +179,23 @@ TrialValue SimulationEngine::evaluate_operation(const Operation &op, TrialContex
         }
         return series;
     }
+
+    case OpCode::COMPOUND_SERIES:
+    {
+        double base_val = std::get<double>(resolve_value(op.args[0], context));
+        const auto growth_rates_variant = resolve_value(op.args[1], context);
+        const auto &growth_rates = std::get<std::vector<double>>(growth_rates_variant);
+
+        std::vector<double> series;
+        series.reserve(growth_rates.size());
+        double current_val = base_val;
+        for (const auto &rate : growth_rates)
+        {
+            current_val *= (1.0 + rate);
+            series.push_back(current_val);
+        }
+        return series;
+    }
     case OpCode::SUM_SERIES:
     {
         const auto series_vec = std::get<std::vector<double>>(resolve_value(op.args[0], context));
@@ -249,9 +267,14 @@ void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<double> 
         TrialContext trial_context;
         for (const auto &[name, input_var] : m_recipe.inputs)
         {
-            trial_context[name] = (input_var.type == "fixed")
-                                      ? TrialValue(input_var.fixed_value)
-                                      : TrialValue(m_recipe.distributions.at(name)->getSample());
+            if (input_var.type == "fixed")
+            {
+                trial_context[name] = input_var.value;
+            }
+            else
+            {
+                trial_context[name] = TrialValue(m_recipe.distributions.at(name)->getSample());
+            }
         }
         for (const auto &op : m_recipe.operations)
         {
@@ -328,20 +351,35 @@ void SimulationEngine::create_distribution_from_input(const std::string &name, c
 void SimulationEngine::parse_recipe()
 {
     std::ifstream file_stream(m_recipe_path);
+
     if (!file_stream.is_open())
     {
         throw std::runtime_error("Failed to open recipe file: " + m_recipe_path);
     }
+
     json recipe_json = json::parse(file_stream);
     m_recipe.num_trials = recipe_json["simulation_config"]["num_trials"];
     m_recipe.output_variable = recipe_json["output_variable"];
+
     for (const auto &[name, input_json] : recipe_json["inputs"].items())
     {
         InputVariable var;
         var.type = input_json["type"];
+
         if (var.type == "fixed")
         {
-            var.fixed_value = input_json["value"];
+            if (input_json["value"].is_array())
+            {
+                var.value = input_json["value"].get<std::vector<double>>();
+            }
+            else if (input_json["value"].is_number())
+            {
+                var.value = input_json["value"].get<double>();
+            }
+            else
+            {
+                throw std::runtime_error("Fixed input '" + name + "' has an invalid 'value' type. Must be number or array.");
+            }
         }
         else if (var.type == "distribution")
         {
@@ -352,8 +390,13 @@ void SimulationEngine::parse_recipe()
             }
             create_distribution_from_input(name, var);
         }
+        else
+        {
+            throw std::runtime_error("Input '" + name + "' has an unknown type: " + var.type);
+        }
         m_recipe.inputs[name] = var;
     }
+
     for (const auto &op_json : recipe_json["operations"])
     {
         Operation op;
