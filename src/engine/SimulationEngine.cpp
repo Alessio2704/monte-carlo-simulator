@@ -69,31 +69,70 @@ DistributionType string_to_dist_type(const std::string &s)
     throw std::runtime_error("Invalid dist_name string in recipe: " + s);
 }
 
+void SimulationEngine::build_operation_factory()
+{
+    // We create a temporary local map.
+    std::unordered_map<OpCode, std::unique_ptr<IOperation>> ops;
+
+    ops[OpCode::ADD] = std::make_unique<AddOperation>();
+    ops[OpCode::SUBTRACT] = std::make_unique<SubtractOperation>();
+    ops[OpCode::MULTIPLY] = std::make_unique<MultiplyOperation>();
+    ops[OpCode::DIVIDE] = std::make_unique<DivideOperation>();
+    ops[OpCode::POWER] = std::make_unique<PowerOperation>();
+    ops[OpCode::LOG] = std::make_unique<LogOperation>();
+    ops[OpCode::LOG10] = std::make_unique<Log10Operation>();
+    ops[OpCode::EXP] = std::make_unique<ExpOperation>();
+    ops[OpCode::SIN] = std::make_unique<SinOperation>();
+    ops[OpCode::COS] = std::make_unique<CosOperation>();
+    ops[OpCode::TAN] = std::make_unique<TanOperation>();
+    ops[OpCode::GROW_SERIES] = std::make_unique<GrowSeriesOperation>();
+    ops[OpCode::COMPOUND_SERIES] = std::make_unique<CompoundSeriesOperation>();
+    ops[OpCode::NPV] = std::make_unique<NpvOperation>();
+    ops[OpCode::SUM_SERIES] = std::make_unique<SumSeriesOperation>();
+    ops[OpCode::GET_ELEMENT] = std::make_unique<GetElementOperation>();
+    ops[OpCode::SERIES_DELTA] = std::make_unique<SeriesDeltaOperation>();
+    ops[OpCode::COMPOSE_VECTOR] = std::make_unique<ComposeVectorOperation>();
+    ops[OpCode::INTERPOLATE_SERIES] = std::make_unique<InterpolateSeriesOperation>();
+
+    // This is the compile-time check.
+    // We iterate through all possible OpCode values.
+    for (int i = 0; i < static_cast<int>(OpCode::INTERPOLATE_SERIES) + 1; ++i)
+    {
+        OpCode code = static_cast<OpCode>(i);
+        switch (code)
+        {
+        // We list every single case, but the body is empty.
+        // The purpose of this switch is PURELY to get the compiler warning.
+        case OpCode::ADD:
+        case OpCode::SUBTRACT:
+        case OpCode::MULTIPLY:
+        case OpCode::DIVIDE:
+        case OpCode::POWER:
+        case OpCode::LOG:
+        case OpCode::LOG10:
+        case OpCode::EXP:
+        case OpCode::SIN:
+        case OpCode::COS:
+        case OpCode::TAN:
+        case OpCode::GROW_SERIES:
+        case OpCode::COMPOUND_SERIES:
+        case OpCode::NPV:
+        case OpCode::SUM_SERIES:
+        case OpCode::GET_ELEMENT:
+        case OpCode::SERIES_DELTA:
+        case OpCode::COMPOSE_VECTOR:
+        case OpCode::INTERPOLATE_SERIES:
+            break; // Do nothing, we just need the case to exist.
+        }
+    }
+    // Now we move the populated map to our member variable.
+    m_operations = std::move(ops);
+}
+
 SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     : m_recipe_path(json_recipe_path)
 {
-
-    // --- Build the Operation Factory ---
-    // For each OpCode, create an instance of its corresponding strategy class.
-    m_operations[OpCode::ADD] = std::make_unique<AddOperation>();
-    m_operations[OpCode::SUBTRACT] = std::make_unique<SubtractOperation>();
-    m_operations[OpCode::MULTIPLY] = std::make_unique<MultiplyOperation>();
-    m_operations[OpCode::DIVIDE] = std::make_unique<DivideOperation>();
-    m_operations[OpCode::POWER] = std::make_unique<PowerOperation>();
-    m_operations[OpCode::LOG] = std::make_unique<LogOperation>();
-    m_operations[OpCode::LOG10] = std::make_unique<Log10Operation>();
-    m_operations[OpCode::EXP] = std::make_unique<ExpOperation>();
-    m_operations[OpCode::SIN] = std::make_unique<SinOperation>();
-    m_operations[OpCode::COS] = std::make_unique<CosOperation>();
-    m_operations[OpCode::TAN] = std::make_unique<TanOperation>();
-    m_operations[OpCode::GROW_SERIES] = std::make_unique<GrowSeriesOperation>();
-    m_operations[OpCode::COMPOUND_SERIES] = std::make_unique<CompoundSeriesOperation>();
-    m_operations[OpCode::NPV] = std::make_unique<NpvOperation>();
-    m_operations[OpCode::SUM_SERIES] = std::make_unique<SumSeriesOperation>();
-    m_operations[OpCode::GET_ELEMENT] = std::make_unique<GetElementOperation>();
-    m_operations[OpCode::SERIES_DELTA] = std::make_unique<SeriesDeltaOperation>();
-    m_operations[OpCode::COMPOSE_VECTOR] = std::make_unique<ComposeVectorOperation>();
-    m_operations[OpCode::INTERPOLATE_SERIES] = std::make_unique<InterpolateSeriesOperation>();
+    build_operation_factory();
 
     std::cout << "Engine created and operation factory built. Parsing recipe from: " << m_recipe_path << std::endl;
     this->parse_recipe();
