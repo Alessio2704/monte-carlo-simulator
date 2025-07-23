@@ -213,8 +213,8 @@ TrialValue SimulationEngine::resolve_value(const json &arg, TrialContext &contex
     {
         return TrialValue(arg.get<std::vector<double>>());
     }
-    // Nested objects will be handled by the caller of resolve_value now.
-    throw std::runtime_error("Invalid argument type in recipe. Must be string, number, or array.");
+    // This function no longer handles objects. If it receives one, it's an error in the calling logic.
+    throw std::runtime_error("Invalid argument type passed to resolve_value. Expected string, number, or array.");
 }
 
 void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialValue> &thread_results, std::exception_ptr &out_exception)
@@ -231,49 +231,56 @@ void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialVal
                                           ? input_var.value
                                           : TrialValue(m_recipe.distributions.at(name)->getSample());
             }
+
+            // The recursive lambda for resolving arguments, including nested expressions.
+            std::function<TrialValue(const json &)> resolve_recursive;
+            resolve_recursive =
+                [&](const json &arg_json) -> TrialValue
+            {
+                if (arg_json.is_object())
+                {
+                    Operation nested_op;
+                    nested_op.op_code = string_to_opcode(arg_json["op_code"]);
+                    nested_op.args = arg_json["args"];
+
+                    auto it = m_operations.find(nested_op.op_code);
+                    if (it == m_operations.end())
+                        throw std::logic_error("FATAL: Unhandled nested OpCode.");
+
+                    std::vector<TrialValue> nested_resolved_args;
+                    for (const auto &nested_arg_json : nested_op.args)
+                    {
+                        nested_resolved_args.push_back(resolve_recursive(nested_arg_json));
+                    }
+                    return it->second->execute(nested_resolved_args);
+                }
+                else
+                {
+                    return resolve_value(arg_json, trial_context);
+                }
+            };
+
             for (const auto &op : m_recipe.operations)
             {
-                // 1. Resolve all arguments for this operation
                 std::vector<TrialValue> resolved_args;
                 resolved_args.reserve(op.args.size());
                 for (const auto &arg_json : op.args)
                 {
-                    // Handle nested expressions here
-                    if (arg_json.is_object())
-                    {
-                        Operation nested_op;
-                        nested_op.op_code = string_to_opcode(arg_json["op_code"]);
-                        nested_op.args = arg_json["args"];
-
-                        // Find the strategy for the nested op
-                        auto it = m_operations.find(nested_op.op_code);
-                        if (it == m_operations.end())
-                            throw std::logic_error("FATAL: Unhandled nested OpCode.");
-
-                        // Recursively resolve the nested arguments
-                        std::vector<TrialValue> nested_resolved_args;
-                        for (const auto &nested_arg_json : nested_op.args)
-                        {
-                            nested_resolved_args.push_back(resolve_value(nested_arg_json, trial_context));
-                        }
-                        resolved_args.push_back(it->second->execute(nested_resolved_args));
-                    }
-                    else
-                    {
-                        resolved_args.push_back(resolve_value(arg_json, trial_context));
-                    }
+                    resolved_args.push_back(resolve_recursive(arg_json));
                 }
 
-                // 2. Find the strategy for the main operation
                 auto it = m_operations.find(op.op_code);
                 if (it == m_operations.end())
                 {
                     throw std::logic_error("FATAL: Unhandled OpCode. This is a programmer error.");
                 }
 
-                // 3. Delegate execution and store the result
                 trial_context[op.result_name] = it->second->execute(resolved_args);
             }
+
+            // --- THE FIX ---
+            // We no longer assert the type here. We push the entire TrialValue (scalar OR vector)
+            // into the results. The 'print_statistics' function will handle the type check.
             thread_results.push_back(trial_context.at(m_recipe.output_variable));
         }
     }
@@ -292,6 +299,7 @@ std::vector<TrialValue> SimulationEngine::run()
     const int remainder_trials = m_recipe.num_trials % num_threads;
 
     std::vector<std::thread> threads;
+    // The per-thread results vector is now a vector of TrialValue
     std::vector<std::vector<TrialValue>> thread_results(num_threads);
     std::vector<std::exception_ptr> thread_exceptions(num_threads, nullptr);
 
@@ -322,6 +330,7 @@ std::vector<TrialValue> SimulationEngine::run()
         }
     }
 
+    // The final results vector is now a vector of TrialValue
     std::vector<TrialValue> final_results;
     final_results.reserve(m_recipe.num_trials);
     for (const auto &partial_results : thread_results)
