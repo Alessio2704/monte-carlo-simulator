@@ -102,8 +102,8 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"base":{"type":"fixed","value":100},"rates":{"type":"fixed","value":[0.1,0.2]}},"operations":[{"op_code":"compound_series","args":["base","rates"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{110.0, 132.0}), true),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"series":{"type":"fixed","value":[10,20,70]}},"operations":[{"op_code":"sum_series","args":["series"],"result":"C"}],"output_variable":"C"})", TrialValue(100.0), false),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"rate":{"type":"fixed","value":0.1},"cfs":{"type":"fixed","value":[100,110]}},"operations":[{"op_code":"npv","args":["rate","cfs"],"result":"C"}],"output_variable":"C"})", TrialValue(100.0 / 1.1 + 110.0 / (1.1 * 1.1)), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"r1":{"type":"fixed","value":10},"r2":{"type":"fixed","value":20},"r3":{"type":"fixed","value":30}},"operations":[{"op_code":"compose_vector","args":["r1","r2","r3"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{10.0, 20.0, 30.0}), true)));
-// --- Non-Parameterized Tests for Errors and Complex Cases ---
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"r1":{"type":"fixed","value":10},"r2":{"type":"fixed","value":20},"r3":{"type":"fixed","value":30}},"operations":[{"op_code":"compose_vector","args":["r1","r2","r3"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{10.0, 20.0, 30.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"start":{"type":"fixed","value":10},"end":{"type":"fixed","value":50},"years":{"type":"fixed","value":5}},"operations":[{"op_code":"interpolate_series","args":["start","end","years"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{10.0, 20.0, 30.0, 40.0, 50.0}), true)));
 
 TEST(EngineErrorTests, ThrowsOnInvalidFilePath)
 {
