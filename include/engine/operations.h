@@ -301,3 +301,42 @@ public:
         return composed_vector;
     }
 };
+
+
+class InterpolateSeriesOperation : public IOperation
+{
+public:
+    TrialValue execute(const std::vector<TrialValue> &args) const override
+    {
+        // We expect 3 scalar arguments: start, end, num_years
+        if (args.size() != 3)
+        {
+            throw std::runtime_error("InterpolateSeriesOperation requires 3 arguments.");
+        }
+
+        double start_value = std::get<double>(args[0]);
+        double end_value = std::get<double>(args[1]);
+        int num_years = static_cast<int>(std::get<double>(args[2]));
+
+        if (num_years < 2)
+        {
+            // Interpolation is only meaningful for 2 or more points.
+            // For 1 year, the value is simply the end_value.
+            return std::vector<double>{end_value};
+        }
+
+        std::vector<double> series;
+        series.reserve(num_years);
+
+        double total_diff = end_value - start_value;
+        // The number of steps is num_years - 1. For a 10-year forecast, there are 9 steps.
+        double step = total_diff / (num_years - 1);
+
+        for (int i = 0; i < num_years; ++i)
+        {
+            series.push_back(start_value + i * step);
+        }
+
+        return series;
+    }
+};

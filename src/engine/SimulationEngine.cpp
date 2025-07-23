@@ -43,7 +43,8 @@ static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
     {"get_element", OpCode::GET_ELEMENT},
     {"series_delta", OpCode::SERIES_DELTA},
     {"compound_series", OpCode::COMPOUND_SERIES},
-    {"compose_vector", OpCode::COMPOSE_VECTOR}};
+    {"compose_vector", OpCode::COMPOSE_VECTOR},
+    {"interpolate_series", OpCode::INTERPOLATE_SERIES}};
 
 static const std::unordered_map<std::string, DistributionType>
     STRING_TO_DIST_TYPE_MAP = {{"Normal", DistributionType::Normal}, {"PERT", DistributionType::Pert}, {"Uniform", DistributionType::Uniform}, {"Lognormal", DistributionType::Lognormal}, {"Triangular", DistributionType::Triangular}, {"Bernoulli", DistributionType::Bernoulli}, {"Beta", DistributionType::Beta}};
@@ -92,6 +93,7 @@ SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     m_operations[OpCode::GET_ELEMENT] = std::make_unique<GetElementOperation>();
     m_operations[OpCode::SERIES_DELTA] = std::make_unique<SeriesDeltaOperation>();
     m_operations[OpCode::COMPOSE_VECTOR] = std::make_unique<ComposeVectorOperation>();
+    m_operations[OpCode::INTERPOLATE_SERIES] = std::make_unique<InterpolateSeriesOperation>();
 
     std::cout << "Engine created and operation factory built. Parsing recipe from: " << m_recipe_path << std::endl;
     this->parse_recipe();
