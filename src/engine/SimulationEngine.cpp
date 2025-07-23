@@ -364,7 +364,7 @@ TrialValue SimulationEngine::evaluate_operation(const Operation &op, TrialContex
     }
 }
 
-void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<double> &thread_results)
+void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialValue> &thread_results)
 {
     thread_results.reserve(num_trials_for_thread);
     for (int i = 0; i < num_trials_for_thread; ++i)
@@ -385,11 +385,11 @@ void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<double> 
         {
             trial_context[op.result_name] = evaluate_operation(op, trial_context);
         }
-        thread_results.push_back(std::get<double>(trial_context.at(m_recipe.output_variable)));
+        thread_results.push_back(trial_context.at(m_recipe.output_variable));
     }
 }
 
-std::vector<double> SimulationEngine::run()
+std::vector<TrialValue> SimulationEngine::run()
 {
     std::cout << "Starting simulation..." << std::endl;
     const unsigned int num_threads = std::max(1u, std::thread::hardware_concurrency());
@@ -397,7 +397,7 @@ std::vector<double> SimulationEngine::run()
     const int trials_per_thread = m_recipe.num_trials / num_threads;
     const int remainder_trials = m_recipe.num_trials % num_threads;
     std::vector<std::thread> threads;
-    std::vector<std::vector<double>> thread_results(num_threads);
+    std::vector<std::vector<TrialValue>> thread_results(num_threads);
     for (unsigned int i = 0; i < num_threads; ++i)
     {
         int trials_for_this_thread = trials_per_thread;
@@ -414,7 +414,8 @@ std::vector<double> SimulationEngine::run()
     {
         t.join();
     }
-    std::vector<double> final_results;
+
+    std::vector<TrialValue> final_results;
     final_results.reserve(m_recipe.num_trials);
     for (const auto &partial_results : thread_results)
     {
