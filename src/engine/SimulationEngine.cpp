@@ -9,6 +9,8 @@
 #include "distributions/BernoulliDistribution.h"
 #include "distributions/BetaDistribution.h"
 
+#include "engine/operations.h"
+
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <stdexcept>
@@ -69,7 +71,29 @@ DistributionType string_to_dist_type(const std::string &s)
 SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     : m_recipe_path(json_recipe_path)
 {
-    std::cout << "Engine created. Parsing recipe from: " << m_recipe_path << std::endl;
+
+    // --- Build the Operation Factory ---
+    // For each OpCode, create an instance of its corresponding strategy class.
+    m_operations[OpCode::ADD] = std::make_unique<AddOperation>();
+    m_operations[OpCode::SUBTRACT] = std::make_unique<SubtractOperation>();
+    m_operations[OpCode::MULTIPLY] = std::make_unique<MultiplyOperation>();
+    m_operations[OpCode::DIVIDE] = std::make_unique<DivideOperation>();
+    m_operations[OpCode::POWER] = std::make_unique<PowerOperation>();
+    m_operations[OpCode::LOG] = std::make_unique<LogOperation>();
+    m_operations[OpCode::LOG10] = std::make_unique<Log10Operation>();
+    m_operations[OpCode::EXP] = std::make_unique<ExpOperation>();
+    m_operations[OpCode::SIN] = std::make_unique<SinOperation>();
+    m_operations[OpCode::COS] = std::make_unique<CosOperation>();
+    m_operations[OpCode::TAN] = std::make_unique<TanOperation>();
+    m_operations[OpCode::GROW_SERIES] = std::make_unique<GrowSeriesOperation>();
+    m_operations[OpCode::COMPOUND_SERIES] = std::make_unique<CompoundSeriesOperation>();
+    m_operations[OpCode::NPV] = std::make_unique<NpvOperation>();
+    m_operations[OpCode::SUM_SERIES] = std::make_unique<SumSeriesOperation>();
+    m_operations[OpCode::GET_ELEMENT] = std::make_unique<GetElementOperation>();
+    m_operations[OpCode::SERIES_DELTA] = std::make_unique<SeriesDeltaOperation>();
+    m_operations[OpCode::COMPOSE_VECTOR] = std::make_unique<ComposeVectorOperation>();
+
+    std::cout << "Engine created and operation factory built. Parsing recipe from: " << m_recipe_path << std::endl;
     this->parse_recipe();
 }
 
@@ -164,14 +188,7 @@ void SimulationEngine::parse_recipe()
 
 TrialValue SimulationEngine::resolve_value(const json &arg, TrialContext &context)
 {
-    if (arg.is_object())
-    {
-        Operation nested_op;
-        nested_op.op_code = string_to_opcode(arg["op_code"]);
-        nested_op.args = arg["args"];
-        return evaluate_operation(nested_op, context);
-    }
-    else if (arg.is_string())
+    if (arg.is_string())
     {
         std::string arg_str = arg.get<std::string>();
         auto it = context.find(arg_str);
@@ -196,172 +213,8 @@ TrialValue SimulationEngine::resolve_value(const json &arg, TrialContext &contex
     {
         return TrialValue(arg.get<std::vector<double>>());
     }
-    throw std::runtime_error("Invalid argument type in recipe.");
-}
-
-TrialValue SimulationEngine::evaluate_operation(const Operation &op, TrialContext &context)
-{
-    switch (op.op_code)
-    {
-    case OpCode::ADD:
-    case OpCode::SUBTRACT:
-    case OpCode::MULTIPLY:
-    case OpCode::DIVIDE:
-    case OpCode::POWER:
-    {
-        TrialValue arg1 = resolve_value(op.args[0], context);
-        TrialValue arg2 = resolve_value(op.args[1], context);
-
-        return std::visit([&](auto &&val1, auto &&val2) -> TrialValue
-                          {
-                using T1 = std::decay_t<decltype(val1)>;
-                using T2 = std::decay_t<decltype(val2)>;
-
-                auto perform_op = [&](double a, double b) -> double {
-                    switch(op.op_code) {
-                        case OpCode::ADD: return a + b;
-                        case OpCode::SUBTRACT: return a - b;
-                        case OpCode::MULTIPLY: return a * b;
-                        case OpCode::POWER: return std::pow(a, b);
-                        case OpCode::DIVIDE: if (b == 0.0) throw std::runtime_error("Division by zero"); return a / b;
-                        default: throw std::logic_error("Internal error: Unsupported binary op in visitor.");
-                    }
-                };
-
-                if constexpr (std::is_same_v<T1, double> && std::is_same_v<T2, double>) {
-                    return TrialValue(perform_op(val1, val2));
-                } else if constexpr (std::is_same_v<T1, std::vector<double>> && std::is_same_v<T2, double>) {
-                    std::vector<double> result; result.reserve(val1.size());
-                    for (double x : val1) { result.push_back(perform_op(x, val2)); }
-                    return TrialValue(result);
-                } else if constexpr (std::is_same_v<T1, double> && std::is_same_v<T2, std::vector<double>>) {
-                    std::vector<double> result; result.reserve(val2.size());
-                    for (double y : val2) { result.push_back(perform_op(val1, y)); }
-                    return TrialValue(result);
-                } else if constexpr (std::is_same_v<T1, std::vector<double>> && std::is_same_v<T2, std::vector<double>>) {
-                    if (val1.size() != val2.size()) throw std::runtime_error("Vector sizes must match for element-wise operations.");
-                    std::vector<double> result; result.reserve(val1.size());
-                    for (size_t i = 0; i < val1.size(); ++i) { result.push_back(perform_op(val1[i], val2[i])); }
-                    return TrialValue(result);
-                } }, arg1, arg2);
-    }
-    case OpCode::LOG:
-        return std::log(std::get<double>(resolve_value(op.args[0], context)));
-    case OpCode::LOG10:
-        return std::log10(std::get<double>(resolve_value(op.args[0], context)));
-    case OpCode::EXP:
-        return std::exp(std::get<double>(resolve_value(op.args[0], context)));
-    case OpCode::SIN:
-        return std::sin(std::get<double>(resolve_value(op.args[0], context)));
-    case OpCode::COS:
-        return std::cos(std::get<double>(resolve_value(op.args[0], context)));
-    case OpCode::TAN:
-        return std::tan(std::get<double>(resolve_value(op.args[0], context)));
-    case OpCode::GROW_SERIES:
-    {
-        double base_val = std::get<double>(resolve_value(op.args[0], context));
-        double growth_rate = std::get<double>(resolve_value(op.args[1], context));
-        int num_years = static_cast<int>(std::get<double>(resolve_value(op.args[2], context)));
-
-        std::vector<double> series;
-        series.reserve(num_years);
-        double current_val = base_val;
-        for (int i = 0; i < num_years; ++i)
-        {
-            current_val *= (1.0 + growth_rate);
-            series.push_back(current_val);
-        }
-        return series;
-    }
-
-    case OpCode::COMPOUND_SERIES:
-    {
-        double base_val = std::get<double>(resolve_value(op.args[0], context));
-        const auto growth_rates_variant = resolve_value(op.args[1], context);
-        const auto &growth_rates = std::get<std::vector<double>>(growth_rates_variant);
-
-        std::vector<double> series;
-        series.reserve(growth_rates.size());
-        double current_val = base_val;
-        for (const auto &rate : growth_rates)
-        {
-            current_val *= (1.0 + rate);
-            series.push_back(current_val);
-        }
-        return series;
-    }
-    case OpCode::SUM_SERIES:
-    {
-        const auto series_vec = std::get<std::vector<double>>(resolve_value(op.args[0], context));
-        return std::accumulate(series_vec.begin(), series_vec.end(), 0.0);
-    }
-    case OpCode::NPV:
-    {
-        double rate = std::get<double>(resolve_value(op.args[0], context));
-        const auto cashflows = std::get<std::vector<double>>(resolve_value(op.args[1], context));
-        double npv = 0.0;
-        for (size_t i = 0; i < cashflows.size(); ++i)
-        {
-            npv += cashflows[i] / std::pow(1.0 + rate, i + 1);
-        }
-        return npv;
-    }
-    case OpCode::GET_ELEMENT:
-    {
-        const auto series = std::get<std::vector<double>>(resolve_value(op.args[0], context));
-        int index = static_cast<int>(std::get<double>(resolve_value(op.args[1], context)));
-
-        if (series.empty())
-        {
-            throw std::runtime_error("Cannot get element from an empty series.");
-        }
-
-        if (index < 0)
-        {
-            index = series.size() + index;
-        }
-
-        if (index < 0 || static_cast<size_t>(index) >= series.size())
-        {
-            throw std::runtime_error("Index out of bounds for get_element.");
-        }
-
-        return series[static_cast<size_t>(index)];
-    }
-
-    case OpCode::SERIES_DELTA:
-    {
-        const auto series = std::get<std::vector<double>>(resolve_value(op.args[0], context));
-
-        if (series.empty())
-        {
-            return std::vector<double>{};
-        }
-
-        std::vector<double> delta_series;
-        delta_series.reserve(series.size());
-        delta_series.push_back(0.0);
-
-        for (size_t i = 1; i < series.size(); ++i)
-        {
-            delta_series.push_back(series[i] - series[i - 1]);
-        }
-
-        return delta_series;
-    }
-    case OpCode::COMPOSE_VECTOR:
-    {
-        std::vector<double> composed_vector;
-        composed_vector.reserve(op.args.size());
-
-        for (const auto &arg_json : op.args)
-        {
-            composed_vector.push_back(std::get<double>(resolve_value(arg_json, context)));
-        }
-        return composed_vector;
-    }
-        throw std::logic_error("FATAL: Unhandled OpCode in evaluate_operation. This is a programmer error.");
-    }
+    // Nested objects will be handled by the caller of resolve_value now.
+    throw std::runtime_error("Invalid argument type in recipe. Must be string, number, or array.");
 }
 
 void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialValue> &thread_results, std::exception_ptr &out_exception)
@@ -369,28 +222,58 @@ void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialVal
     try
     {
         thread_results.reserve(num_trials_for_thread);
-
         for (int i = 0; i < num_trials_for_thread; ++i)
         {
             TrialContext trial_context;
-
             for (const auto &[name, input_var] : m_recipe.inputs)
             {
-                if (input_var.type == "fixed")
-                {
-                    trial_context[name] = input_var.value;
-                }
-                else // "distribution"
-                {
-                    trial_context[name] = TrialValue(m_recipe.distributions.at(name)->getSample());
-                }
+                trial_context[name] = (input_var.type == "fixed")
+                                          ? input_var.value
+                                          : TrialValue(m_recipe.distributions.at(name)->getSample());
             }
-
             for (const auto &op : m_recipe.operations)
             {
-                trial_context[op.result_name] = evaluate_operation(op, trial_context);
-            }
+                // 1. Resolve all arguments for this operation
+                std::vector<TrialValue> resolved_args;
+                resolved_args.reserve(op.args.size());
+                for (const auto &arg_json : op.args)
+                {
+                    // Handle nested expressions here
+                    if (arg_json.is_object())
+                    {
+                        Operation nested_op;
+                        nested_op.op_code = string_to_opcode(arg_json["op_code"]);
+                        nested_op.args = arg_json["args"];
 
+                        // Find the strategy for the nested op
+                        auto it = m_operations.find(nested_op.op_code);
+                        if (it == m_operations.end())
+                            throw std::logic_error("FATAL: Unhandled nested OpCode.");
+
+                        // Recursively resolve the nested arguments
+                        std::vector<TrialValue> nested_resolved_args;
+                        for (const auto &nested_arg_json : nested_op.args)
+                        {
+                            nested_resolved_args.push_back(resolve_value(nested_arg_json, trial_context));
+                        }
+                        resolved_args.push_back(it->second->execute(nested_resolved_args));
+                    }
+                    else
+                    {
+                        resolved_args.push_back(resolve_value(arg_json, trial_context));
+                    }
+                }
+
+                // 2. Find the strategy for the main operation
+                auto it = m_operations.find(op.op_code);
+                if (it == m_operations.end())
+                {
+                    throw std::logic_error("FATAL: Unhandled OpCode. This is a programmer error.");
+                }
+
+                // 3. Delegate execution and store the result
+                trial_context[op.result_name] = it->second->execute(resolved_args);
+            }
             thread_results.push_back(trial_context.at(m_recipe.output_variable));
         }
     }
