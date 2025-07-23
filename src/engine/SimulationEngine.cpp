@@ -364,28 +364,39 @@ TrialValue SimulationEngine::evaluate_operation(const Operation &op, TrialContex
     }
 }
 
-void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialValue> &thread_results)
+void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialValue> &thread_results, std::exception_ptr &out_exception)
 {
-    thread_results.reserve(num_trials_for_thread);
-    for (int i = 0; i < num_trials_for_thread; ++i)
+    try
     {
-        TrialContext trial_context;
-        for (const auto &[name, input_var] : m_recipe.inputs)
+        thread_results.reserve(num_trials_for_thread);
+
+        for (int i = 0; i < num_trials_for_thread; ++i)
         {
-            if (input_var.type == "fixed")
+            TrialContext trial_context;
+
+            for (const auto &[name, input_var] : m_recipe.inputs)
             {
-                trial_context[name] = input_var.value;
+                if (input_var.type == "fixed")
+                {
+                    trial_context[name] = input_var.value;
+                }
+                else // "distribution"
+                {
+                    trial_context[name] = TrialValue(m_recipe.distributions.at(name)->getSample());
+                }
             }
-            else
+
+            for (const auto &op : m_recipe.operations)
             {
-                trial_context[name] = TrialValue(m_recipe.distributions.at(name)->getSample());
+                trial_context[op.result_name] = evaluate_operation(op, trial_context);
             }
+
+            thread_results.push_back(trial_context.at(m_recipe.output_variable));
         }
-        for (const auto &op : m_recipe.operations)
-        {
-            trial_context[op.result_name] = evaluate_operation(op, trial_context);
-        }
-        thread_results.push_back(trial_context.at(m_recipe.output_variable));
+    }
+    catch (...)
+    {
+        out_exception = std::current_exception();
     }
 }
 
@@ -396,8 +407,11 @@ std::vector<TrialValue> SimulationEngine::run()
     std::cout << "Using " << num_threads << " threads for simulation." << std::endl;
     const int trials_per_thread = m_recipe.num_trials / num_threads;
     const int remainder_trials = m_recipe.num_trials % num_threads;
+
     std::vector<std::thread> threads;
     std::vector<std::vector<TrialValue>> thread_results(num_threads);
+    std::vector<std::exception_ptr> thread_exceptions(num_threads, nullptr);
+
     for (unsigned int i = 0; i < num_threads; ++i)
     {
         int trials_for_this_thread = trials_per_thread;
@@ -407,12 +421,22 @@ std::vector<TrialValue> SimulationEngine::run()
         }
         if (trials_for_this_thread > 0)
         {
-            threads.emplace_back(&SimulationEngine::run_batch, this, trials_for_this_thread, std::ref(thread_results[i]));
+            threads.emplace_back(&SimulationEngine::run_batch, this, trials_for_this_thread,
+                                 std::ref(thread_results[i]), std::ref(thread_exceptions[i]));
         }
     }
+
     for (auto &t : threads)
     {
         t.join();
+    }
+
+    for (const auto &ex_ptr : thread_exceptions)
+    {
+        if (ex_ptr != nullptr)
+        {
+            std::rethrow_exception(ex_ptr);
+        }
     }
 
     std::vector<TrialValue> final_results;
