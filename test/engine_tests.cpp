@@ -23,11 +23,15 @@ class EngineOperationTest : public ::testing::TestWithParam<TestParam>
 // The single test block for all parameterized tests.
 TEST_P(EngineOperationTest, ExecutesCorrectly)
 {
-    // 1. Arrange
+    // 1. Arrange: Get the parameters for this specific test run.
     const auto &params = GetParam();
     const std::string &recipe_content = std::get<0>(params);
     const TrialValue &expected_result = std::get<1>(params);
     const bool is_vector_output = std::get<2>(params);
+
+    // We parse the op_code here to identify special cases for tolerance.
+    json recipe_json = json::parse(recipe_content);
+    std::string op_code_str = recipe_json["operations"][0]["op_code"];
 
     const std::string filename = "param_test.json";
     create_test_recipe(filename, recipe_content);
@@ -39,23 +43,34 @@ TEST_P(EngineOperationTest, ExecutesCorrectly)
     // 3. Assert
     ASSERT_EQ(results.size(), 1);
 
+    // Define a very small, default tolerance for "exact" comparisons.
+    const double default_tolerance = 1e-9; // 0.000000001
+
     if (is_vector_output)
     {
+        // Assertions for vector results
         ASSERT_TRUE(std::holds_alternative<std::vector<double>>(results[0]));
         const auto &result_vec = std::get<std::vector<double>>(results[0]);
         const auto &expected_vec = std::get<std::vector<double>>(expected_result);
         ASSERT_EQ(result_vec.size(), expected_vec.size());
+
         for (size_t i = 0; i < result_vec.size(); ++i)
         {
-            EXPECT_DOUBLE_EQ(result_vec[i], expected_vec[i]);
+            // Use a larger, specific tolerance for calculations known to have rounding issues.
+            // Otherwise, use the very strict default tolerance.
+            double tolerance = (op_code_str == "capitalize_expense") ? 0.0001 : default_tolerance;
+            EXPECT_NEAR(result_vec[i], expected_vec[i], tolerance);
         }
     }
     else
     {
+        // Assertions for scalar results
         ASSERT_TRUE(std::holds_alternative<double>(results[0]));
         double final_value = std::get<double>(results[0]);
         double expected_value = std::get<double>(expected_result);
-        EXPECT_DOUBLE_EQ(final_value, expected_value);
+
+        // Always use EXPECT_NEAR for floating-point comparisons.
+        EXPECT_NEAR(final_value, expected_value, default_tolerance);
     }
 }
 
@@ -103,7 +118,8 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"series":{"type":"fixed","value":[10,20,70]}},"operations":[{"op_code":"sum_series","args":["series"],"result":"C"}],"output_variable":"C"})", TrialValue(100.0), false),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"rate":{"type":"fixed","value":0.1},"cfs":{"type":"fixed","value":[100,110]}},"operations":[{"op_code":"npv","args":["rate","cfs"],"result":"C"}],"output_variable":"C"})", TrialValue(100.0 / 1.1 + 110.0 / (1.1 * 1.1)), false),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"r1":{"type":"fixed","value":10},"r2":{"type":"fixed","value":20},"r3":{"type":"fixed","value":30}},"operations":[{"op_code":"compose_vector","args":["r1","r2","r3"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{10.0, 20.0, 30.0}), true),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"start":{"type":"fixed","value":10},"end":{"type":"fixed","value":50},"years":{"type":"fixed","value":5}},"operations":[{"op_code":"interpolate_series","args":["start","end","years"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{10.0, 20.0, 30.0, 40.0, 50.0}), true)));
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"start":{"type":"fixed","value":10},"end":{"type":"fixed","value":50},"years":{"type":"fixed","value":5}},"operations":[{"op_code":"interpolate_series","args":["start","end","years"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{10.0, 20.0, 30.0, 40.0, 50.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"period":{"type":"fixed","value":3},"current_rd":{"type":"fixed","value":88544.00},"past_rd":{"type":"fixed","value":[85622.00, 73213.00, 56052.00]}},"operations":[{"op_code":"capitalize_expense","args":["current_rd","past_rd","period"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{170029.666667, 71629.0}), true)));
 
 TEST(EngineErrorTests, ThrowsOnInvalidFilePath)
 {

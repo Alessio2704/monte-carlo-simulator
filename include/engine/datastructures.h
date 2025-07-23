@@ -40,7 +40,8 @@ enum class OpCode
     SERIES_DELTA,
     COMPOUND_SERIES, // Takes base_value (scalar) and vector_of_growth_rates (vector)
     COMPOSE_VECTOR,
-    INTERPOLATE_SERIES
+    INTERPOLATE_SERIES,
+    CAPITALIZE_EXPENSE
 };
 
 enum class DistributionType

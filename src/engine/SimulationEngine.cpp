@@ -44,7 +44,8 @@ static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
     {"series_delta", OpCode::SERIES_DELTA},
     {"compound_series", OpCode::COMPOUND_SERIES},
     {"compose_vector", OpCode::COMPOSE_VECTOR},
-    {"interpolate_series", OpCode::INTERPOLATE_SERIES}};
+    {"interpolate_series", OpCode::INTERPOLATE_SERIES},
+    {"capitalize_expense", OpCode::CAPITALIZE_EXPENSE}};
 
 static const std::unordered_map<std::string, DistributionType>
     STRING_TO_DIST_TYPE_MAP = {{"Normal", DistributionType::Normal}, {"PERT", DistributionType::Pert}, {"Uniform", DistributionType::Uniform}, {"Lognormal", DistributionType::Lognormal}, {"Triangular", DistributionType::Triangular}, {"Bernoulli", DistributionType::Bernoulli}, {"Beta", DistributionType::Beta}};
@@ -93,6 +94,7 @@ void SimulationEngine::build_operation_factory()
     ops[OpCode::SERIES_DELTA] = std::make_unique<SeriesDeltaOperation>();
     ops[OpCode::COMPOSE_VECTOR] = std::make_unique<ComposeVectorOperation>();
     ops[OpCode::INTERPOLATE_SERIES] = std::make_unique<InterpolateSeriesOperation>();
+    ops[OpCode::CAPITALIZE_EXPENSE] = std::make_unique<CapitalizeExpenseOperation>();
 
     // This is the compile-time check.
     // We iterate through all possible OpCode values.
@@ -122,6 +124,7 @@ void SimulationEngine::build_operation_factory()
         case OpCode::SERIES_DELTA:
         case OpCode::COMPOSE_VECTOR:
         case OpCode::INTERPOLATE_SERIES:
+        case OpCode::CAPITALIZE_EXPENSE:
             break; // Do nothing, we just need the case to exist.
         }
     }

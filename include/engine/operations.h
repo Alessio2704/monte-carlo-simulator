@@ -302,7 +302,6 @@ public:
     }
 };
 
-
 class InterpolateSeriesOperation : public IOperation
 {
 public:
@@ -338,5 +337,53 @@ public:
         }
 
         return series;
+    }
+};
+
+class CapitalizeExpenseOperation : public IOperation
+{
+public:
+    TrialValue execute(const std::vector<TrialValue> &args) const override
+    {
+        if (args.size() != 3)
+        {
+            throw std::runtime_error("CapitalizeExpenseOperation requires 3 arguments: current_expense (scalar), past_expenses (vector), and amortization_period (scalar).");
+        }
+
+        double current_expense = std::get<double>(args[0]);
+        const auto &past_expenses = std::get<std::vector<double>>(args[1]);
+        int period = static_cast<int>(std::get<double>(args[2]));
+
+        if (period <= 0)
+        {
+            throw std::runtime_error("Amortization period must be positive.");
+        }
+
+        double research_asset = 0.0;
+        double amortization_this_year = 0.0;
+
+        research_asset += current_expense;
+
+        for (size_t i = 0; i < past_expenses.size(); ++i)
+        {
+            int year_ago = i + 1;
+            if (year_ago >= period)
+            {
+                continue;
+            }
+            research_asset += past_expenses[i] * (static_cast<double>(period - year_ago) / period);
+        }
+
+        for (size_t i = 0; i < past_expenses.size(); ++i)
+        {
+            int year_ago = i + 1;
+            if (year_ago > period)
+            {
+                continue;
+            }
+            amortization_this_year += past_expenses[i] / period;
+        }
+
+        return std::vector<double>{research_asset, amortization_this_year};
     }
 };
