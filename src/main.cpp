@@ -40,7 +40,7 @@ int main()
 {
     try
     {
-        SimulationEngine engine("compose_vector_test.json");
+        SimulationEngine engine("compound_series_test_direct_array.json");
 
         std::vector<double> results = engine.run();
 

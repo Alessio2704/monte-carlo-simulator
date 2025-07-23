@@ -73,6 +73,95 @@ SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
     this->parse_recipe();
 }
 
+void SimulationEngine::create_distribution_from_input(const std::string &name, const InputVariable &var)
+{
+    DistributionType dist_type = string_to_dist_type(var.dist_name);
+    switch (dist_type)
+    {
+    case DistributionType::Normal:
+        m_recipe.distributions[name] = std::make_unique<NormalDistribution>(var.dist_params.at("mean"), var.dist_params.at("stddev"));
+        break;
+    case DistributionType::Pert:
+        m_recipe.distributions[name] = std::make_unique<PertDistribution>(var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
+        break;
+    case DistributionType::Uniform:
+        m_recipe.distributions[name] = std::make_unique<UniformDistribution>(var.dist_params.at("min"), var.dist_params.at("max"));
+        break;
+    case DistributionType::Lognormal:
+        m_recipe.distributions[name] = std::make_unique<LognormalDistribution>(var.dist_params.at("log_mean"), var.dist_params.at("log_stddev"));
+        break;
+    case DistributionType::Triangular:
+        m_recipe.distributions[name] = std::make_unique<TriangularDistribution>(var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
+        break;
+    case DistributionType::Bernoulli:
+        m_recipe.distributions[name] = std::make_unique<BernoulliDistribution>(var.dist_params.at("p"));
+        break;
+    case DistributionType::Beta:
+        m_recipe.distributions[name] = std::make_unique<BetaDistribution>(var.dist_params.at("alpha"), var.dist_params.at("beta"));
+        break;
+    }
+}
+
+void SimulationEngine::parse_recipe()
+{
+    std::ifstream file_stream(m_recipe_path);
+
+    if (!file_stream.is_open())
+    {
+        throw std::runtime_error("Failed to open recipe file: " + m_recipe_path);
+    }
+
+    json recipe_json = json::parse(file_stream);
+    m_recipe.num_trials = recipe_json["simulation_config"]["num_trials"];
+    m_recipe.output_variable = recipe_json["output_variable"];
+
+    for (const auto &[name, input_json] : recipe_json["inputs"].items())
+    {
+        InputVariable var;
+        var.type = input_json["type"];
+
+        if (var.type == "fixed")
+        {
+            if (input_json["value"].is_array())
+            {
+                var.value = input_json["value"].get<std::vector<double>>();
+            }
+            else if (input_json["value"].is_number())
+            {
+                var.value = input_json["value"].get<double>();
+            }
+            else
+            {
+                throw std::runtime_error("Fixed input '" + name + "' has an invalid 'value' type. Must be number or array.");
+            }
+        }
+        else if (var.type == "distribution")
+        {
+            var.dist_name = input_json["dist_name"];
+            for (const auto &[param_name, param_value] : input_json["params"].items())
+            {
+                var.dist_params[param_name] = param_value;
+            }
+            create_distribution_from_input(name, var);
+        }
+        else
+        {
+            throw std::runtime_error("Input '" + name + "' has an unknown type: " + var.type);
+        }
+        m_recipe.inputs[name] = var;
+    }
+
+    for (const auto &op_json : recipe_json["operations"])
+    {
+        Operation op;
+        op.op_code = string_to_opcode(op_json["op_code"]);
+        op.result_name = op_json["result"];
+        op.args = op_json["args"];
+        m_recipe.operations.push_back(op);
+    }
+    std::cout << "Recipe parsing complete." << std::endl;
+}
+
 TrialValue SimulationEngine::resolve_value(const json &arg, TrialContext &context)
 {
     if (arg.is_object())
@@ -102,6 +191,10 @@ TrialValue SimulationEngine::resolve_value(const json &arg, TrialContext &contex
     else if (arg.is_number())
     {
         return TrialValue(arg.get<double>());
+    }
+    else if (arg.is_array())
+    {
+        return TrialValue(arg.get<std::vector<double>>());
     }
     throw std::runtime_error("Invalid argument type in recipe.");
 }
@@ -329,93 +422,4 @@ std::vector<double> SimulationEngine::run()
     }
     std::cout << "Simulation run complete. " << final_results.size() << " trials executed." << std::endl;
     return final_results;
-}
-
-void SimulationEngine::create_distribution_from_input(const std::string &name, const InputVariable &var)
-{
-    DistributionType dist_type = string_to_dist_type(var.dist_name);
-    switch (dist_type)
-    {
-    case DistributionType::Normal:
-        m_recipe.distributions[name] = std::make_unique<NormalDistribution>(var.dist_params.at("mean"), var.dist_params.at("stddev"));
-        break;
-    case DistributionType::Pert:
-        m_recipe.distributions[name] = std::make_unique<PertDistribution>(var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
-        break;
-    case DistributionType::Uniform:
-        m_recipe.distributions[name] = std::make_unique<UniformDistribution>(var.dist_params.at("min"), var.dist_params.at("max"));
-        break;
-    case DistributionType::Lognormal:
-        m_recipe.distributions[name] = std::make_unique<LognormalDistribution>(var.dist_params.at("log_mean"), var.dist_params.at("log_stddev"));
-        break;
-    case DistributionType::Triangular:
-        m_recipe.distributions[name] = std::make_unique<TriangularDistribution>(var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
-        break;
-    case DistributionType::Bernoulli:
-        m_recipe.distributions[name] = std::make_unique<BernoulliDistribution>(var.dist_params.at("p"));
-        break;
-    case DistributionType::Beta:
-        m_recipe.distributions[name] = std::make_unique<BetaDistribution>(var.dist_params.at("alpha"), var.dist_params.at("beta"));
-        break;
-    }
-}
-
-void SimulationEngine::parse_recipe()
-{
-    std::ifstream file_stream(m_recipe_path);
-
-    if (!file_stream.is_open())
-    {
-        throw std::runtime_error("Failed to open recipe file: " + m_recipe_path);
-    }
-
-    json recipe_json = json::parse(file_stream);
-    m_recipe.num_trials = recipe_json["simulation_config"]["num_trials"];
-    m_recipe.output_variable = recipe_json["output_variable"];
-
-    for (const auto &[name, input_json] : recipe_json["inputs"].items())
-    {
-        InputVariable var;
-        var.type = input_json["type"];
-
-        if (var.type == "fixed")
-        {
-            if (input_json["value"].is_array())
-            {
-                var.value = input_json["value"].get<std::vector<double>>();
-            }
-            else if (input_json["value"].is_number())
-            {
-                var.value = input_json["value"].get<double>();
-            }
-            else
-            {
-                throw std::runtime_error("Fixed input '" + name + "' has an invalid 'value' type. Must be number or array.");
-            }
-        }
-        else if (var.type == "distribution")
-        {
-            var.dist_name = input_json["dist_name"];
-            for (const auto &[param_name, param_value] : input_json["params"].items())
-            {
-                var.dist_params[param_name] = param_value;
-            }
-            create_distribution_from_input(name, var);
-        }
-        else
-        {
-            throw std::runtime_error("Input '" + name + "' has an unknown type: " + var.type);
-        }
-        m_recipe.inputs[name] = var;
-    }
-
-    for (const auto &op_json : recipe_json["operations"])
-    {
-        Operation op;
-        op.op_code = string_to_opcode(op_json["op_code"]);
-        op.result_name = op_json["result"];
-        op.args = op_json["args"];
-        m_recipe.operations.push_back(op);
-    }
-    std::cout << "Recipe parsing complete." << std::endl;
 }

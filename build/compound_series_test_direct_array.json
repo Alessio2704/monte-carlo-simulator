@@ -1,0 +1,24 @@
+{
+  "simulation_config": {
+    "num_trials": 1
+  },
+  "inputs": {
+    "initial_value": {
+      "type": "fixed",
+      "value": 100.0
+    }
+  },
+  "operations": [
+    {
+      "op_code": "compound_series",
+      "args": ["initial_value", [0.05, 0.1, 0.02]],
+      "result": "final_compounded_series"
+    },
+    {
+      "op_code": "sum_series",
+      "args": ["final_compounded_series"],
+      "result": "sum_of_compounded_series"
+    }
+  ],
+  "output_variable": "sum_of_compounded_series"
+}
