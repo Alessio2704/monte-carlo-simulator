@@ -16,12 +16,12 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 ### Key Features
 
-*   **✨ Simple & Intuitive Language:** Models are defined in **ValuaScript**, a clean, declarative language designed specifically for finance.
-*   **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
-*   **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `PERT`, `Lognormal`, etc.) for any input variable.
-*   **📈 Time-Series Aware:** Built from the ground up to handle multi-year forecasts, with operations for growth series, NPV, and element-wise vector math.
-*   **⚙️ Extensible & Modular:** The architecture, based on the Strategy pattern, is designed to be easily extended with new operations and distributions.
-*   **🛡️ Robust & Tested:** The C++ core is "bulletproof," with a comprehensive unit test suite built using GoogleTest, ensuring the correctness of all 33 features.
+- **✨ Simple & Intuitive Language:** Models are defined in **ValuaScript**, a clean, declarative language designed specifically for finance.
+- **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
+- **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `PERT`, `Lognormal`, etc.) for any input variable.
+- **📈 Time-Series Aware:** Built from the ground up to handle multi-year forecasts, with operations for growth series, NPV, and element-wise vector math.
+- **⚙️ Extensible & Modular:** The architecture, based on the Strategy pattern, is designed to be easily extended with new operations and distributions.
+- **🛡️ Robust & Tested:** Comprehensive unit test suite built using GoogleTest, ensuring the correctness of all 33 features.
 
 ## 🏛️ Architecture
 
@@ -57,13 +57,14 @@ Follow these steps to build and run the C++ engine on your local machine.
 
 ### Prerequisites
 
-*   A modern C++17 compliant compiler (e.g., GCC, Clang, MSVC)
-*   CMake (version 3.14 or higher)
-*   Git
+- A modern C++17 compliant compiler (e.g., GCC, Clang, MSVC)
+- CMake (version 3.14 or higher)
+- Git
 
 ### Build Instructions
 
 1.  **Clone the repository:**
+
     ```bash
     git clone https://github.com/your-username/your-repo.git
     cd your-repo
@@ -71,6 +72,7 @@ Follow these steps to build and run the C++ engine on your local machine.
 
 2.  **Configure with CMake:**
     The project uses `FetchContent` to automatically download and manage dependencies, so no manual installation of libraries is needed.
+
     ```bash
     # Create a build directory
     cmake -B build
@@ -96,26 +98,32 @@ The engine will execute the simulation and print a statistical summary of the re
 
 ### 📜 ValuaScript Language Guide (The Vision)
 
-*This section describes the target language, **ValuaScript**, which will be built in the next phase.*
+_This section describes the target language, **ValuaScript**, which will be built in the next phase._
 
 **Settings:** Configure the simulation using special comments.
+
 ```swift
 #iterations = 100000
 #output = final_share_price
 ```
 
 **Variable Assignment:** Use the `let` keyword. The type is inferred.```swift
+
 # Fixed Scalar
+
 let tax_rate = 0.21
 
 # Fixed Vector (Time-Series)
+
 let margin_forecast = [0.25, 0.26, 0.27, 0.28, 0.29]
 
 # Stochastic Variable (Distribution)
+
 let growth_rate = Normal(0.08, 0.02)
 let wacc = Pert(0.08, 0.09, 0.10)
 
 # Operations: Use functions for calculations. Expressions can be nested.
+
 ```swift
 # Simple arithmetic
 let total_capital = add(market_cap_equity, debt)
@@ -178,17 +186,17 @@ Follow these steps to add a new operation:
 
 ## 🗺️ Roadmap
 
--   [x] **V1.0 C++ Engine Core**
-    -   [x] Generic, data-driven architecture
-    -   [x] Full library of statistical distributions
-    -   [x] Time-series and vector math support
-    -   [x] Recursive expression evaluation
-    -   [x] Multithreaded execution
-    -   [x] Comprehensive unit test suite
--   [ ] **V1.1 ValuaScript Compiler**
-    -   [ ] Define final ValuaScript grammar using Lark
-    -   [ ] Implement Python-based transpiler to JSON
-    -   [ ] Create command-line interface for the compiler
+- [x] **V1.0 C++ Engine Core**
+  - [x] Generic, data-driven architecture
+  - [x] Full library of statistical distributions
+  - [x] Time-series and vector math support
+  - [x] Recursive expression evaluation
+  - [x] Multithreaded execution
+  - [x] Comprehensive unit test suite
+- [ ] **V1.1 ValuaScript Compiler**
+  - [ ] Define final ValuaScript grammar using Lark
+  - [ ] Implement Python-based transpiler to JSON
+  - [ ] Create command-line interface for the compiler
 
 ## 📄 License
 
