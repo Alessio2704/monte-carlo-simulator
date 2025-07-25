@@ -6,6 +6,8 @@
 # This is where all compiled object files and the final executable live.
 /build
 
+/gemini
+
 # In case CMake is run in the source directory by mistake, ignore its files.
 CMakeCache.txt
 CMakeFiles/
