@@ -41,7 +41,12 @@ enum class OpCode
     COMPOUND_SERIES, // Takes base_value (scalar) and vector_of_growth_rates (vector)
     COMPOSE_VECTOR,
     INTERPOLATE_SERIES,
-    CAPITALIZE_EXPENSE
+    CAPITALIZE_EXPENSE,
+
+    // Add a sentinel value at the very end.
+    // ADD OTHER CODES ABOVE THIS ONE
+    // Its integer value will automatically be the total number of real opcodes.
+    _NUM_OPCODES
 };
 
 enum class DistributionType

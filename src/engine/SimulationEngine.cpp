@@ -98,7 +98,7 @@ void SimulationEngine::build_operation_factory()
 
     // This is the compile-time check.
     // We iterate through all possible OpCode values.
-    for (int i = 0; i < static_cast<int>(OpCode::INTERPOLATE_SERIES) + 1; ++i)
+    for (int i = 0; i < static_cast<int>(OpCode::_NUM_OPCODES); ++i)
     {
         OpCode code = static_cast<OpCode>(i);
         switch (code)
@@ -125,6 +125,7 @@ void SimulationEngine::build_operation_factory()
         case OpCode::COMPOSE_VECTOR:
         case OpCode::INTERPOLATE_SERIES:
         case OpCode::CAPITALIZE_EXPENSE:
+        case OpCode::_NUM_OPCODES:
             break; // Do nothing, we just need the case to exist.
         }
     }
@@ -322,8 +323,7 @@ void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialVal
                 trial_context[op.result_name] = it->second->execute(resolved_args);
             }
 
-            // --- THE FIX ---
-            // We no longer assert the type here. We push the entire TrialValue (scalar OR vector)
+            // We push the entire TrialValue (scalar OR vector)
             // into the results. The 'print_statistics' function will handle the type check.
             thread_results.push_back(trial_context.at(m_recipe.output_variable));
         }
@@ -343,7 +343,7 @@ std::vector<TrialValue> SimulationEngine::run()
     const int remainder_trials = m_recipe.num_trials % num_threads;
 
     std::vector<std::thread> threads;
-    // The per-thread results vector is now a vector of TrialValue
+    // The per-thread results vector is a vector of TrialValue
     std::vector<std::vector<TrialValue>> thread_results(num_threads);
     std::vector<std::exception_ptr> thread_exceptions(num_threads, nullptr);
 
@@ -374,7 +374,7 @@ std::vector<TrialValue> SimulationEngine::run()
         }
     }
 
-    // The final results vector is now a vector of TrialValue
+    // The final results vector is a vector of TrialValue
     std::vector<TrialValue> final_results;
     final_results.reserve(m_recipe.num_trials);
     for (const auto &partial_results : thread_results)
