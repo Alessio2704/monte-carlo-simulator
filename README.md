@@ -213,18 +213,73 @@ The project includes a comprehensive C++ unit test suite.
 
 ## 🗺️ Roadmap
 
+The core platform is complete and functional. Future development will focus on improving the user experience, adding advanced features, and enhancing the development ecosystem.
+
 - [x] **V1.0 C++ Engine Core**
-  - [x] Generic, data-driven architecture
-  - [x] Full library of statistical distributions
-  - [x] Time-series and vector math support
-  - [x] Recursive expression evaluation
-  - [x] Multithreaded execution
-  - [x] Comprehensive unit test suite
-- [x] **V1.1 ValuaScript Compiler**
-  - [x] Defined final ValuaScript grammar using Lark
-  - [x] Implemented Python-based transpiler to JSON
-  - [x] Created robust command-line interface (`vsc`)
-  - [x] Packaged for distribution (source and standalone)
+- [x] **V1.1 ValuaScript Compiler & CLI**
+
+---
+
+### Tier 1: Polish and Testing (V1.2)
+
+<details>
+<summary>These are immediate goals to improve the robustness and usability of the current version.</summary>
+
+- [ ] **Compiler Test Suite:**
+  - [ ] Implement a test suite for the `vsc` compiler using `pytest`.
+  - [ ] Add tests for correct JSON generation from valid `.vs` files.
+  - [ ] Add tests to verify that syntactic and semantic errors are caught correctly.
+- [ ] **Improved Error Reporting:**
+  - [ ] Enhance the compiler to report the line and column number where an error occurred.
+- [ ] **Official "Examples" Directory:**
+  - [ ] Create a top-level `/examples` directory.
+  - [ ] Add several real-world model examples (`.vs` files) to serve as a guide for new users.
+
+</details>
+
+### Tier 2: Major Features (V1.3+)
+
+<details>
+<summary>These features will significantly expand the capabilities of the platform.</summary>
+
+- [ ] **External Data Integration:**
+  - [ ] Add a `read_csv("path", "column")` function to ValuaScript to allow models to use external data sources.
+  - [ ] Implement the corresponding `Operation` in the C++ engine.
+- [ ] **Streamlined Workflow:**
+  - [ ] Add a `--run` flag to the `vsc` compiler.
+  - [ ] When `--run` is used, `vsc` will automatically execute the `monte-carlo-simulator` with the newly generated JSON file.
+- [ ] **Enhanced Output Options:**
+  - [ ] Add a `@output_file = "results.csv"` directive to ValuaScript.
+  - [ ] Update the C++ engine to write all trial results to the specified CSV file for further analysis in tools like Excel, Python, or R.
+
+</details>
+
+### Tier 3: Ecosystem and Distribution (V2.0)
+
+<details>
+<summary>Long-term goals focused on making the project more accessible and professional.</summary>
+
+- [ ] **Automated Cross-Platform Builds (CI/CD):**
+  - [ ] Create a GitHub Actions workflow to automatically build the C++ engine and the standalone `vsc` executable for Windows, macOS, and Linux.
+  - [ ] Configure the workflow to attach all binaries to new GitHub Releases automatically.
+- [ ] **Dedicated Documentation Website:**
+  - [ ] Use a static site generator like MkDocs or Docusaurus to create a full documentation website.
+  - [ ] Host the site on GitHub Pages for a polished, professional look.
+
+</details>
+
+### The "Blue Sky" Vision
+
+<details>
+<summary>Ambitious, long-term ideas for a next-generation modeling tool.</summary>
+
+- [ ] **VS Code Extension:**
+  - [ ] Develop an extension for Visual Studio Code providing syntax highlighting for `.vs` files.
+  - [ ] Implement real-time error checking (linting) and autocompletion for ValuaScript functions.
+- [ ] **Data Visualization:**
+  - [ ] Add a feature to automatically generate and display a histogram of the final output distribution after a simulation run.
+
+</details>
 
 ## 📄 License
 
