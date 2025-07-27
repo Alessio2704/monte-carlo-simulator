@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
 import json
 from lark import Lark, Transformer, v_args
 from lark.lexer import Token
+import argparse
+import sys
+import os
 
 # This dictionary maps the ValuaScript distribution names
 # to the parameter names expected by the C++ engine.
@@ -183,53 +187,67 @@ def validate_recipe(recipe: dict):
     print("--- Validation Successful ---")
 
 
-def main(script_path):
+def main():
     """
-    Main function to drive the transpilation.
+    Main function to drive the transpilation from the command line.
     """
-    print(f"--- Compiling {script_path} ---")
+    # 1. Set up the argument parser
+    parser = argparse.ArgumentParser(description="Compile a .valuascript file into a .json recipe.")
+    parser.add_argument("input_file", help="The path to the input .valuascript file.")
+    parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file. Defaults to the input filename with a .json extension.")
+    args = parser.parse_args()
 
+    # 2. Determine the output file path
+    if args.output_file:
+        output_file_path = args.output_file
+    else:
+        # Get the base name of the input file and change its extension
+        base_name = os.path.splitext(args.input_file)[0]
+        output_file_path = base_name + ".json"
+
+    script_path = args.input_file
+    print(f"--- Compiling {script_path} -> {output_file_path} ---")
+
+    # 3. Read grammar
     try:
         with open("valuascript.lark", "r") as f:
             valuascript_grammar = f.read()
     except FileNotFoundError:
-        print("ERROR: Grammar file 'valuascript.lark' not found.")
-        return
+        print("ERROR: Grammar file 'valuascript.lark' not found.", file=sys.stderr)
+        sys.exit(1)
 
     parser = Lark(valuascript_grammar, start="start", parser="lalr")
 
+    # 4. Read input script
     try:
         with open(script_path, "r") as f:
             script_content = f.read()
     except FileNotFoundError:
-        print(f"ERROR: Script file '{script_path}' not found.")
-        return
+        print(f"ERROR: Script file '{script_path}' not found.", file=sys.stderr)
+        sys.exit(1)
 
+    # 5. Transform and Validate
     try:
         parse_tree = parser.parse(script_content)
-    except Exception as e:
-        print(f"--- PARSE ERROR ---\nCould not parse '{script_path}':\n{e}")
-        return
-
-    transformer = ValuaScriptTransformer()
-
-    try:
+        transformer = ValuaScriptTransformer()
         recipe_dict = transformer.transform(parse_tree)
-    except ValueError as e:
-        print(f"\n--- TRANSFORMATION ERROR ---\n{e}")
-        return
-
-    try:
         validate_recipe(recipe_dict)
-    except ValueError as e:
-        print(f"\n--- SEMANTIC ERROR ---\n{e}")
-        return
+    except Exception as e:
+        print(f"\n--- COMPILATION FAILED ---\n{e}", file=sys.stderr)
+        sys.exit(1)
 
+    # 6. Write the output to a file
     recipe_json = json.dumps(recipe_dict, indent=2)
+    try:
+        with open(output_file_path, "w") as f:
+            f.write(recipe_json)
+    except IOError as e:
+        print(f"ERROR: Could not write to output file '{output_file_path}': {e}", file=sys.stderr)
+        sys.exit(1)
 
-    print("\n--- Generated JSON Recipe ---")
-    print(recipe_json)
+    print("\n--- Compilation Successful ---")
+    print(f"Recipe written to {output_file_path}")
 
 
 if __name__ == "__main__":
-    main("example_v4.valuascript")
+    main()
