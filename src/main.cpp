@@ -1,3 +1,5 @@
+// src/main.cpp
+
 #include "engine/SimulationEngine.h"
 #include <iostream>
 #include <vector>
@@ -15,6 +17,7 @@ void print_statistics(const std::vector<TrialValue> &results)
         return;
     }
 
+    // Use a visitor to handle either a scalar (double) or vector result type
     std::visit([&](auto &&first_result)
                {
         using T = std::decay_t<decltype(first_result)>;
@@ -54,6 +57,10 @@ void print_statistics(const std::vector<TrialValue> &results)
 
             for (const auto& res_variant : results) {
                 const auto& vec = std::get<std::vector<double>>(res_variant);
+                if (vec.size() != num_periods) {
+                    std::cerr << "Warning: Inconsistent vector sizes in results. Skipping." << std::endl;
+                    continue;
+                }
                 for (size_t i = 0; i < num_periods; ++i) {
                     mean_vector[i] += vec[i];
                 }
@@ -64,6 +71,7 @@ void print_statistics(const std::vector<TrialValue> &results)
 
             for (const auto& res_variant : results) {
                 const auto& vec = std::get<std::vector<double>>(res_variant);
+                 if (vec.size() != num_periods) continue;
                 for (size_t i = 0; i < num_periods; ++i) {
                     stddev_vector[i] += (vec[i] - mean_vector[i]) * (vec[i] - mean_vector[i]);
                 }
@@ -92,6 +100,7 @@ int main(int argc, char *argv[])
 
     try
     {
+        // This public API has not changed, hiding the internal complexity.
         SimulationEngine engine(recipe_path);
 
         std::vector<TrialValue> results = engine.run();

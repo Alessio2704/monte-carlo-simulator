@@ -1,6 +1,6 @@
 # ValuaScript & The Quantitative Simulation Engine
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-username/your-repo/actions)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/Alessio2704/monte-carlo-simulator/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++ Version](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
 [![Python Version](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/downloads/)
@@ -17,8 +17,8 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 - **✨ Simple & Intuitive Language:** Models are defined in **ValuaScript (`.vs`)**, a clean, declarative language designed specifically for finance.
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
-- **🐍 Smart Python Compiler**: A robust compiler, vsc, transpiles ValuaScript into a JSON recipe, providing clear, semantic error-checking before execution
-- **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) for any input variable.
+- **🐍 Smart Python Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe, providing clear, semantic error-checking before execution.
+- **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) with fully dynamic parameters.
 - **📈 Time-Series Aware:** Built from the ground up to handle multi-year forecasts, with operations for growth series, NPV, and element-wise vector math.
 - **🛡️ Robust & Tested:** Comprehensive unit test suite built using GoogleTest, ensuring the correctness of all C++ engine features.
 
@@ -40,25 +40,25 @@ graph TD;
 
 1.  **ValuaScript (Frontend):** A user defines their model in a simple `.vs` file.
 2.  **`vsc` Compiler (Middleware):** The Python-based `vsc` tool reads the `.vs` file, validates its logic, and transpiles it into a structured JSON "recipe."
-3.  **Simulation Engine (Backend):** The multithreaded C++ `monte-carlo-simulator` executable reads the JSON recipe and acts as a high-speed "interpreter" to run the simulation.
+3.  **Simulation Engine (Backend):** The multithreaded C++ `monte-carlo-simulator` executable reads the JSON recipe and acts as a high-speed, sequential interpreter to run the simulation.
 
 ## 🚀 Getting Started
 
-There are two paths to using this project: as an **End-User** (recommended for most) or as a **Developer** (if you want to contribute).
+There are two paths for using this project: as an **End-User** (recommended for most) or as a **Developer** (if you want to contribute).
 
 ### For End-Users (The Easy Way)
 
 This path allows you to write models and run simulations without setting up a Python environment.
 
 1.  **Download the `vsc` Compiler:**
-    Go to the [**latest GitHub Release**](https://github.com/your-username/your-repo/releases) and download the `vsc` executable for your operating system.
+    Go to the [**latest GitHub Release**](https://github.com/Alessio2704/monte-carlo-simulator/releases) and download the `vsc` executable for your operating system.
 
 2.  **Build the C++ Engine:**
-    You only need to do this once. First, ensure you have [Git](https://git-scm.com/), [CMake](https://cmake.org/), and a [C++17 compiler](#-prerequisites) installed.
+    You only need to do this once. First, ensure you have [Git](https://git-scm.com/), [CMake](https://cmake.org/), and a C++17 compiler installed.
 
     ```bash
     # Clone the repository
-    git clone https://github.com/Alessio2704/monte-carlo-simulator
+    git clone https://github.com/Alessio2704/monte-carlo-simulator.git
     cd monte-carlo-simulator
 
     # Configure and build the C++ engine
@@ -103,8 +103,8 @@ This path is for those who wish to modify the compiler or the C++ engine.
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/Alessio2704/monte-carlo-simulator
-    monte-carlo-simulator
+    git clone https://github.com/Alessio2704/monte-carlo-simulator.git
+    cd monte-carlo-simulator
     ```
 2.  **Build the C++ Engine:**
     ```bash
@@ -140,38 +140,24 @@ Special directives configure the simulation. They are required.
 
 #### Variable Assignment (`let`)
 
-Use the `let` keyword to define inputs and calculations.
-
-**1. Fixed Values (Scalars and Vectors)**
+Use the `let` keyword to define variables. The engine executes assignments sequentially.
 
 ```valuascript
+# 1. Assign a literal number or vector
 let tax_rate = 0.21
-let margin_forecast = [0.25, 0.26, 0.27, 0.28, 0.29]
-```
+let margin_forecast = [0.25, 0.26, 0.27]
 
-**2. Stochastic Variables (Distributions)**
-
-```valuascript
-let growth_rate = Normal(0.08, 0.02)
+# 2. Assign the result of a distribution sample
 let wacc = Pert(0.08, 0.09, 0.10)
+
+# 3. Assign the result of a calculation
+let nopat = multiply(EBIT, subtract(1, tax_rate))
+
+# 4. Assign the value of another variable
+let growth_rate = terminal_growth_rate
 ```
 
 _Supported Distributions:_ `Normal`, `Pert`, `Uniform`, `Lognormal`, `Triangular`, `Bernoulli`, `Beta`.
-
-**3. Operations (Calculations)**
-Operations are performed using functions. Expressions can be nested.
-
-```valuascript
-# Simple arithmetic
-let total_capital = add(market_cap_equity, debt)
-
-# Nested expression
-let nopat = multiply(EBIT, subtract(1, tax_rate))
-
-# Time-series functions
-let revenue_series = grow_series(base_revenue, growth_rate, 10)
-let terminal_value = npv(wacc, cash_flows)
-```
 
 ## 🔬 Development & Contribution
 
@@ -189,25 +175,17 @@ The project includes a comprehensive C++ unit test suite.
 ### Extending the Engine
 
 <details>
-<summary>Click to see instructions for adding new Distributions or Operations</summary>
+<summary>Click to see instructions for adding new functions (Distributions or Operations)</summary>
 
-#### Adding a New Distribution
+The new architecture makes adding any function (`Sampler` or `Operation`) a simple, unified process.
 
-1.  **C++ Class:** Create `NewDistribution.h` and `.cpp` files, inheriting from `IDistribution`.
-2.  **C++ Enum:** Add `NewDistribution` to the `DistributionType` enum in `include/engine/datastructures.h`.
-3.  **C++ Map:** Add the JSON string mapping in `STRING_TO_DIST_TYPE_MAP` in `src/engine/SimulationEngine.cpp`.
-4.  **C++ Factory:** Add the construction `case` in `create_distribution_from_input`.
-5.  **Python Compiler:** Add the name and expected parameters to `DISTRIBUTION_PARAM_MAPPING` in `compiler/vsc.py`.
-6.  **C++ Test:** Add a unit test in `test/distributions_tests.cpp`.
-
-#### Adding a New Operation
-
-1.  **C++ Class:** Create a `NewOperation` class in `include/engine/operations.h`, inheriting from `IOperation`.
-2.  **C++ Enum:** Add `NEW_OPERATION` to the `OpCode` enum in `include/engine/datastructures.h`.
-3.  **C++ Map:** Add the JSON string mapping in `STRING_TO_OPCODE_MAP`.
-4.  **C++ Factory:** Add the `NewOperation` to the factory map in `build_operation_factory`.
-5.  **Python Compiler:** Add the operation's name to the `VALID_OPERATIONS` set in `compiler/vsc.py`.
-6.  **C++ Test:** Add a unit test in `test/engine_tests.cpp`.
+1.  **Define the Logic (C++):** In `include/engine/samplers.h` or `include/engine/operations.h`, create a new class (e.g., `NewFunction`) that inherits from `IExecutable` and implements the `TrialValue execute(const std::vector<TrialValue>& args) const` method.
+2.  **Register in Factory (C++):** In `src/engine/SimulationEngine.cpp`, go to the `build_executable_factory` method and add a new entry to the map:
+    ```cpp
+    m_executable_factory["new_function_name"] = [] { return std::make_unique<NewFunction>(); };
+    ```
+3.  **Register in Compiler (Python):** In `compiler/vsc.py`, add the `"new_function_name"` to the `VALID_FUNCTIONS` set.
+4.  **Add a Test (C++):** In `test/engine_tests.cpp`, add a new test case to the appropriate `INSTANTIATE_TEST_SUITE_P` block to validate your new function's logic.
 
 </details>
 
@@ -215,27 +193,27 @@ The project includes a comprehensive C++ unit test suite.
 
 The core platform is complete and functional. Future development will focus on improving the user experience, adding advanced features, and enhancing the development ecosystem.
 
-- [x] **V1.0 C++ Engine Core**
-- [x] **V1.1 ValuaScript Compiler & CLI**
+- [x] **V1.0 C++ Engine Core & ValuaScript Compiler**
+  - [x] Designed ValuaScript language and grammar
+  - [x] Built robust Python compiler (`vsc`) with semantic validation
+  - [x] Engineered a sequential, multithreaded C++17 execution engine
+  - [x] Achieved comprehensive test coverage with GoogleTest
+  - [x] Packaged compiler for distribution (source and standalone)
 
 ---
 
-### Tier 1: Polish and Testing (V1.2)
+### Tier 1: Polish and Testing (V1.1)
 
 <details>
 <summary>These are immediate goals to improve the robustness and usability of the current version.</summary>
 
 - [ ] **Compiler Test Suite:**
   - [ ] Implement a test suite for the `vsc` compiler using `pytest`.
-  - [ ] Add tests for correct JSON generation from valid `.vs` files.
-  - [ ] Add tests to verify that syntactic and semantic errors are caught correctly.
 - [ ] **Improved Error Reporting:**
   - [ ] Enhance the compiler to report the line and column number where an error occurred.
 - [ ] **Official "Examples" Directory:**
-  - [ ] Create a top-level `/examples` directory.
-  - [ ] Add several real-world model examples (`.vs` files) to serve as a guide for new users.
-
-</details>
+  - [ ] Create a top-level `/examples` directory with real-world model examples.
+  </details>
 
 ### Tier 2: Major Features (V1.3+)
 

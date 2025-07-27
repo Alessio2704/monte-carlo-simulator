@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/IOperation.h"
+#include "engine/IExecutable.h"
 #include <stdexcept>
 #include <cmath>
 #include <numeric>
@@ -81,114 +81,150 @@ private:
 
 // --- Concrete Binary Operation Classes ---
 
-class AddOperation : public IOperation
+class AddOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 2)
+            throw std::runtime_error("AddOperation requires 2 arguments.");
         return std::visit(BinaryOperationVisitor{OpCode::ADD}, args[0], args[1]);
     }
 };
 
-class SubtractOperation : public IOperation
+class SubtractOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 2)
+            throw std::runtime_error("SubtractOperation requires 2 arguments.");
         return std::visit(BinaryOperationVisitor{OpCode::SUBTRACT}, args[0], args[1]);
     }
 };
 
-class MultiplyOperation : public IOperation
+class MultiplyOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 2)
+            throw std::runtime_error("MultiplyOperation requires 2 arguments.");
         return std::visit(BinaryOperationVisitor{OpCode::MULTIPLY}, args[0], args[1]);
     }
 };
 
-class DivideOperation : public IOperation
+class DivideOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 2)
+            throw std::runtime_error("DivideOperation requires 2 arguments.");
         return std::visit(BinaryOperationVisitor{OpCode::DIVIDE}, args[0], args[1]);
     }
 };
 
-class PowerOperation : public IOperation
+class PowerOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 2)
+            throw std::runtime_error("PowerOperation requires 2 arguments.");
         return std::visit(BinaryOperationVisitor{OpCode::POWER}, args[0], args[1]);
     }
 };
 
 // --- Concrete Unary Math Operations ---
 
-class LogOperation : public IOperation
+class LogOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 1)
+            throw std::runtime_error("LogOperation requires 1 argument.");
         return std::log(std::get<double>(args[0]));
     }
 };
 
-class Log10Operation : public IOperation
+class Log10Operation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 1)
+            throw std::runtime_error("Log10Operation requires 1 argument.");
         return std::log10(std::get<double>(args[0]));
     }
 };
 
-class ExpOperation : public IOperation
+class ExpOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 1)
+            throw std::runtime_error("ExpOperation requires 1 argument.");
         return std::exp(std::get<double>(args[0]));
     }
 };
 
-class SinOperation : public IOperation
+class SinOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 1)
+            throw std::runtime_error("SinOperation requires 1 argument.");
         return std::sin(std::get<double>(args[0]));
     }
 };
 
-class CosOperation : public IOperation
+class CosOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 1)
+            throw std::runtime_error("CosOperation requires 1 argument.");
         return std::cos(std::get<double>(args[0]));
     }
 };
 
-class TanOperation : public IOperation
+class TanOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 1)
+            throw std::runtime_error("TanOperation requires 1 argument.");
         return std::tan(std::get<double>(args[0]));
+    }
+};
+
+// --- Identity Operation ---
+class IdentityOperation : public IExecutable
+{
+public:
+    TrialValue execute(const std::vector<TrialValue> &args) const override
+    {
+        if (args.size() != 1)
+            throw std::runtime_error("IdentityOperation requires exactly one argument.");
+        return args[0];
     }
 };
 
 // --- Concrete Time-Series Operations ---
 
-class GrowSeriesOperation : public IOperation
+class GrowSeriesOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 3)
+            throw std::runtime_error("GrowSeriesOperation requires 3 arguments.");
         double base_val = std::get<double>(args[0]);
         double growth_rate = std::get<double>(args[1]);
         int num_years = static_cast<int>(std::get<double>(args[2]));
@@ -205,11 +241,13 @@ public:
     }
 };
 
-class CompoundSeriesOperation : public IOperation
+class CompoundSeriesOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 2)
+            throw std::runtime_error("CompoundSeriesOperation requires 2 arguments.");
         double base_val = std::get<double>(args[0]);
         const auto &growth_rates = std::get<std::vector<double>>(args[1]);
 
@@ -225,11 +263,13 @@ public:
     }
 };
 
-class NpvOperation : public IOperation
+class NpvOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 2)
+            throw std::runtime_error("NpvOperation requires 2 arguments.");
         double rate = std::get<double>(args[0]);
         const auto &cashflows = std::get<std::vector<double>>(args[1]);
         double npv = 0.0;
@@ -241,21 +281,25 @@ public:
     }
 };
 
-class SumSeriesOperation : public IOperation
+class SumSeriesOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 1)
+            throw std::runtime_error("SumSeriesOperation requires 1 argument.");
         const auto &series = std::get<std::vector<double>>(args[0]);
         return std::accumulate(series.begin(), series.end(), 0.0);
     }
 };
 
-class GetElementOperation : public IOperation
+class GetElementOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 2)
+            throw std::runtime_error("GetElementOperation requires 2 arguments.");
         const auto &series = std::get<std::vector<double>>(args[0]);
         int index = static_cast<int>(std::get<double>(args[1]));
         if (series.empty())
@@ -268,11 +312,13 @@ public:
     }
 };
 
-class SeriesDeltaOperation : public IOperation
+class SeriesDeltaOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
+        if (args.size() != 1)
+            throw std::runtime_error("SeriesDeltaOperation requires 1 argument.");
         const auto &series = std::get<std::vector<double>>(args[0]);
         if (series.empty())
             return std::vector<double>{};
@@ -287,7 +333,7 @@ public:
     }
 };
 
-class ComposeVectorOperation : public IOperation
+class ComposeVectorOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
@@ -302,45 +348,37 @@ public:
     }
 };
 
-class InterpolateSeriesOperation : public IOperation
+class InterpolateSeriesOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
-        // We expect 3 scalar arguments: start, end, num_years
         if (args.size() != 3)
-        {
             throw std::runtime_error("InterpolateSeriesOperation requires 3 arguments.");
-        }
 
         double start_value = std::get<double>(args[0]);
         double end_value = std::get<double>(args[1]);
         int num_years = static_cast<int>(std::get<double>(args[2]));
 
-        if (num_years < 2)
-        {
-            // Interpolation is only meaningful for 2 or more points.
-            // For 1 year, the value is simply the end_value.
+        if (num_years < 1)
+            return std::vector<double>{};
+        if (num_years == 1)
             return std::vector<double>{end_value};
-        }
 
         std::vector<double> series;
         series.reserve(num_years);
-
         double total_diff = end_value - start_value;
-        // The number of steps is num_years - 1. For a 10-year forecast, there are 9 steps.
         double step = total_diff / (num_years - 1);
 
         for (int i = 0; i < num_years; ++i)
         {
             series.push_back(start_value + i * step);
         }
-
         return series;
     }
 };
 
-class CapitalizeExpenseOperation : public IOperation
+class CapitalizeExpenseOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override
@@ -385,18 +423,5 @@ public:
         }
 
         return std::vector<double>{research_asset, amortization_this_year};
-    }
-};
-
-class IdentityOperation : public IOperation
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override
-    {
-        if (args.size() != 1)
-        {
-            throw std::runtime_error("IdentityOperation requires exactly one argument.");
-        }
-        return args[0];
     }
 };

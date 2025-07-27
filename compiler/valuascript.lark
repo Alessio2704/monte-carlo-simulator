@@ -1,4 +1,4 @@
-// --- Grammar for ValuaScript (v4 Corrected) ---
+// --- Grammar for ValuaScript (Final Refactored Version) ---
 
 start: config_block assignment* output_block
 
@@ -9,7 +9,7 @@ output_block: "@output" "=" CNAME           -> output_setting
 // The right-hand side is now a generic "expression".
 ?assignment: "let" CNAME "=" expression -> assignment
 
-// An expression can be a literal value or a function call.
+// An expression can be a literal value, a function call, or a variable name.
 ?expression: value
            | function_call
            | CNAME -> var_expression

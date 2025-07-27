@@ -6,19 +6,9 @@
 #include <memory>
 #include <variant>
 #include <nlohmann/json.hpp>
-#include "distributions/IDistribution.h"
 
 using json = nlohmann::json;
 using TrialValue = std::variant<double, std::vector<double>>;
-using DistributionParams = std::unordered_map<std::string, double>;
-
-struct InputVariable
-{
-    std::string type;
-    TrialValue value;
-    std::string dist_name;
-    DistributionParams dist_params;
-};
 
 enum class OpCode
 {
@@ -38,41 +28,37 @@ enum class OpCode
     SUM_SERIES,
     GET_ELEMENT,
     SERIES_DELTA,
-    COMPOUND_SERIES, // Takes base_value (scalar) and vector_of_growth_rates (vector)
+    COMPOUND_SERIES,
     COMPOSE_VECTOR,
     INTERPOLATE_SERIES,
     CAPITALIZE_EXPENSE,
-    IDENTITY,
-
-    // Add a sentinel value at the very end.
-    // ADD OTHER CODES ABOVE THIS ONE
-    // Its integer value will automatically be the total number of real opcodes.
-    _NUM_OPCODES
+    IDENTITY // NEW: For variable-to-variable assignment
 };
 
-enum class DistributionType
-{
-    Normal,
-    Pert,
-    Uniform,
-    Lognormal,
-    Triangular,
-    Bernoulli,
-    Beta
-};
+// --- NEW STRUCTS FOR THE UNIFIED JSON FORMAT ---
 
-struct Operation
+// Represents a step like: `let x = 123.45` or `let y = [1, 2]`
+struct LiteralAssignmentDef
 {
-    OpCode op_code;
-    std::vector<json> args;
     std::string result_name;
+    TrialValue value; // The literal value is stored directly
 };
 
+// Represents a step like: `let x = add(y, z)` or `let s = Normal(m, s)`
+struct ExecutionAssignmentDef
+{
+    std::string result_name;
+    std::string function_name; // e.g., "add", "Normal", "Pert"
+    std::vector<json> args;    // Raw arguments to be resolved at runtime
+};
+
+// A definition for any step in the execution sequence
+using ExecutionStepDef = std::variant<LiteralAssignmentDef, ExecutionAssignmentDef>;
+
+// --- THE REFACTORED SIMULATION RECIPE ---
 struct SimulationRecipe
 {
     int num_trials = 1000;
-    std::unordered_map<std::string, InputVariable> inputs;
-    std::vector<Operation> operations;
     std::string output_variable;
-    std::unordered_map<std::string, std::unique_ptr<IDistribution>> distributions;
+    std::vector<ExecutionStepDef> execution_steps; // The unified list of all steps
 };

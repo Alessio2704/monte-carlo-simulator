@@ -1,15 +1,7 @@
 #include "engine/SimulationEngine.h"
-#include "engine/datastructures.h"
-
-#include "distributions/NormalDistribution.h"
-#include "distributions/PertDistribution.h"
-#include "distributions/UniformDistribution.h"
-#include "distributions/LognormalDistribution.h"
-#include "distributions/TriangularDistribution.h"
-#include "distributions/BernoulliDistribution.h"
-#include "distributions/BetaDistribution.h"
-
 #include "engine/operations.h"
+#include "engine/samplers.h"
+#include "engine/ExecutionSteps.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -17,318 +9,184 @@
 #include <iostream>
 #include <thread>
 #include <vector>
-#include <cmath>
-#include <algorithm>
-#include <unordered_map>
-#include <variant>
-#include <numeric>
 
 using json = nlohmann::json;
 
-static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
-    {"add", OpCode::ADD},
-    {"subtract", OpCode::SUBTRACT},
-    {"multiply", OpCode::MULTIPLY},
-    {"divide", OpCode::DIVIDE},
-    {"power", OpCode::POWER},
-    {"log", OpCode::LOG},
-    {"log10", OpCode::LOG10},
-    {"exp", OpCode::EXP},
-    {"sin", OpCode::SIN},
-    {"cos", OpCode::COS},
-    {"tan", OpCode::TAN},
-    {"grow_series", OpCode::GROW_SERIES},
-    {"npv", OpCode::NPV},
-    {"sum_series", OpCode::SUM_SERIES},
-    {"get_element", OpCode::GET_ELEMENT},
-    {"series_delta", OpCode::SERIES_DELTA},
-    {"compound_series", OpCode::COMPOUND_SERIES},
-    {"compose_vector", OpCode::COMPOSE_VECTOR},
-    {"interpolate_series", OpCode::INTERPOLATE_SERIES},
-    {"capitalize_expense", OpCode::CAPITALIZE_EXPENSE},
-    {"identity", OpCode::IDENTITY}};
-
-static const std::unordered_map<std::string, DistributionType>
-    STRING_TO_DIST_TYPE_MAP = {{"Normal", DistributionType::Normal}, {"Pert", DistributionType::Pert}, {"Uniform", DistributionType::Uniform}, {"Lognormal", DistributionType::Lognormal}, {"Triangular", DistributionType::Triangular}, {"Bernoulli", DistributionType::Bernoulli}, {"Beta", DistributionType::Beta}};
-
-OpCode string_to_opcode(const std::string &s)
-{
-    auto it = STRING_TO_OPCODE_MAP.find(s);
-    if (it != STRING_TO_OPCODE_MAP.end())
-    {
-        return it->second;
-    }
-    throw std::runtime_error("Invalid op_code string in recipe: " + s);
-}
-
-DistributionType string_to_dist_type(const std::string &s)
-{
-    auto it = STRING_TO_DIST_TYPE_MAP.find(s);
-    if (it != STRING_TO_DIST_TYPE_MAP.end())
-    {
-        return it->second;
-    }
-    throw std::runtime_error("Invalid dist_name string in recipe: " + s);
-}
-
-void SimulationEngine::build_operation_factory()
-{
-    // We create a temporary local map.
-    std::unordered_map<OpCode, std::unique_ptr<IOperation>> ops;
-
-    ops[OpCode::ADD] = std::make_unique<AddOperation>();
-    ops[OpCode::SUBTRACT] = std::make_unique<SubtractOperation>();
-    ops[OpCode::MULTIPLY] = std::make_unique<MultiplyOperation>();
-    ops[OpCode::DIVIDE] = std::make_unique<DivideOperation>();
-    ops[OpCode::POWER] = std::make_unique<PowerOperation>();
-    ops[OpCode::LOG] = std::make_unique<LogOperation>();
-    ops[OpCode::LOG10] = std::make_unique<Log10Operation>();
-    ops[OpCode::EXP] = std::make_unique<ExpOperation>();
-    ops[OpCode::SIN] = std::make_unique<SinOperation>();
-    ops[OpCode::COS] = std::make_unique<CosOperation>();
-    ops[OpCode::TAN] = std::make_unique<TanOperation>();
-    ops[OpCode::GROW_SERIES] = std::make_unique<GrowSeriesOperation>();
-    ops[OpCode::COMPOUND_SERIES] = std::make_unique<CompoundSeriesOperation>();
-    ops[OpCode::NPV] = std::make_unique<NpvOperation>();
-    ops[OpCode::SUM_SERIES] = std::make_unique<SumSeriesOperation>();
-    ops[OpCode::GET_ELEMENT] = std::make_unique<GetElementOperation>();
-    ops[OpCode::SERIES_DELTA] = std::make_unique<SeriesDeltaOperation>();
-    ops[OpCode::COMPOSE_VECTOR] = std::make_unique<ComposeVectorOperation>();
-    ops[OpCode::INTERPOLATE_SERIES] = std::make_unique<InterpolateSeriesOperation>();
-    ops[OpCode::CAPITALIZE_EXPENSE] = std::make_unique<CapitalizeExpenseOperation>();
-    ops[OpCode::IDENTITY] = std::make_unique<IdentityOperation>();
-
-    // This is the compile-time check.
-    // We iterate through all possible OpCode values.
-    for (int i = 0; i < static_cast<int>(OpCode::_NUM_OPCODES); ++i)
-    {
-        OpCode code = static_cast<OpCode>(i);
-        switch (code)
-        {
-        // We list every single case, but the body is empty.
-        // The purpose of this switch is PURELY to get the compiler warning.
-        case OpCode::ADD:
-        case OpCode::SUBTRACT:
-        case OpCode::MULTIPLY:
-        case OpCode::DIVIDE:
-        case OpCode::POWER:
-        case OpCode::LOG:
-        case OpCode::LOG10:
-        case OpCode::EXP:
-        case OpCode::SIN:
-        case OpCode::COS:
-        case OpCode::TAN:
-        case OpCode::GROW_SERIES:
-        case OpCode::COMPOUND_SERIES:
-        case OpCode::NPV:
-        case OpCode::SUM_SERIES:
-        case OpCode::GET_ELEMENT:
-        case OpCode::SERIES_DELTA:
-        case OpCode::COMPOSE_VECTOR:
-        case OpCode::INTERPOLATE_SERIES:
-        case OpCode::CAPITALIZE_EXPENSE:
-        case OpCode::IDENTITY:
-        case OpCode::_NUM_OPCODES:
-            break; // Do nothing, we just need the case to exist.
-        }
-    }
-    // Now we move the populated map to our member variable.
-    m_operations = std::move(ops);
-}
-
 SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
-    : m_recipe_path(json_recipe_path)
 {
-    build_operation_factory();
-
-    std::cout << "Engine created and operation factory built. Parsing recipe from: " << m_recipe_path << std::endl;
-    this->parse_recipe();
+    build_executable_factory();
+    parse_recipe(json_recipe_path);
+    build_execution_steps();
 }
 
-void SimulationEngine::create_distribution_from_input(const std::string &name, const InputVariable &var)
+void SimulationEngine::build_executable_factory()
 {
-    DistributionType dist_type = string_to_dist_type(var.dist_name);
-    switch (dist_type)
-    {
-    case DistributionType::Normal:
-        m_recipe.distributions[name] = std::make_unique<NormalDistribution>(var.dist_params.at("mean"), var.dist_params.at("stddev"));
-        break;
-    case DistributionType::Pert:
-        m_recipe.distributions[name] = std::make_unique<PertDistribution>(var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
-        break;
-    case DistributionType::Uniform:
-        m_recipe.distributions[name] = std::make_unique<UniformDistribution>(var.dist_params.at("min"), var.dist_params.at("max"));
-        break;
-    case DistributionType::Lognormal:
-        m_recipe.distributions[name] = std::make_unique<LognormalDistribution>(var.dist_params.at("log_mean"), var.dist_params.at("log_stddev"));
-        break;
-    case DistributionType::Triangular:
-        m_recipe.distributions[name] = std::make_unique<TriangularDistribution>(var.dist_params.at("min"), var.dist_params.at("mostLikely"), var.dist_params.at("max"));
-        break;
-    case DistributionType::Bernoulli:
-        m_recipe.distributions[name] = std::make_unique<BernoulliDistribution>(var.dist_params.at("p"));
-        break;
-    case DistributionType::Beta:
-        m_recipe.distributions[name] = std::make_unique<BetaDistribution>(var.dist_params.at("alpha"), var.dist_params.at("beta"));
-        break;
-    }
+    // It stores functions (lambdas) that create the objects.
+
+    // Operations
+    m_executable_factory["add"] = []
+    { return std::make_unique<AddOperation>(); };
+    m_executable_factory["subtract"] = []
+    { return std::make_unique<SubtractOperation>(); };
+    m_executable_factory["multiply"] = []
+    { return std::make_unique<MultiplyOperation>(); };
+    m_executable_factory["divide"] = []
+    { return std::make_unique<DivideOperation>(); };
+    m_executable_factory["power"] = []
+    { return std::make_unique<PowerOperation>(); };
+    m_executable_factory["log"] = []
+    { return std::make_unique<LogOperation>(); };
+    m_executable_factory["log10"] = []
+    { return std::make_unique<Log10Operation>(); };
+    m_executable_factory["exp"] = []
+    { return std::make_unique<ExpOperation>(); };
+    m_executable_factory["sin"] = []
+    { return std::make_unique<SinOperation>(); };
+    m_executable_factory["cos"] = []
+    { return std::make_unique<CosOperation>(); };
+    m_executable_factory["tan"] = []
+    { return std::make_unique<TanOperation>(); };
+    m_executable_factory["identity"] = []
+    { return std::make_unique<IdentityOperation>(); };
+    m_executable_factory["grow_series"] = []
+    { return std::make_unique<GrowSeriesOperation>(); };
+    m_executable_factory["compound_series"] = []
+    { return std::make_unique<CompoundSeriesOperation>(); };
+    m_executable_factory["npv"] = []
+    { return std::make_unique<NpvOperation>(); };
+    m_executable_factory["sum_series"] = []
+    { return std::make_unique<SumSeriesOperation>(); };
+    m_executable_factory["get_element"] = []
+    { return std::make_unique<GetElementOperation>(); };
+    m_executable_factory["series_delta"] = []
+    { return std::make_unique<SeriesDeltaOperation>(); };
+    m_executable_factory["compose_vector"] = []
+    { return std::make_unique<ComposeVectorOperation>(); };
+    m_executable_factory["interpolate_series"] = []
+    { return std::make_unique<InterpolateSeriesOperation>(); };
+    m_executable_factory["capitalize_expense"] = []
+    { return std::make_unique<CapitalizeExpenseOperation>(); };
+
+    // Distribution Samplers
+    m_executable_factory["Normal"] = []
+    { return std::make_unique<NormalSampler>(); };
+    m_executable_factory["Uniform"] = []
+    { return std::make_unique<UniformSampler>(); };
+    m_executable_factory["Bernoulli"] = []
+    { return std::make_unique<BernoulliSampler>(); };
+    m_executable_factory["Lognormal"] = []
+    { return std::make_unique<LognormalSampler>(); };
+    m_executable_factory["Beta"] = []
+    { return std::make_unique<BetaSampler>(); };
+    m_executable_factory["Pert"] = []
+    { return std::make_unique<PertSampler>(); };
+    m_executable_factory["Triangular"] = []
+    { return std::make_unique<TriangularSampler>(); };
 }
 
-void SimulationEngine::parse_recipe()
+void SimulationEngine::parse_recipe(const std::string &path)
 {
-    std::ifstream file_stream(m_recipe_path);
-
+    std::ifstream file_stream(path);
     if (!file_stream.is_open())
     {
-        throw std::runtime_error("Failed to open recipe file: " + m_recipe_path);
+        throw std::runtime_error("Failed to open recipe file: " + path);
     }
-
     json recipe_json = json::parse(file_stream);
+
     m_recipe.num_trials = recipe_json["simulation_config"]["num_trials"];
     m_recipe.output_variable = recipe_json["output_variable"];
 
-    for (const auto &[name, input_json] : recipe_json["inputs"].items())
+    // The new JSON format uses "execution_steps"
+    for (const auto &step_json : recipe_json["execution_steps"])
     {
-        InputVariable var;
-        var.type = input_json["type"];
-
-        if (var.type == "fixed")
+        std::string type = step_json["type"];
+        if (type == "literal_assignment")
         {
-            if (input_json["value"].is_array())
+            LiteralAssignmentDef def;
+            def.result_name = step_json["result"];
+            const auto &val = step_json["value"];
+            if (val.is_array())
             {
-                var.value = input_json["value"].get<std::vector<double>>();
+                def.value = val.get<std::vector<double>>();
             }
-            else if (input_json["value"].is_number())
+            else if (val.is_number())
             {
-                var.value = input_json["value"].get<double>();
+                def.value = val.get<double>();
             }
             else
             {
-                throw std::runtime_error("Fixed input '" + name + "' has an invalid 'value' type. Must be number or array.");
+                throw std::runtime_error("Invalid 'value' type for literal_assignment.");
             }
+            m_recipe.execution_steps.push_back(def);
         }
-        else if (var.type == "distribution")
+        else if (type == "execution_assignment")
         {
-            var.dist_name = input_json["dist_name"];
-            for (const auto &[param_name, param_value] : input_json["params"].items())
-            {
-                var.dist_params[param_name] = param_value;
-            }
-            create_distribution_from_input(name, var);
+            ExecutionAssignmentDef def;
+            def.result_name = step_json["result"];
+            def.function_name = step_json["function"];
+            def.args = step_json["args"];
+            m_recipe.execution_steps.push_back(def);
         }
         else
         {
-            throw std::runtime_error("Input '" + name + "' has an unknown type: " + var.type);
+            throw std::runtime_error("Unknown execution step type in JSON recipe: " + type);
         }
-        m_recipe.inputs[name] = var;
     }
-
-    for (const auto &op_json : recipe_json["operations"])
-    {
-        Operation op;
-        op.op_code = string_to_opcode(op_json["op_code"]);
-        op.result_name = op_json["result"];
-        op.args = op_json["args"];
-        m_recipe.operations.push_back(op);
-    }
-    std::cout << "Recipe parsing complete." << std::endl;
 }
 
-TrialValue SimulationEngine::resolve_value(const json &arg, TrialContext &context)
+void SimulationEngine::build_execution_steps()
 {
-    if (arg.is_string())
+    for (const auto &step_def_variant : m_recipe.execution_steps)
     {
-        std::string arg_str = arg.get<std::string>();
-        auto it = context.find(arg_str);
-        if (it != context.end())
-        {
-            return it->second;
-        }
-        try
-        {
-            return TrialValue(std::stod(arg_str));
-        }
-        catch (const std::exception &)
-        {
-            throw std::runtime_error("Argument '" + arg_str + "' is not a known variable or a valid number literal.");
-        }
+        std::visit([this](auto &&step_def)
+                   {
+            using T = std::decay_t<decltype(step_def)>;
+
+            if constexpr (std::is_same_v<T, LiteralAssignmentDef>) {
+                m_execution_steps.push_back(
+                    std::make_unique<LiteralAssignmentStep>(step_def.result_name, step_def.value)
+                );
+            } else if constexpr (std::is_same_v<T, ExecutionAssignmentDef>) {
+                auto it = m_executable_factory.find(step_def.function_name);
+                if (it == m_executable_factory.end()) {
+                    throw std::runtime_error("Unknown function in recipe: " + step_def.function_name);
+                }
+                
+                auto executable_logic = it->second(); 
+                
+                m_execution_steps.push_back(
+                    std::make_unique<ExecutionAssignmentStep>(
+                        step_def.result_name,
+                        std::move(executable_logic),
+                        step_def.args,
+                        m_executable_factory // <-- THE FIX: Pass the factory by reference
+                    )
+                );
+            } }, step_def_variant);
     }
-    else if (arg.is_number())
-    {
-        return TrialValue(arg.get<double>());
-    }
-    else if (arg.is_array())
-    {
-        return TrialValue(arg.get<std::vector<double>>());
-    }
-    // This function no longer handles objects. If it receives one, it's an error in the calling logic.
-    throw std::runtime_error("Invalid argument type passed to resolve_value. Expected string, number, or array.");
 }
 
-void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialValue> &thread_results, std::exception_ptr &out_exception)
+void SimulationEngine::run_batch(int num_trials, std::vector<TrialValue> &results, std::exception_ptr &out_exception)
 {
     try
     {
-        thread_results.reserve(num_trials_for_thread);
-        for (int i = 0; i < num_trials_for_thread; ++i)
+        results.reserve(num_trials);
+        for (int i = 0; i < num_trials; ++i)
         {
             TrialContext trial_context;
-            for (const auto &[name, input_var] : m_recipe.inputs)
+            for (const auto &step : m_execution_steps)
             {
-                trial_context[name] = (input_var.type == "fixed")
-                                          ? input_var.value
-                                          : TrialValue(m_recipe.distributions.at(name)->getSample());
+                step->execute(trial_context);
             }
-
-            // The recursive lambda for resolving arguments, including nested expressions.
-            std::function<TrialValue(const json &)> resolve_recursive;
-            resolve_recursive =
-                [&](const json &arg_json) -> TrialValue
+            // Ensure the output variable exists before trying to access it
+            if (trial_context.count(m_recipe.output_variable))
             {
-                if (arg_json.is_object())
-                {
-                    Operation nested_op;
-                    nested_op.op_code = string_to_opcode(arg_json["op_code"]);
-                    nested_op.args = arg_json["args"];
-
-                    auto it = m_operations.find(nested_op.op_code);
-                    if (it == m_operations.end())
-                        throw std::logic_error("FATAL: Unhandled nested OpCode.");
-
-                    std::vector<TrialValue> nested_resolved_args;
-                    for (const auto &nested_arg_json : nested_op.args)
-                    {
-                        nested_resolved_args.push_back(resolve_recursive(nested_arg_json));
-                    }
-                    return it->second->execute(nested_resolved_args);
-                }
-                else
-                {
-                    return resolve_value(arg_json, trial_context);
-                }
-            };
-
-            for (const auto &op : m_recipe.operations)
-            {
-                std::vector<TrialValue> resolved_args;
-                resolved_args.reserve(op.args.size());
-                for (const auto &arg_json : op.args)
-                {
-                    resolved_args.push_back(resolve_recursive(arg_json));
-                }
-
-                auto it = m_operations.find(op.op_code);
-                if (it == m_operations.end())
-                {
-                    throw std::logic_error("FATAL: Unhandled OpCode. This is a programmer error.");
-                }
-
-                trial_context[op.result_name] = it->second->execute(resolved_args);
+                results.push_back(trial_context.at(m_recipe.output_variable));
             }
-
-            // We push the entire TrialValue (scalar OR vector)
-            // into the results. The 'print_statistics' function will handle the type check.
-            thread_results.push_back(trial_context.at(m_recipe.output_variable));
+            else
+            {
+                throw std::runtime_error("Output variable '" + m_recipe.output_variable + "' was not calculated in the simulation.");
+            }
         }
     }
     catch (...)
@@ -339,28 +197,20 @@ void SimulationEngine::run_batch(int num_trials_for_thread, std::vector<TrialVal
 
 std::vector<TrialValue> SimulationEngine::run()
 {
-    std::cout << "Starting simulation..." << std::endl;
     const unsigned int num_threads = std::max(1u, std::thread::hardware_concurrency());
-    std::cout << "Using " << num_threads << " threads for simulation." << std::endl;
     const int trials_per_thread = m_recipe.num_trials / num_threads;
     const int remainder_trials = m_recipe.num_trials % num_threads;
 
     std::vector<std::thread> threads;
-    // The per-thread results vector is a vector of TrialValue
     std::vector<std::vector<TrialValue>> thread_results(num_threads);
     std::vector<std::exception_ptr> thread_exceptions(num_threads, nullptr);
 
     for (unsigned int i = 0; i < num_threads; ++i)
     {
-        int trials_for_this_thread = trials_per_thread;
-        if (i == 0)
-        {
-            trials_for_this_thread += remainder_trials;
-        }
+        int trials_for_this_thread = trials_per_thread + (i == 0 ? remainder_trials : 0);
         if (trials_for_this_thread > 0)
         {
-            threads.emplace_back(&SimulationEngine::run_batch, this, trials_for_this_thread,
-                                 std::ref(thread_results[i]), std::ref(thread_exceptions[i]));
+            threads.emplace_back(&SimulationEngine::run_batch, this, trials_for_this_thread, std::ref(thread_results[i]), std::ref(thread_exceptions[i]));
         }
     }
 
@@ -371,19 +221,17 @@ std::vector<TrialValue> SimulationEngine::run()
 
     for (const auto &ex_ptr : thread_exceptions)
     {
-        if (ex_ptr != nullptr)
+        if (ex_ptr)
         {
             std::rethrow_exception(ex_ptr);
         }
     }
 
-    // The final results vector is a vector of TrialValue
     std::vector<TrialValue> final_results;
     final_results.reserve(m_recipe.num_trials);
     for (const auto &partial_results : thread_results)
     {
         final_results.insert(final_results.end(), partial_results.begin(), partial_results.end());
     }
-    std::cout << "Simulation run complete. " << final_results.size() << " trials executed." << std::endl;
     return final_results;
 }

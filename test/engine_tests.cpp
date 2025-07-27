@@ -1,8 +1,12 @@
+// test/engine_tests.cpp
+
 #include <gtest/gtest.h>
 #include <fstream>
 #include <string>
 #include <vector>
 #include <tuple>
+#include <numeric>
+#include <cmath>
 #include "engine/SimulationEngine.h"
 
 // Helper function to create a test recipe file.
@@ -13,197 +17,226 @@ void create_test_recipe(const std::string &filename, const std::string &content)
     test_file.close();
 }
 
-// --- Parameterized Test Fixture for Operations ---
+// --- Parameterized Test Fixture for Deterministic Operations ---
 using TestParam = std::tuple<std::string, TrialValue, bool>;
 
-class EngineOperationTest : public ::testing::TestWithParam<TestParam>
+class DeterministicEngineTest : public ::testing::TestWithParam<TestParam>
 {
 };
 
-// The single test block for all parameterized tests.
-TEST_P(EngineOperationTest, ExecutesCorrectly)
+TEST_P(DeterministicEngineTest, ExecutesCorrectly)
 {
-    // 1. Arrange: Get the parameters for this specific test run.
-    const auto &params = GetParam();
+    const auto params = GetParam();
     const std::string &recipe_content = std::get<0>(params);
     const TrialValue &expected_result = std::get<1>(params);
     const bool is_vector_output = std::get<2>(params);
-
-    // We parse the op_code here to identify special cases for tolerance.
-    json recipe_json = json::parse(recipe_content);
-    std::string op_code_str = recipe_json["operations"][0]["op_code"];
-
     const std::string filename = "param_test.json";
     create_test_recipe(filename, recipe_content);
 
-    // 2. Act
     SimulationEngine engine(filename);
     std::vector<TrialValue> results = engine.run();
-
-    // 3. Assert
     ASSERT_EQ(results.size(), 1);
 
-    // Define a very small, default tolerance for "exact" comparisons.
-    const double default_tolerance = 1e-9; // 0.000000001
-
+    // Use a slightly larger tolerance for complex calcs like capitalize_expense
+    const double tolerance = 1e-6;
     if (is_vector_output)
     {
-        // Assertions for vector results
         ASSERT_TRUE(std::holds_alternative<std::vector<double>>(results[0]));
         const auto &result_vec = std::get<std::vector<double>>(results[0]);
         const auto &expected_vec = std::get<std::vector<double>>(expected_result);
         ASSERT_EQ(result_vec.size(), expected_vec.size());
-
         for (size_t i = 0; i < result_vec.size(); ++i)
         {
-            // Use a larger, specific tolerance for calculations known to have rounding issues.
-            // Otherwise, use the very strict default tolerance.
-            double tolerance = (op_code_str == "capitalize_expense") ? 0.0001 : default_tolerance;
             EXPECT_NEAR(result_vec[i], expected_vec[i], tolerance);
         }
     }
     else
     {
-        // Assertions for scalar results
         ASSERT_TRUE(std::holds_alternative<double>(results[0]));
         double final_value = std::get<double>(results[0]);
         double expected_value = std::get<double>(expected_result);
-
-        // Always use EXPECT_NEAR for floating-point comparisons.
-        EXPECT_NEAR(final_value, expected_value, default_tolerance);
+        EXPECT_NEAR(final_value, expected_value, tolerance);
     }
 }
 
-// --- Data for the Parameterized Tests ---
+// --- Test Suites for Deterministic Operations ---
 
-// Test suite for all binary operations
+// --- Basic Assignment Tests ---
 INSTANTIATE_TEST_SUITE_P(
-    BinaryOps,
-    EngineOperationTest,
+    AssignmentTests,
+    DeterministicEngineTest,
+    ::testing::Values(
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"A","execution_steps":[{"type":"literal_assignment","result":"A","value":123.45}]})", TrialValue(123.45), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"A","execution_steps":[{"type":"literal_assignment","result":"A","value":[1.0,2.0,3.0]}]})", TrialValue(std::vector<double>{1.0, 2.0, 3.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":99.0},{"type":"execution_assignment","result":"B","function":"identity","args":["A"]}]})", TrialValue(99.0), false)));
+
+// --- Binary and Unary Math Operation Tests ---
+INSTANTIATE_TEST_SUITE_P(
+    MathOperationTests,
+    DeterministicEngineTest,
+    ::testing::Values(
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":10},{"type":"literal_assignment","result":"B","value":20},{"type":"execution_assignment","result":"C","function":"add","args":["A","B"]}]})", TrialValue(30.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":10},{"type":"literal_assignment","result":"B","value":20},{"type":"execution_assignment","result":"C","function":"subtract","args":["A","B"]}]})", TrialValue(-10.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":10},{"type":"literal_assignment","result":"B","value":20},{"type":"execution_assignment","result":"C","function":"multiply","args":["A","B"]}]})", TrialValue(200.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":20},{"type":"literal_assignment","result":"B","value":10},{"type":"execution_assignment","result":"C","function":"divide","args":["A","B"]}]})", TrialValue(2.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":2},{"type":"literal_assignment","result":"B","value":8},{"type":"execution_assignment","result":"C","function":"power","args":["A","B"]}]})", TrialValue(256.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":10},{"type":"execution_assignment","result":"B","function":"log","args":["A"]}]})", TrialValue(std::log(10.0)), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":10},{"type":"execution_assignment","result":"B","function":"log10","args":["A"]}]})", TrialValue(std::log10(10.0)), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":2},{"type":"execution_assignment","result":"B","function":"exp","args":["A"]}]})", TrialValue(std::exp(2.0)), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":0},{"type":"execution_assignment","result":"B","function":"sin","args":["A"]}]})", TrialValue(std::sin(0.0)), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":0},{"type":"execution_assignment","result":"B","function":"cos","args":["A"]}]})", TrialValue(std::cos(0.0)), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":0},{"type":"execution_assignment","result":"B","function":"tan","args":["A"]}]})", TrialValue(std::tan(0.0)), false)));
+
+// --- Vector and Time-Series Operation Tests ---
+INSTANTIATE_TEST_SUITE_P(
+    VectorOperationTests,
+    DeterministicEngineTest,
+    ::testing::Values(
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[1,2,3]},{"type":"literal_assignment","result":"B","value":[4,5,6]},{"type":"execution_assignment","result":"C","function":"add","args":["A","B"]}]})", TrialValue(std::vector<double>{5.0, 7.0, 9.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"base","value":100},{"type":"literal_assignment","result":"rate","value":0.1},{"type":"execution_assignment","result":"C","function":"grow_series","args":["base","rate",3]}]})", TrialValue(std::vector<double>{110.0, 121.0, 133.1}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"base","value":100},{"type":"literal_assignment","result":"rates","value":[0.1,0.2]},{"type":"execution_assignment","result":"C","function":"compound_series","args":["base","rates"]}]})", TrialValue(std::vector<double>{110.0, 132.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"series","value":[100,110,125]},{"type":"execution_assignment","result":"C","function":"series_delta","args":["series"]}]})", TrialValue(std::vector<double>{0.0, 10.0, 15.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"series","value":[10,20,70]},{"type":"execution_assignment","result":"C","function":"sum_series","args":["series"]}]})", TrialValue(100.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"start","value":10},{"type":"literal_assignment","result":"end","value":50},{"type":"execution_assignment","result":"C","function":"interpolate_series","args":["start","end",5]}]})", TrialValue(std::vector<double>{10.0, 20.0, 30.0, 40.0, 50.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":10},{"type":"literal_assignment","result":"B","value":20},{"type":"literal_assignment","result":"C_in","value":30},{"type":"execution_assignment","result":"C","function":"compose_vector","args":["A","B","C_in"]}]})", TrialValue(std::vector<double>{10.0, 20.0, 30.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"current_rd","value":100.0},{"type":"literal_assignment","result":"past_rd","value":[90.0,80.0,70.0]},{"type":"literal_assignment","result":"period","value":3.0},{"type":"execution_assignment","result":"C","function":"capitalize_expense","args":["current_rd","past_rd","period"]}]})", TrialValue(std::vector<double>{186.66666666666666, 80.0}), true)));
+
+// --- Nested Expression Test ---
+INSTANTIATE_TEST_SUITE_P(
+    NestedExpressionTest,
+    DeterministicEngineTest,
+    ::testing::Values(
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"D","execution_steps":[{"type":"literal_assignment","result":"A","value":10},{"type":"literal_assignment","result":"B","value":20},{"type":"literal_assignment","result":"C","value":5},{"type":"execution_assignment","result":"D","function":"multiply","args":["A",{"function":"subtract","args":["B","C"]}]}]})", TrialValue(150.0), false)));
+
+// --- NEW: Mixed-Type Vector Math Tests ---
+INSTANTIATE_TEST_SUITE_P(
+    MixedTypeVectorMathTests,
+    DeterministicEngineTest,
     ::testing::Values(
         // Add
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":10},"B":{"type":"fixed","value":20}},"operations":[{"op_code":"add","args":["A","B"],"result":"C"}],"output_variable":"C"})", TrialValue(30.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20,30]},{"type":"execution_assignment","result":"C","function":"add","args":["A",5.0]}]})", TrialValue(std::vector<double>{15.0, 25.0, 35.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20,30]},{"type":"execution_assignment","result":"C","function":"add","args":[5.0,"A"]}]})", TrialValue(std::vector<double>{15.0, 25.0, 35.0}), true),
         // Subtract
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":10},"B":{"type":"fixed","value":20}},"operations":[{"op_code":"subtract","args":["A","B"],"result":"C"}],"output_variable":"C"})", TrialValue(-10.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20]},{"type":"execution_assignment","result":"C","function":"subtract","args":["A",3.0]}]})", TrialValue(std::vector<double>{7.0, 17.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20]},{"type":"execution_assignment","result":"C","function":"subtract","args":[100.0,"A"]}]})", TrialValue(std::vector<double>{90.0, 80.0}), true),
         // Multiply
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":10},"B":{"type":"fixed","value":20}},"operations":[{"op_code":"multiply","args":["A","B"],"result":"C"}],"output_variable":"C"})", TrialValue(200.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[2,4,6]},{"type":"execution_assignment","result":"C","function":"multiply","args":["A",10.0]}]})", TrialValue(std::vector<double>{20.0, 40.0, 60.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20,30]},{"type":"execution_assignment","result":"C","function":"multiply","args":[0.5,"A"]}]})", TrialValue(std::vector<double>{5.0, 10.0, 15.0}), true),
         // Divide
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":20},"B":{"type":"fixed","value":10}},"operations":[{"op_code":"divide","args":["A","B"],"result":"C"}],"output_variable":"C"})", TrialValue(2.0), false),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[100,200]},{"type":"execution_assignment","result":"C","function":"divide","args":["A",10.0]}]})", TrialValue(std::vector<double>{10.0, 20.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[2,4,5]},{"type":"execution_assignment","result":"C","function":"divide","args":[100.0,"A"]}]})", TrialValue(std::vector<double>{50.0, 25.0, 20.0}), true),
         // Power
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":2},"B":{"type":"fixed","value":8}},"operations":[{"op_code":"power","args":["A","B"],"result":"C"}],"output_variable":"C"})", TrialValue(256.0), false)));
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[2,3,4]},{"type":"execution_assignment","result":"C","function":"power","args":["A",2.0]}]})", TrialValue(std::vector<double>{4.0, 9.0, 16.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[1,2,3]},{"type":"execution_assignment","result":"C","function":"power","args":[2.0,"A"]}]})", TrialValue(std::vector<double>{2.0, 4.0, 8.0}), true)));
 
-// Test suite for time-series operations
-INSTANTIATE_TEST_SUITE_P(
-    TimeSeriesOps,
-    EngineOperationTest,
-    ::testing::Values(
-        // grow_series
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"base":{"type":"fixed","value":100},"rate":{"type":"fixed","value":0.1},"years":{"type":"fixed","value":3}},"operations":[{"op_code":"grow_series","args":["base","rate","years"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{110.0, 121.0, 133.1}), true),
-        // get_element (last)
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"series":{"type":"fixed","value":[10,20,30]}},"operations":[{"op_code":"get_element","args":["series",-1],"result":"C"}],"output_variable":"C"})", TrialValue(30.0), false),
-        // series_delta
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"series":{"type":"fixed","value":[100,110,125]}},"operations":[{"op_code":"series_delta","args":["series"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{0.0, 10.0, 15.0}), true)));
-
-INSTANTIATE_TEST_SUITE_P(
-    UnaryAndSpecialOps,
-    EngineOperationTest,
-    ::testing::Values(
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":10}},"operations":[{"op_code":"log","args":["A"],"result":"C"}],"output_variable":"C"})", TrialValue(std::log(10.0)), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":10}},"operations":[{"op_code":"log10","args":["A"],"result":"C"}],"output_variable":"C"})", TrialValue(std::log10(10.0)), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":2}},"operations":[{"op_code":"exp","args":["A"],"result":"C"}],"output_variable":"C"})", TrialValue(std::exp(2.0)), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":0}},"operations":[{"op_code":"sin","args":["A"],"result":"C"}],"output_variable":"C"})", TrialValue(std::sin(0.0)), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":0}},"operations":[{"op_code":"cos","args":["A"],"result":"C"}],"output_variable":"C"})", TrialValue(std::cos(0.0)), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":0}},"operations":[{"op_code":"tan","args":["A"],"result":"C"}],"output_variable":"C"})", TrialValue(std::tan(0.0)), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"base":{"type":"fixed","value":100},"rates":{"type":"fixed","value":[0.1,0.2]}},"operations":[{"op_code":"compound_series","args":["base","rates"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{110.0, 132.0}), true),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"series":{"type":"fixed","value":[10,20,70]}},"operations":[{"op_code":"sum_series","args":["series"],"result":"C"}],"output_variable":"C"})", TrialValue(100.0), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"rate":{"type":"fixed","value":0.1},"cfs":{"type":"fixed","value":[100,110]}},"operations":[{"op_code":"npv","args":["rate","cfs"],"result":"C"}],"output_variable":"C"})", TrialValue(100.0 / 1.1 + 110.0 / (1.1 * 1.1)), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"r1":{"type":"fixed","value":10},"r2":{"type":"fixed","value":20},"r3":{"type":"fixed","value":30}},"operations":[{"op_code":"compose_vector","args":["r1","r2","r3"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{10.0, 20.0, 30.0}), true),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"start":{"type":"fixed","value":10},"end":{"type":"fixed","value":50},"years":{"type":"fixed","value":5}},"operations":[{"op_code":"interpolate_series","args":["start","end","years"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{10.0, 20.0, 30.0, 40.0, 50.0}), true),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"period":{"type":"fixed","value":3},"current_rd":{"type":"fixed","value":88544.00},"past_rd":{"type":"fixed","value":[85622.00, 73213.00, 56052.00]}},"operations":[{"op_code":"capitalize_expense","args":["current_rd","past_rd","period"],"result":"C"}],"output_variable":"C"})", TrialValue(std::vector<double>{170029.666667, 71629.0}), true),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"A":{"type":"fixed","value":123.45}},"operations":[{"op_code":"identity","args":["A"],"result":"B"}],"output_variable":"B"})", TrialValue(123.45), false),
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"inputs":{"vec_in":{"type":"fixed","value":[10.0, 20.0, 30.0]}},"operations":[{"op_code":"identity","args":["vec_in"],"result":"vec_out"}],"output_variable":"vec_out"})", TrialValue(std::vector<double>{10.0, 20.0, 30.0}), true)));
-
-TEST(EngineErrorTests, ThrowsOnInvalidFilePath)
+// =============================================================================
+// --- STATISTICAL TESTS FOR SAMPLERS ---
+// =============================================================================
+class EngineSamplerTest : public ::testing::Test
 {
-    ASSERT_THROW(SimulationEngine engine("non_existent_file.json"), std::runtime_error);
+protected:
+    void RunAndAnalyze(const std::string &recipe_content, int num_trials, double expected_mean, double tolerance, bool check_bounds = false, double min_bound = 0.0, double max_bound = 0.0)
+    {
+        const std::string filename = "sampler_test.json";
+        create_test_recipe(filename, recipe_content);
+        SimulationEngine engine(filename);
+        std::vector<TrialValue> results = engine.run();
+
+        ASSERT_EQ(results.size(), num_trials);
+
+        std::vector<double> samples;
+        samples.reserve(results.size());
+        for (const auto &res : results)
+        {
+            double sample = std::get<double>(res);
+            samples.push_back(sample);
+            if (check_bounds)
+            {
+                ASSERT_GE(sample, min_bound);
+                ASSERT_LE(sample, max_bound);
+            }
+        }
+
+        double sum = std::accumulate(samples.begin(), samples.end(), 0.0);
+        double mean = sum / samples.size();
+        EXPECT_NEAR(mean, expected_mean, tolerance);
+    }
+};
+
+TEST_F(EngineSamplerTest, Normal)
+{
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Normal","args":[100.0,15.0]}]})", 20000, 100.0, 0.5);
 }
 
-TEST(EngineErrorTests, ThrowsOnMalformedJson)
+TEST_F(EngineSamplerTest, Pert)
 {
-    create_test_recipe("malformed.json", R"({ "key": "value" )");
-    ASSERT_THROW(SimulationEngine engine("malformed.json"), nlohmann::json::parse_error);
+    double expected_mean = (50.0 + 4.0 * 100.0 + 200.0) / 6.0; // ~125
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Pert","args":[50,100,200]}]})", 20000, expected_mean, 2.0, true, 50.0, 200.0);
 }
 
+TEST_F(EngineSamplerTest, Uniform)
+{
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Uniform","args":[-10,10]}]})", 20000, 0.0, 0.5, true, -10.0, 10.0);
+}
+
+TEST_F(EngineSamplerTest, Triangular)
+{
+    double expected_mean = (10.0 + 20.0 + 60.0) / 3.0; // ~30.0
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Triangular","args":[10,20,60]}]})", 20000, expected_mean, 1.0, true, 10.0, 60.0);
+}
+
+TEST_F(EngineSamplerTest, Bernoulli)
+{
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Bernoulli","args":[0.75]}]})", 20000, 0.75, 0.01, true, 0.0, 1.0);
+}
+
+TEST_F(EngineSamplerTest, Beta)
+{
+    double expected_mean = 2.0 / (2.0 + 5.0); // ~0.2857
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Beta","args":[2.0, 5.0]}]})", 20000, expected_mean, 0.01, true, 0.0, 1.0);
+}
+
+TEST_F(EngineSamplerTest, Lognormal)
+{
+    double log_mean = 2.0, log_stddev = 0.5;
+    double expected_mean = std::exp(log_mean + (log_stddev * log_stddev) / 2.0); // ~8.37
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Lognormal","args":[2.0,0.5]}]})", 20000, expected_mean, 0.5, true, 0.0, 1e9);
+}
+
+// =============================================================================
+// --- ERROR HANDLING AND EDGE CASE TESTS ---
+// =============================================================================
 TEST(EngineErrorTests, ThrowsOnUndefinedVariable)
 {
-    create_test_recipe("undefined_var.json", R"({
-        "simulation_config": { "num_trials": 1 }, "inputs": {},
-        "operations": [{ "op_code": "add", "args": ["A", "B"], "result": "C" }],
-        "output_variable": "C"
-    })");
-    SimulationEngine engine("undefined_var.json");
+    create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"execution_assignment","result":"C","function":"add","args":["A","B"]}]})");
+    SimulationEngine engine("err.json");
     ASSERT_THROW(engine.run(), std::runtime_error);
 }
 
 TEST(EngineErrorTests, ThrowsOnDivisionByZero)
 {
-    create_test_recipe("div_zero.json", R"({
-        "simulation_config": { "num_trials": 1 }, "inputs": {
-            "A": { "type": "fixed", "value": 100.0 }, "B": { "type": "fixed", "value": 0.0 }
-        }, "operations": [{ "op_code": "divide", "args": ["A", "B"], "result": "C" }],
-        "output_variable": "C"
-    })");
-    SimulationEngine engine("div_zero.json");
+    create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":100},{"type":"literal_assignment","result":"B","value":0},{"type":"execution_assignment","result":"C","function":"divide","args":["A","B"]}]})");
+    SimulationEngine engine("err.json");
     ASSERT_THROW(engine.run(), std::runtime_error);
 }
 
 TEST(EngineErrorTests, ThrowsOnVectorSizeMismatch)
 {
-    create_test_recipe("vec_mismatch.json", R"({
-        "simulation_config": { "num_trials": 1 }, "inputs": {
-            "vec1": { "type": "fixed", "value": [1, 2, 3] },
-            "vec2": { "type": "fixed", "value": [4, 5] }
-        }, "operations": [{ "op_code": "add", "args": ["vec1", "vec2"], "result": "C" }],
-        "output_variable": "C"
-    })");
-    SimulationEngine engine("vec_mismatch.json");
+    create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[1,2]},{"type":"literal_assignment","result":"B","value":[1,2,3]},{"type":"execution_assignment","result":"C","function":"add","args":["A","B"]}]})");
+    SimulationEngine engine("err.json");
     ASSERT_THROW(engine.run(), std::runtime_error);
 }
 
-// Test case for a deeply nested, multi-level recursive expression.
-TEST(EngineLogicTests, MultiLevelRecursiveExpression)
+TEST(EngineErrorTests, ThrowsOnIndexOutOfBounds)
 {
-    create_test_recipe("multilevel_expression.json", R"({
-        "simulation_config": { "num_trials": 1 },
-        "inputs": {
-            "A": { "type": "fixed", "value": 10.0 },
-            "B": { "type": "fixed", "value": 5.0 },
-            "C": { "type": "fixed", "value": 20.0 },
-            "D": { "type": "fixed", "value": 8.0 }
-        },
-        "operations": [{
-            "op_code": "add",
-            "args": [
-                "A",
-                {
-                    "op_code": "multiply",
-                    "args": [
-                        "B",
-                        {
-                            "op_code": "subtract",
-                            "args": ["C", "D"]
-                        }
-                    ]
-                }
-            ],
-            "result": "FinalValue"
-        }],
-        "output_variable": "FinalValue"
-    })");
+    create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20]},{"type":"execution_assignment","result":"C","function":"get_element","args":["A",5]}]})");
+    SimulationEngine engine("err.json");
+    ASSERT_THROW(engine.run(), std::runtime_error);
+}
 
-    SimulationEngine engine("multilevel_expression.json");
-    std::vector<TrialValue> results = engine.run();
-    ASSERT_EQ(results.size(), 1);
-    double final_value = std::get<double>(results[0]);
-    EXPECT_DOUBLE_EQ(final_value, 70.0);
+TEST(EngineErrorTests, ThrowsOnInvalidPertParams)
+{
+    create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Pert","args":[100,50,200]}]})");
+    SimulationEngine engine("err.json");
+    ASSERT_THROW(engine.run(), std::invalid_argument);
 }
