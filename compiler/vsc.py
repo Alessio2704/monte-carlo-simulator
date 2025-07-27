@@ -51,6 +51,7 @@ VALID_OPERATIONS = {
     "compose_vector",
     "interpolate_series",
     "capitalize_expense",
+    "identity",
 }
 
 
@@ -66,6 +67,14 @@ class ValuaScriptTransformer(Transformer):
 
     def vector(self, *items):
         return [float(i) for i in items]
+
+    def var_expression(self, var_name):
+        """
+        Handles when the right side of an assignment is just another variable.
+        e.g., let y = x
+        We transform this into a pseudo-operation for consistency.
+        """
+        return {"op_code": "identity", "args": [str(var_name)]}  # A new pseudo-operation
 
     def assignment(self, var_name, expression):
         """

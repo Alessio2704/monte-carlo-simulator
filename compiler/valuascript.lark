@@ -10,7 +10,9 @@ output_block: "@output" "=" CNAME           -> output_setting
 ?assignment: "let" CNAME "=" expression -> assignment
 
 // An expression can be a literal value or a function call.
-?expression: value | function_call
+?expression: value
+           | function_call
+           | CNAME -> var_expression
 
 // A value is a literal (scalar or vector).
 ?value: SIGNED_NUMBER -> scalar_value

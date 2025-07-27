@@ -42,6 +42,7 @@ enum class OpCode
     COMPOSE_VECTOR,
     INTERPOLATE_SERIES,
     CAPITALIZE_EXPENSE,
+    IDENTITY,
 
     // Add a sentinel value at the very end.
     // ADD OTHER CODES ABOVE THIS ONE

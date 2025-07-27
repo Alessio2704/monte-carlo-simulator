@@ -387,3 +387,16 @@ public:
         return std::vector<double>{research_asset, amortization_this_year};
     }
 };
+
+class IdentityOperation : public IOperation
+{
+public:
+    TrialValue execute(const std::vector<TrialValue> &args) const override
+    {
+        if (args.size() != 1)
+        {
+            throw std::runtime_error("IdentityOperation requires exactly one argument.");
+        }
+        return args[0];
+    }
+};
