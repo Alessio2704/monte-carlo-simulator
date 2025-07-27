@@ -1,29 +1,37 @@
-// --- Grammar for ValuaScript ---
+// --- Grammar for ValuaScript (v2) ---
 
-// The 'start' rule is the top-level entry point.
-// A script is composed of zero or more assignments.
-start: assignment*
+// The 'start' rule now enforces the overall file structure.
+// It MUST start with a config_block, followed by zero or more
+// assignments, and end with an output_block.
+start: config_block assignment* output_block
 
-// An 'assignment' consists of the 'let' keyword, a variable name,
-// an equals sign, and a number. The "->" syntax gives this rule a
-// clean name ("scalar_assignment") in the parse tree.
-?assignment: "let" CNAME "=" SIGNED_NUMBER -> scalar_assignment
+// --- Top-level Block Definitions ---
+
+config_block: "@iterations" "=" SIGNED_NUMBER -> iterations_setting
+output_block: "@output" "=" CNAME           -> output_setting
+
+// --- Assignment and Value Definitions ---
+
+// An assignment can be any valid "value" type.
+// We make the 'value' part of the rule have its own name for clarity.
+?assignment: "let" CNAME "=" value -> assignment
+
+// A 'value' can be a single number (scalar) or a vector.
+// This is easily extensible for distributions later.
+?value: SIGNED_NUMBER -> scalar_value
+      | vector
+
+// A 'vector' is a list of numbers. It can be empty.
+vector: "[" [SIGNED_NUMBER ("," SIGNED_NUMBER)*] "]"
 
 // --- Terminal Definitions ---
 
-// Import common terminals from the Lark library.
-// CNAME is a C-style identifier.
-// SIGNED_NUMBER handles integers and floats, including negatives.
 %import common.CNAME
 %import common.SIGNED_NUMBER
 
-// Define a terminal for comments. We tell Lark to ignore them.
-// The "1" gives it a higher priority than other rules.
+// Comments are still ignored.
 %ignore COMMENT
-
-// A comment starts with '#' and goes to the end of the line.
 COMMENT: /#.*/
 
-// Import the standard WHITESPACE terminal and tell Lark to ignore it.
 %import common.WS
 %ignore WS
