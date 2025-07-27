@@ -1,0 +1,29 @@
+// --- Grammar for ValuaScript ---
+
+// The 'start' rule is the top-level entry point.
+// A script is composed of zero or more assignments.
+start: assignment*
+
+// An 'assignment' consists of the 'let' keyword, a variable name,
+// an equals sign, and a number. The "->" syntax gives this rule a
+// clean name ("scalar_assignment") in the parse tree.
+?assignment: "let" CNAME "=" SIGNED_NUMBER -> scalar_assignment
+
+// --- Terminal Definitions ---
+
+// Import common terminals from the Lark library.
+// CNAME is a C-style identifier.
+// SIGNED_NUMBER handles integers and floats, including negatives.
+%import common.CNAME
+%import common.SIGNED_NUMBER
+
+// Define a terminal for comments. We tell Lark to ignore them.
+// The "1" gives it a higher priority than other rules.
+%ignore COMMENT
+
+// A comment starts with '#' and goes to the end of the line.
+COMMENT: /#.*/
+
+// Import the standard WHITESPACE terminal and tell Lark to ignore it.
+%import common.WS
+%ignore WS
