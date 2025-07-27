@@ -18,7 +18,7 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 - **✨ Simple & Intuitive Language:** Models are defined in **ValuaScript**, a clean, declarative language designed specifically for finance.
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
-- **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `PERT`, `Lognormal`, etc.) for any input variable.
+- **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) for any input variable.
 - **📈 Time-Series Aware:** Built from the ground up to handle multi-year forecasts, with operations for growth series, NPV, and element-wise vector math.
 - **⚙️ Extensible & Modular:** The architecture, based on the Strategy pattern, is designed to be easily extended with new operations and distributions.
 - **🛡️ Robust & Tested:** Comprehensive unit test suite built using GoogleTest, ensuring the correctness of all 33 features.

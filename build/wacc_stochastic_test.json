@@ -23,7 +23,7 @@
     },
     "market_premium": {
       "type": "distribution",
-      "dist_name": "PERT",
+      "dist_name": "Pert",
       "params": { "min": 0.04, "mostLikely": 0.055, "max": 0.07 }
     }
   },

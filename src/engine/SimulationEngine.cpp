@@ -48,7 +48,7 @@ static const std::unordered_map<std::string, OpCode> STRING_TO_OPCODE_MAP = {
     {"capitalize_expense", OpCode::CAPITALIZE_EXPENSE}};
 
 static const std::unordered_map<std::string, DistributionType>
-    STRING_TO_DIST_TYPE_MAP = {{"Normal", DistributionType::Normal}, {"PERT", DistributionType::Pert}, {"Uniform", DistributionType::Uniform}, {"Lognormal", DistributionType::Lognormal}, {"Triangular", DistributionType::Triangular}, {"Bernoulli", DistributionType::Bernoulli}, {"Beta", DistributionType::Beta}};
+    STRING_TO_DIST_TYPE_MAP = {{"Normal", DistributionType::Normal}, {"Pert", DistributionType::Pert}, {"Uniform", DistributionType::Uniform}, {"Lognormal", DistributionType::Lognormal}, {"Triangular", DistributionType::Triangular}, {"Bernoulli", DistributionType::Bernoulli}, {"Beta", DistributionType::Beta}};
 
 OpCode string_to_opcode(const std::string &s)
 {
