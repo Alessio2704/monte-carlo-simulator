@@ -1,27 +1,22 @@
-// --- Grammar for ValuaScript (v2) ---
+// --- Grammar for ValuaScript (v3) ---
 
-// The 'start' rule now enforces the overall file structure.
-// It MUST start with a config_block, followed by zero or more
-// assignments, and end with an output_block.
 start: config_block assignment* output_block
-
-// --- Top-level Block Definitions ---
 
 config_block: "@iterations" "=" SIGNED_NUMBER -> iterations_setting
 output_block: "@output" "=" CNAME           -> output_setting
 
 // --- Assignment and Value Definitions ---
 
-// An assignment can be any valid "value" type.
-// We make the 'value' part of the rule have its own name for clarity.
 ?assignment: "let" CNAME "=" value -> assignment
 
-// A 'value' can be a single number (scalar) or a vector.
-// This is easily extensible for distributions later.
+// A 'value' can now also be a distribution.
 ?value: SIGNED_NUMBER -> scalar_value
       | vector
+      | distribution
 
-// A 'vector' is a list of numbers. It can be empty.
+// A distribution is a function call.
+distribution: CNAME "(" [SIGNED_NUMBER ("," SIGNED_NUMBER)*] ")"
+
 vector: "[" [SIGNED_NUMBER ("," SIGNED_NUMBER)*] "]"
 
 // --- Terminal Definitions ---
@@ -29,7 +24,6 @@ vector: "[" [SIGNED_NUMBER ("," SIGNED_NUMBER)*] "]"
 %import common.CNAME
 %import common.SIGNED_NUMBER
 
-// Comments are still ignored.
 %ignore COMMENT
 COMMENT: /#.*/
 

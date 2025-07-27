@@ -6,6 +6,18 @@ with open("valuascript.lark", "r") as f:
     valuascript_grammar = f.read()
 
 
+DISTRIBUTION_PARAM_MAPPING = {
+    # ValuaScript Name: [C++ Param Name 1, C++ Param Name 2, ...]
+    "Normal": ["mean", "stddev"],
+    "Pert": ["min", "mostLikely", "max"],
+    "Uniform": ["min", "max"],
+    "Lognormal": ["log_mean", "log_stddev"],
+    "Triangular": ["min", "mostLikely", "max"],
+    "Bernoulli": ["p"],
+    "Beta": ["alpha", "beta"],
+}
+
+
 @v_args(inline=True)
 class ValuaScriptTransformer(Transformer):
     """
@@ -14,45 +26,62 @@ class ValuaScriptTransformer(Transformer):
 
     # --- Methods for handling values ---
     def scalar_value(self, number):
-        """Processes a single number."""
         return float(number)
 
     def vector(self, *items):
-        """Processes a list of numbers from the vector rule."""
         return [float(i) for i in items]
+
+    # ==========================================================
+    # --- NEW METHOD FOR DISTRIBUTIONS ---
+    # ==========================================================
+    def distribution(self, dist_name, *args):
+        """Processes a distribution function call, e.g., Pert(0.08, 0.09, 0.10)"""
+        dist_name_str = str(dist_name)
+
+        # 1. Check if the distribution is known
+        if dist_name_str not in DISTRIBUTION_PARAM_MAPPING:
+            raise ValueError(f"Unknown distribution '{dist_name_str}'.")
+
+        param_names = DISTRIBUTION_PARAM_MAPPING[dist_name_str]
+
+        # 2. Check for the correct number of arguments
+        if len(args) != len(param_names):
+            raise ValueError(f"Distribution '{dist_name_str}' expected {len(param_names)} " f"arguments, but got {len(args)}.")
+
+        # 3. Create the parameters dictionary
+        params_dict = {name: float(arg) for name, arg in zip(param_names, args)}
+
+        # 4. Return the complete structure for this input
+        return {"type": "distribution", "dist_name": dist_name_str, "params": params_dict}
 
     # --- Method for handling assignments ---
     def assignment(self, var_name, value):
         """
         Handles a generic assignment: 'let var = value'.
-        The 'value' has already been processed by scalar_value or vector.
+        'value' is now either a float, a list, or a dictionary (from distribution).
         """
-        return (str(var_name), {"type": "fixed", "value": value})  # value is already a float or a list of floats
+        # If the value is a distribution, it's already a complete dictionary.
+        if isinstance(value, dict):
+            # It already has the "type", "dist_name", etc. keys
+            return (str(var_name), value)
+
+        # Otherwise, it's a fixed scalar or vector.
+        return (str(var_name), {"type": "fixed", "value": value})
 
     # --- Methods for handling top-level blocks ---
     def iterations_setting(self, number):
-        """Processes the '@iterations = 100000' directive."""
         return ("num_trials", int(number))
 
     def output_setting(self, var_name):
-        """Processes the '@output = final_value' directive."""
         return ("output_variable", str(var_name))
 
     def start(self, *children):
-        """
-        Handles the top-level 'start' rule. It receives all processed
-        child nodes as a flat list in 'children'.
-        """
-        # The 'children' list will contain:
-        # [config_tuple, assignment_tuple_1, ..., assignment_tuple_n, output_tuple]
-
         config_tuple = children[0]
         output_tuple = children[-1]
         assignment_tuples = children[1:-1]
 
         recipe = {"simulation_config": {}, "inputs": {}, "operations": [], "output_variable": ""}
 
-        # Populate the recipe from the processed blocks
         recipe["simulation_config"][config_tuple[0]] = config_tuple[1]
         recipe["inputs"] = dict(assignment_tuples)
         recipe["output_variable"] = output_tuple[1]
@@ -86,4 +115,4 @@ def main(script_path):
 
 if __name__ == "__main__":
     # We now pass the specific file to our main function.
-    main("example_v2.valuascript")
+    main("example_v3.valuascript")
