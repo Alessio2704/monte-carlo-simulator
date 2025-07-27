@@ -6,16 +6,8 @@
 # This is where all compiled object files and the final executable live.
 /build
 
-# Python virtual environment
-venv/
-
-# Python cache
-__pycache__/
-
+#Gemini
 /gemini
-
-# Setuptools build artifacts
-*.egg-info/
 
 # In case CMake is run in the source directory by mistake, ignore its files.
 CMakeCache.txt

@@ -1,0 +1,13 @@
+# Python virtual environment
+venv/
+
+# Python cache
+__pycache__/
+
+# Setuptools build artifacts
+*.egg-info/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec

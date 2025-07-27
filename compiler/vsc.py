@@ -219,9 +219,21 @@ def main():
 
     # 3. Read grammar
     try:
-        # 'vsc' is the name of our module. 'valuascript.lark' is the file inside it.
-        grammar_path = files("vsc").joinpath("valuascript.lark")
-        valuascript_grammar = grammar_path.read_text()
+        # Check if the script is running as a frozen PyInstaller executable
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            # If so, the 'bundle_dir' is the path to the temporary folder
+            # where PyInstaller has unpacked the files.
+            bundle_dir = sys._MEIPASS
+        else:
+            # Otherwise, the script is running in a normal Python environment,
+            # and the 'bundle_dir' is the directory of the script file itself.
+            bundle_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Construct the path to the grammar file relative to the bundle_dir
+        grammar_path = os.path.join(bundle_dir, "valuascript.lark")
+        with open(grammar_path, "r") as f:
+            valuascript_grammar = f.read()
+
     except Exception as e:
         print(f"FATAL ERROR: Could not load internal grammar file 'valuascript.lark': {e}", file=sys.stderr)
         sys.exit(1)
