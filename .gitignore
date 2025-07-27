@@ -14,6 +14,9 @@ __pycache__/
 
 /gemini
 
+# Setuptools build artifacts
+*.egg-info/
+
 # In case CMake is run in the source directory by mistake, ignore its files.
 CMakeCache.txt
 CMakeFiles/

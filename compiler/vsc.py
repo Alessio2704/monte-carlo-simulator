@@ -3,8 +3,17 @@ import json
 from lark import Lark, Transformer, v_args
 from lark.lexer import Token
 import argparse
-import sys
 import os
+
+import sys
+
+# Python 3.9+ way to read package data files
+try:
+    from importlib.resources import files
+except ImportError:
+    # Fallback for Python 3.7, 3.8
+    from importlib_resources import files
+
 
 # This dictionary maps the ValuaScript distribution names
 # to the parameter names expected by the C++ engine.
@@ -210,10 +219,11 @@ def main():
 
     # 3. Read grammar
     try:
-        with open("valuascript.lark", "r") as f:
-            valuascript_grammar = f.read()
-    except FileNotFoundError:
-        print("ERROR: Grammar file 'valuascript.lark' not found.", file=sys.stderr)
+        # 'vsc' is the name of our module. 'valuascript.lark' is the file inside it.
+        grammar_path = files("vsc").joinpath("valuascript.lark")
+        valuascript_grammar = grammar_path.read_text()
+    except Exception as e:
+        print(f"FATAL ERROR: Could not load internal grammar file 'valuascript.lark': {e}", file=sys.stderr)
         sys.exit(1)
 
     parser = Lark(valuascript_grammar, start="start", parser="lalr")
