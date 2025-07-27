@@ -1,31 +1,31 @@
-// --- Grammar for ValuaScript (v3) ---
+// --- Grammar for ValuaScript (v4 Corrected) ---
 
 start: config_block assignment* output_block
 
 config_block: "@iterations" "=" SIGNED_NUMBER -> iterations_setting
 output_block: "@output" "=" CNAME           -> output_setting
 
-// --- Assignment and Value Definitions ---
+// A single, unified assignment rule.
+// The right-hand side is now a generic "expression".
+?assignment: "let" CNAME "=" expression -> assignment
 
-?assignment: "let" CNAME "=" value -> assignment
+// An expression can be a literal value or a function call.
+?expression: value | function_call
 
-// A 'value' can now also be a distribution.
+// A value is a literal (scalar or vector).
 ?value: SIGNED_NUMBER -> scalar_value
       | vector
-      | distribution
 
-// A distribution is a function call.
-distribution: CNAME "(" [SIGNED_NUMBER ("," SIGNED_NUMBER)*] ")"
-
+// --- Reusable Rule Definitions ---
 vector: "[" [SIGNED_NUMBER ("," SIGNED_NUMBER)*] "]"
+function_call: CNAME "(" [arg ("," arg)*] ")"
+
+?arg: SIGNED_NUMBER | CNAME | function_call
 
 // --- Terminal Definitions ---
-
 %import common.CNAME
 %import common.SIGNED_NUMBER
-
 %ignore COMMENT
 COMMENT: /#.*/
-
 %import common.WS
 %ignore WS
