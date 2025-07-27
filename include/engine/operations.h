@@ -1,3 +1,5 @@
+// include/engine/operations.h
+
 #pragma once
 
 #include "engine/IExecutable.h"
@@ -7,136 +9,177 @@
 #include <variant>
 #include <vector>
 
-// --- Helper Visitor for Binary Operations ---
-// This generic visitor contains the logic for all binary ops (ADD, SUBTRACT, etc.)
-// to avoid duplicating the std::visit logic in every binary operation class.
-struct BinaryOperationVisitor
+// Helper to perform a variadic operation on a list of scalars
+inline double perform_variadic_op(OpCode code, const std::vector<double> &values)
 {
-    OpCode code; // The specific operation to perform
-
-    // Overload for scalar op scalar
-    TrialValue operator()(double val1, double val2) const
+    if (values.empty())
     {
-        return perform_op(val1, val2);
-    }
-    // Overload for vector op scalar
-    TrialValue operator()(const std::vector<double> &val1, double val2) const
-    {
-        std::vector<double> result;
-        result.reserve(val1.size());
-        for (double x : val1)
-        {
-            result.push_back(perform_op(x, val2));
-        }
-        return result;
-    }
-    // Overload for scalar op vector
-    TrialValue operator()(double val1, const std::vector<double> &val2) const
-    {
-        std::vector<double> result;
-        result.reserve(val2.size());
-        for (double y : val2)
-        {
-            result.push_back(perform_op(val1, y));
-        }
-        return result;
-    }
-    // Overload for vector op vector
-    TrialValue operator()(const std::vector<double> &val1, const std::vector<double> &val2) const
-    {
-        if (val1.size() != val2.size())
-            throw std::runtime_error("Vector sizes must match for element-wise operations.");
-        std::vector<double> result;
-        result.reserve(val1.size());
-        for (size_t i = 0; i < val1.size(); ++i)
-        {
-            result.push_back(perform_op(val1[i], val2[i]));
-        }
-        return result;
+        throw std::runtime_error("Cannot perform operation on an empty list of values.");
     }
 
-private:
-    // The actual scalar math logic
-    double perform_op(double a, double b) const
+    double accumulator = values[0];
+    for (size_t i = 1; i < values.size(); ++i)
     {
         switch (code)
         {
         case OpCode::ADD:
-            return a + b;
+            accumulator += values[i];
+            break;
         case OpCode::SUBTRACT:
-            return a - b;
+            accumulator -= values[i];
+            break;
         case OpCode::MULTIPLY:
-            return a * b;
-        case OpCode::POWER:
-            return std::pow(a, b);
+            accumulator *= values[i];
+            break;
         case OpCode::DIVIDE:
-            if (b == 0.0)
+            if (values[i] == 0.0)
                 throw std::runtime_error("Division by zero");
-            return a / b;
+            accumulator /= values[i];
+            break;
+        case OpCode::POWER:
+            accumulator = std::pow(accumulator, values[i]);
+            break;
         default:
-            throw std::logic_error("Internal error: Unsupported binary op in visitor");
+            throw std::logic_error("Unsupported variadic op code.");
         }
     }
-};
+    return accumulator;
+}
 
-// --- Concrete Binary Operation Classes ---
-
-class AddOperation : public IExecutable
+// --- NEW CORRECTED VISITOR ---
+// This visitor is now a proper binary visitor for std::visit.
+struct ElementWiseVisitor
 {
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override
+    OpCode code;
+
+    // Case 1: scalar op scalar
+    TrialValue operator()(double left, double right) const
     {
-        if (args.size() != 2)
-            throw std::runtime_error("AddOperation requires 2 arguments.");
-        return std::visit(BinaryOperationVisitor{OpCode::ADD}, args[0], args[1]);
+        return perform_variadic_op(code, {left, right});
+    }
+
+    // Case 2: vector op scalar
+    TrialValue operator()(const std::vector<double> &vec, double scalar) const
+    {
+        std::vector<double> result;
+        result.reserve(vec.size());
+        for (double val : vec)
+        {
+            result.push_back(perform_variadic_op(code, {val, scalar}));
+        }
+        return result;
+    }
+
+    // Case 3: scalar op vector
+    TrialValue operator()(double scalar, const std::vector<double> &vec) const
+    {
+        std::vector<double> result;
+        result.reserve(vec.size());
+        for (double val : vec)
+        {
+            result.push_back(perform_variadic_op(code, {scalar, val}));
+        }
+        return result;
+    }
+
+    // Case 4: vector op vector
+    TrialValue operator()(const std::vector<double> &vec_left, const std::vector<double> &vec_right) const
+    {
+        if (vec_left.size() != vec_right.size())
+            throw std::runtime_error("Vector size mismatch for element-wise operation.");
+        std::vector<double> result;
+        result.reserve(vec_left.size());
+        for (size_t i = 0; i < vec_left.size(); ++i)
+        {
+            result.push_back(perform_variadic_op(code, {vec_left[i], vec_right[i]}));
+        }
+        return result;
     }
 };
 
-class SubtractOperation : public IExecutable
+// --- NEW CORRECTED BASE CLASS ---
+class VariadicBaseOperation : public IExecutable
 {
 public:
+    explicit VariadicBaseOperation(OpCode code) : m_code(code) {}
+
     TrialValue execute(const std::vector<TrialValue> &args) const override
     {
-        if (args.size() != 2)
-            throw std::runtime_error("SubtractOperation requires 2 arguments.");
-        return std::visit(BinaryOperationVisitor{OpCode::SUBTRACT}, args[0], args[1]);
+        if (args.empty())
+            throw std::runtime_error("Operation requires at least one argument.");
+        if (args.size() == 1)
+            return args[0];
+
+        // First, check for the simple all-scalar case for efficiency
+        bool has_vector = false;
+        for (const auto &arg : args)
+        {
+            if (std::holds_alternative<std::vector<double>>(arg))
+            {
+                has_vector = true;
+                break;
+            }
+        }
+
+        if (!has_vector)
+        {
+            std::vector<double> values;
+            values.reserve(args.size());
+            for (const auto &arg : args)
+                values.push_back(std::get<double>(arg));
+            return perform_variadic_op(m_code, values);
+        }
+
+        // Mixed-type logic: iteratively apply the operation
+        TrialValue accumulator = args[0];
+        for (size_t i = 1; i < args.size(); ++i)
+        {
+            // This is now a clean, direct call to std::visit
+            accumulator = std::visit(ElementWiseVisitor{m_code}, accumulator, args[i]);
+        }
+        return accumulator;
     }
+
+private:
+    OpCode m_code;
 };
 
-class MultiplyOperation : public IExecutable
+// --- Concrete classes are trivial wrappers (UNCHANGED) ---
+class AddOperation : public VariadicBaseOperation
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override
-    {
-        if (args.size() != 2)
-            throw std::runtime_error("MultiplyOperation requires 2 arguments.");
-        return std::visit(BinaryOperationVisitor{OpCode::MULTIPLY}, args[0], args[1]);
-    }
+    AddOperation() : VariadicBaseOperation(OpCode::ADD) {}
 };
-
-class DivideOperation : public IExecutable
+class SubtractOperation : public VariadicBaseOperation
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override
-    {
-        if (args.size() != 2)
-            throw std::runtime_error("DivideOperation requires 2 arguments.");
-        return std::visit(BinaryOperationVisitor{OpCode::DIVIDE}, args[0], args[1]);
-    }
+    SubtractOperation() : VariadicBaseOperation(OpCode::SUBTRACT) {}
 };
-
-class PowerOperation : public IExecutable
+class MultiplyOperation : public VariadicBaseOperation
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override
-    {
-        if (args.size() != 2)
-            throw std::runtime_error("PowerOperation requires 2 arguments.");
-        return std::visit(BinaryOperationVisitor{OpCode::POWER}, args[0], args[1]);
-    }
+    MultiplyOperation() : VariadicBaseOperation(OpCode::MULTIPLY) {}
+};
+class DivideOperation : public VariadicBaseOperation
+{
+public:
+    DivideOperation() : VariadicBaseOperation(OpCode::DIVIDE) {}
+};
+class PowerOperation : public VariadicBaseOperation
+{
+public:
+    PowerOperation() : VariadicBaseOperation(OpCode::POWER) {}
 };
 
-// --- Concrete Unary Math Operations ---
+// --- Unary and other non-variadic operations remain the same ---
+// (Copy the rest of your operations classes here: Log, Npv, Identity, etc.)
+// These classes are UNCHANGED from the previous working version.
+#include "engine/IExecutable.h"
+#include <stdexcept>
+#include <cmath>
+#include <numeric>
+#include <variant>
+#include <vector>
 
 class LogOperation : public IExecutable
 {
@@ -204,7 +247,6 @@ public:
     }
 };
 
-// --- Identity Operation ---
 class IdentityOperation : public IExecutable
 {
 public:
@@ -215,8 +257,6 @@ public:
         return args[0];
     }
 };
-
-// --- Concrete Time-Series Operations ---
 
 class GrowSeriesOperation : public IExecutable
 {
@@ -405,21 +445,19 @@ public:
         for (size_t i = 0; i < past_expenses.size(); ++i)
         {
             int year_ago = i + 1;
-            if (year_ago >= period)
+            if (year_ago < period)
             {
-                continue;
+                research_asset += past_expenses[i] * (static_cast<double>(period - year_ago) / period);
             }
-            research_asset += past_expenses[i] * (static_cast<double>(period - year_ago) / period);
         }
 
         for (size_t i = 0; i < past_expenses.size(); ++i)
         {
             int year_ago = i + 1;
-            if (year_ago > period)
+            if (year_ago <= period)
             {
-                continue;
+                amortization_this_year += past_expenses[i] / period;
             }
-            amortization_this_year += past_expenses[i] / period;
         }
 
         return std::vector<double>{research_asset, amortization_this_year};

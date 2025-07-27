@@ -1,30 +1,40 @@
-// --- Grammar for ValuaScript (Final Refactored Version) ---
+// --- Grammar for ValuaScript (FINAL WORKING VERSION) ---
 
 start: config_block assignment* output_block
 
 config_block: "@iterations" "=" SIGNED_NUMBER -> iterations_setting
 output_block: "@output" "=" CNAME           -> output_setting
 
-// A single, unified assignment rule.
-// The right-hand side is now a generic "expression".
 ?assignment: "let" CNAME "=" expression -> assignment
 
-// An expression can be a literal value, a function call, or a variable name.
-?expression: value
-           | function_call
-           | CNAME -> var_expression
+// --- HIERARCHY FOR MATHEMATICAL EXPRESSIONS ---
+// We now use named terminals for operators (ADD, SUB, etc.) so that the
+// Transformer receives them as Tokens instead of discarding them.
+?expression: term ((ADD|SUB) term)*         -> infix_expression
+?term:       factor ((MUL|DIV) factor)*       -> infix_expression
+?factor:     power
+?power:      atom (POW atom)*            -> infix_expression
 
-// A value is a literal (scalar or vector).
-?value: SIGNED_NUMBER -> scalar_value
-      | vector
+?atom: SIGNED_NUMBER
+     | CNAME
+     | function_call
+     | vector
+     | "(" expression ")"
 
 // --- Reusable Rule Definitions ---
-vector: "[" [SIGNED_NUMBER ("," SIGNED_NUMBER)*] "]"
+vector: "[" [arg ("," arg)*] "]"
 function_call: CNAME "(" [arg ("," arg)*] ")"
-
-?arg: SIGNED_NUMBER | CNAME | function_call
+?arg: expression
 
 // --- Terminal Definitions ---
+
+// By defining operators as named terminals, we ensure they are not discarded.
+ADD: "+"
+SUB: "-"
+MUL: "*"
+DIV: "/"
+POW: "^"
+
 %import common.CNAME
 %import common.SIGNED_NUMBER
 %ignore COMMENT

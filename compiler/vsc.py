@@ -4,13 +4,11 @@ import json
 import argparse
 import sys
 import os
-from lark import Lark, Transformer, v_args
+from lark import Lark, Transformer
 from lark.lexer import Token
 
-# The set of all valid function names known to the C++ engine.
-# This includes both operations and distribution samplers.
+# --- Constants ---
 VALID_FUNCTIONS = {
-    # Operations
     "add",
     "subtract",
     "multiply",
@@ -32,7 +30,6 @@ VALID_FUNCTIONS = {
     "compose_vector",
     "interpolate_series",
     "capitalize_expense",
-    # Distribution Samplers
     "Normal",
     "Pert",
     "Uniform",
@@ -42,136 +39,140 @@ VALID_FUNCTIONS = {
     "Beta",
 }
 
+OPERATOR_MAP = {
+    "+": "add",
+    "-": "subtract",
+    "*": "multiply",
+    "/": "divide",
+    "^": "power",
+}
 
-@v_args(inline=True)
+
 class ValuaScriptTransformer(Transformer):
     """
-    Transforms the ValuaScript parse tree into the new unified JSON format.
+    Transforms the Lark parse tree into a structured JSON recipe,
+    correctly handling and flattening infix operator chains.
     """
 
-    # --- Methods for literal values (expressions) ---
-    def scalar_value(self, number):
-        return float(number)
+    # --- NEW, SMARTER INFIX HANDLER ---
+    def infix_expression(self, items):
+        if len(items) == 1:
+            return items[0]
 
-    def vector(self, *items):
-        return [float(i) for i in items]
+        # Start with the first operand
+        tree = items[0]
+        i = 1
+        # Iterate through the remaining [operator, operand] pairs
+        while i < len(items):
+            op = items[i]
+            right = items[i + 1]
+            func_name = OPERATOR_MAP[op.value]
 
-    def var_expression(self, var_name):
-        """Transforms `let x = y` into an identity function call."""
-        return {"function": "identity", "args": [str(var_name)]}
+            # FLATTENING LOGIC: If the current tree is already a call to the same function,
+            # and that function is associative (add/multiply), just append the new argument.
+            if isinstance(tree, dict) and tree.get("function") == func_name and func_name in ("add", "multiply"):
+                tree["args"].append(right)
+            else:
+                # Otherwise, create a new tree with the old tree as the left operand.
+                tree = {"function": func_name, "args": [tree, right]}
+            i += 2
+        return tree
 
-    def function_call(self, func_name, *args):
-        """Processes a function call into a dictionary structure."""
-        processed_args = []
-        for arg in args:
-            if isinstance(arg, Token):
-                if arg.type == "SIGNED_NUMBER":
-                    processed_args.append(float(arg.value))
-                else:  # CNAME
-                    processed_args.append(str(arg.value))
-            else:  # Nested function call (dictionary)
-                processed_args.append(arg)
+    # --- Pass-through methods for grammar hierarchy ---
+    def expression(self, items):
+        return items[0]
 
-        return {"function": str(func_name), "args": processed_args}
+    def term(self, items):
+        return items[0]
 
-    # --- Method for the unified assignment rule ---
-    def assignment(self, var_name, expression):
-        """
-        Handles all 'let' assignments and creates a step dictionary.
-        """
-        # Case 1: The expression is a function call (from function_call or var_expression)
+    def power(self, items):
+        return items[0]
+
+    def atom(self, items):
+        return items[0]
+
+    def arg(self, items):
+        return items[0]
+
+    # --- Token and Rule Transformers ---
+    def SIGNED_NUMBER(self, n: Token) -> float:
+        return float(n.value)
+
+    def CNAME(self, c: Token) -> str:
+        return str(c.value)
+
+    def function_call(self, items):
+        func_name, *args = items
+        return {"function": func_name, "args": args}
+
+    def vector(self, items):
+        return list(items)
+
+    def assignment(self, items):
+        var_name, expression = items
         if isinstance(expression, dict):
-            return {"type": "execution_assignment", "result": str(var_name), "function": expression["function"], "args": expression["args"]}
-        # Case 2: The expression is a literal (float or list)
+            return {"type": "execution_assignment", "result": var_name, **expression}
+        elif isinstance(expression, str):
+            return {"type": "execution_assignment", "result": var_name, "function": "identity", "args": [expression]}
         else:
-            return {"type": "literal_assignment", "result": str(var_name), "value": expression}
+            return {"type": "literal_assignment", "result": var_name, "value": expression}
 
-    # --- Methods for top-level blocks ---
-    def iterations_setting(self, number):
-        return ("num_trials", int(number))
+    def iterations_setting(self, items):
+        return ("num_trials", int(items[0]))
 
-    def output_setting(self, var_name):
-        return ("output_variable", str(var_name))
+    def output_setting(self, items):
+        return ("output_variable", items[0])
 
-    def start(self, *children):
-        """
-        Assembles the final recipe dictionary by manually unpacking children.
-        """
-        # The 'children' will be a list like:
-        # [config_tuple, step_dict_1, step_dict_2, ..., output_tuple]
-        config_tuple = children[0]
-        output_tuple = children[-1]
-        steps_list = list(children[1:-1])
-
-        recipe = {"simulation_config": {}, "execution_steps": [], "output_variable": ""}
-        recipe["simulation_config"][config_tuple[0]] = config_tuple[1]
-        recipe["output_variable"] = output_tuple[1]
-        recipe["execution_steps"] = steps_list
-
-        return recipe
+    def start(self, children):
+        config = children[0]
+        output = children[-1]
+        steps = children[1:-1]
+        return {"simulation_config": {config[0]: config[1]}, "execution_steps": list(steps), "output_variable": output[1]}
 
 
+# --- Semantic Validation ---
 def validate_recipe(recipe: dict):
-    """
-    Performs semantic validation on the new unified recipe format.
-    """
     print("\n--- Running Semantic Validation ---")
-
     defined_vars = set()
-
-    # Iterate through steps to check for valid functions and defined variables
     for step in recipe["execution_steps"]:
-        # Check all execution steps for valid functions and arguments
         if step["type"] == "execution_assignment":
             func_name = step["function"]
             if func_name not in VALID_FUNCTIONS:
                 raise ValueError(f"Unknown function '{func_name}' in assignment for '{step['result']}'.")
 
-            def check_args(args_list):
+            def check_args(args_list, current_result_var):
                 for arg in args_list:
                     if isinstance(arg, str) and arg not in defined_vars:
-                        raise ValueError(f"Variable '{arg}' used in the calculation for '{step['result']}' " "is not defined before its use.")
-                    if isinstance(arg, dict):  # Nested execution
+                        raise ValueError(f"Variable '{arg}' used in the calculation for '{current_result_var}' is not defined before its use.")
+                    if isinstance(arg, dict):
                         nested_func = arg["function"]
                         if nested_func not in VALID_FUNCTIONS:
                             raise ValueError(f"Unknown nested function '{nested_func}'.")
-                        check_args(arg["args"])
+                        check_args(arg["args"], current_result_var)
 
-            check_args(step["args"])
-
-        # Add the variable defined in this step to the set for the next steps
+            check_args(step["args"], step["result"])
         result_var = step["result"]
         if result_var in defined_vars:
             raise ValueError(f"Variable '{result_var}' is defined more than once.")
         defined_vars.add(result_var)
-
     print(f"Found defined variables: {sorted(list(defined_vars))}")
-
-    # Check the output variable
     output_var = recipe["output_variable"]
     if not output_var:
         raise ValueError("An @output variable must be specified.")
     if output_var not in defined_vars:
-        raise ValueError(f"The output variable '{output_var}' is not defined in the script. " f"Available variables are: {sorted(list(defined_vars))}")
+        raise ValueError(f"The output variable '{output_var}' is not defined.")
     print(f"Output variable '{output_var}' is valid.")
     print("--- Validation Successful ---")
 
 
+# --- Main Execution ---
 def main():
-    """
-    Main function to drive the transpilation (no changes from before).
-    """
     parser = argparse.ArgumentParser(description="Compile a .vs file into a .json recipe.")
     parser.add_argument("input_file", help="The path to the input .vs file.")
-    parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file. Defaults to the input filename with a .json extension.")
+    parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file.")
     args = parser.parse_args()
 
-    if args.output_file:
-        output_file_path = args.output_file
-    else:
-        base_name = os.path.splitext(args.input_file)[0]
-        output_file_path = base_name + ".json"
-
+    output_file_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json"
     script_path = args.input_file
     print(f"--- Compiling {script_path} -> {output_file_path} ---")
 
