@@ -15,7 +15,7 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 ### Key Features
 
-- **✨ Simple & Intuitive Language:** Models are defined in **ValuaScript (`.vs`)**, a clean, declarative language designed specifically for finance.
+- **✨ Simple & Intuitive Language:** Models are defined in **ValuaScript (`.vs`)**, a clean, declarative language with a **familiar, spreadsheet-like formula syntax** using standard mathematical operators (`+`, `-`, `*`, `/`, `^`).
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
 - **🐍 Smart Python Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe, providing clear, semantic error-checking before execution.
 - **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) with fully dynamic parameters.
@@ -142,22 +142,40 @@ Special directives configure the simulation. They are required.
 
 Use the `let` keyword to define variables. The engine executes assignments sequentially.
 
+**1. Fixed Values (Scalars and Vectors)**
+
 ```valuascript
-# 1. Assign a literal number or vector
 let tax_rate = 0.21
 let margin_forecast = [0.25, 0.26, 0.27]
+```
 
-# 2. Assign the result of a distribution sample
+**2. Stochastic Variables (Distributions)**
+
+```valuascript
+let growth_rate = Normal(0.08, 0.02)
 let wacc = Pert(0.08, 0.09, 0.10)
-
-# 3. Assign the result of a calculation
-let nopat = multiply(EBIT, subtract(1, tax_rate))
-
-# 4. Assign the value of another variable
-let growth_rate = terminal_growth_rate
 ```
 
 _Supported Distributions:_ `Normal`, `Pert`, `Uniform`, `Lognormal`, `Triangular`, `Bernoulli`, `Beta`.
+
+**3. Operations and Expressions**
+ValuaScript supports standard mathematical operators for calculations, with correct precedence (`^` is evaluated before `*`/`/`, which are evaluated before `+`/`-`). Parentheses `()` can be used to control the order of evaluation.
+
+For more complex logic, the engine provides a rich library of built-in functions.
+
+```valuascript
+# Infix operators for simple arithmetic
+let cost_of_equity = risk_free_rate + beta * equity_risk_premium
+
+# Parentheses for correct order of operations
+let nopat = EBIT * (1 - tax_rate)
+
+# Complex logic still uses functions
+let revenue_series = grow_series(base_revenue, growth_rate, 10)
+
+# You can combine both in a single expression
+let pv_terminal_value = npv(wacc, cash_flows) / (1 + wacc) ^ num_years
+```
 
 ## 🔬 Development & Contribution
 
@@ -215,7 +233,7 @@ The core platform is complete and functional. Future development will focus on i
   - [ ] Create a top-level `/examples` directory with real-world model examples.
   </details>
 
-### Tier 2: Major Features (V1.3+)
+### Tier 2: Major Features (V1.2+)
 
 <details>
 <summary>These features will significantly expand the capabilities of the platform.</summary>
