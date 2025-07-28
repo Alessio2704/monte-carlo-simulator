@@ -18,8 +18,8 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 - **✨ Simple & Intuitive Language:** Models are defined in **ValuaScript (`.vs`)**, a clean, declarative language with a **familiar, spreadsheet-like formula syntax** using standard mathematical operators (`+`, `-`, `*`, `/`, `^`).
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
 - **🐍 Smart Validating Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe. It provides **clear, user-friendly error messages** and performs advanced **static type inference** to catch logical errors before execution.
+- **⚙️ Streamlined Workflow:** A `--run` flag allows for a seamless, one-step compile-and-execute experience.
 - **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) with fully validated parameters.
-- **📈 Time-Series Aware:** Built from the ground up to handle multi-year forecasts, with operations for growth series, NPV, and element-wise vector math.
 - **🛡️ Robust & Tested:** Comprehensive unit test suite for both the C++ engine (GoogleTest) and the Python compiler (Pytest), ensuring correctness and stability.
 
 ## 🏛️ Architecture
@@ -28,8 +28,8 @@ The platform is built on a clean, three-layer architecture that separates human-
 
 ```mermaid
 graph TD;
-    A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- transpiles via --> B["<b>vsc Compiler (Python)</b><br/><i>Validates types & translates</i>"];
-    B -- generates --> C["<b>JSON Recipe</b><br/><i>Intermediate Representation</i>"];
+    A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- "vsc my_model.vs --run" --> B["<b>vsc Compiler (Python)</b><br/><i>Validates, translates, & executes</i>"];
+    B -- generates & consumes --> C["<b>JSON Recipe</b><br/><i>Intermediate Representation</i>"];
     C -- consumed by --> D["<b>Simulation Engine (C++)</b><br/><i>High-Performance Backend</i>"];
     D -- produces --> E["<b>Simulation Results</b><br/><i>Statistical Analysis</i>"];
 
@@ -38,20 +38,14 @@ graph TD;
     style D fill:#9f9,stroke:#333,stroke-width:2px
 ```
 
-1.  **ValuaScript (Frontend):** A user defines their model in a simple `.vs` file.
-2.  **`vsc` Compiler (Middleware):** The Python-based `vsc` tool reads the `.vs` file, validates its syntax, logic, and types, and transpiles it into a structured JSON "recipe."
-3.  **Simulation Engine (Backend):** The multithreaded C++ `monte-carlo-simulator` executable reads the JSON recipe and acts as a high-speed, sequential interpreter to run the simulation.
-
 ## 🚀 Getting Started
 
 There are two paths for using this project: as an **End-User** (recommended for most) or as a **Developer** (if you want to contribute).
 
-### For End-Users (The Easy Way)
-
-This path allows you to write models and run simulations without setting up a Python environment.
+### For End-Users
 
 1.  **Download the `vsc` Compiler:**
-    Go to the [**latest GitHub Release**](https://github.com/Alessio2704/monte-carlo-simulator/releases) and download the `vsc` executable for your operating system.
+    Go to the [**latest GitHub Release**](https://github.com/Alessio2704/monte-carlo-simulator/releases) and download the `vsc` executable for your operating system. Place it in a convenient location.
 
 2.  **Build the C++ Engine:**
     You only need to do this once. First, ensure you have [Git](https://git-scm.com/), [CMake](https://cmake.org/), and a C++17 compiler installed.
@@ -68,20 +62,74 @@ This path allows you to write models and run simulations without setting up a Py
 
     This creates the `monte-carlo-simulator` executable inside the `build/bin/` directory.
 
+3.  **Configure the `--run` Flag (One-Time Setup):**
+    To use the streamlined workflow, you need to tell the `vsc` compiler where to find the C++ engine you just built. Follow the platform-specific instructions in the **"Configuring the `--run` Flag"** section below.
+
 ### Full Workflow Example
 
-With the setup complete, you can now write, compile, and run models.
+Once set up, you can compile and run a simulation with a single command:
 
 1.  **Write a model** in a file named `my_model.vs`.
-2.  **Compile it** using the `vsc` executable you downloaded:
+2.  **Compile and run it:**
     ```bash
-    # This creates my_model.json
-    /path/to/downloaded/vsc my_model.vs
+    # This will compile my_model.vs to my_model.json, then
+    # automatically execute the simulation engine and print the results.
+    /path/to/downloaded/vsc my_model.vs --run
     ```
-3.  **Run the simulation** with the C++ engine:
+
+---
+
+## ⚙️ Configuring the `--run` Flag
+
+To make `vsc my_model.vs --run` work seamlessly, you need to tell the `vsc` compiler where to find the `monte-carlo-simulator` executable. The recommended method is to set an environment variable. This is a one-time setup.
+
+First, get the **absolute path** to your C++ engine executable. You can find this by navigating to its directory and running `pwd` (on macOS/Linux) or copying the path from File Explorer (on Windows).
+
+- Example path on macOS/Linux: `/Users/yourname/monte-carlo-simulator/build/bin/monte-carlo-simulator`
+- Example path on Windows: `C:\Users\yourname\monte-carlo-simulator\build\bin\monte-carlo-simulator.exe`
+
+<details>
+<summary><b>Click for macOS & Linux Instructions (Zsh/Bash)</b></summary>
+
+1.  **Open your shell configuration file.** This is typically `~/.zshrc` for Zsh (default on modern macOS) or `~/.bash_profile` or `~/.bashrc` for Bash.
     ```bash
-    ./build/bin/monte-carlo-simulator my_model.json
+    # For Zsh
+    open ~/.zshrc
     ```
+2.  **Add the `export` command.** Go to the very bottom of the file and add the following line, replacing the example path with your own.
+
+    ```bash
+    # Set the path for the ValuaScript Simulation Engine
+    export VSC_ENGINE_PATH="/Users/yourname/monte-carlo-simulator/build/bin/monte-carlo-simulator"
+    ```
+
+3.  **Save the file and apply the changes** by running `source ~/.zshrc` or by opening a new terminal window.
+
+</details>
+
+<details>
+<summary><b>Click for Windows Instructions</b></summary>
+
+1.  **Open Environment Variables:** Open the Start Menu, type "env", and select "Edit the system environment variables".
+2.  **Edit User Variables:** In the window that appears, click the "Environment Variables..." button. In the top section ("User variables for yourname"), click "New...".
+3.  **Create the Variable:**
+    - **Variable name:** `VSC_ENGINE_PATH`
+    - **Variable value:** `C:\Users\yourname\monte-carlo-simulator\build\bin\monte-carlo-simulator.exe` (replace with your actual path)
+4.  **Confirm:** Click OK on all the windows to close them. You must **open a new Command Prompt or PowerShell terminal** for the changes to take effect.
+
+</details>
+
+<details>
+<summary><b>Alternative Methods (for advanced users)</b></summary>
+
+The `vsc` compiler searches for the engine in this order:
+
+1.  A path specified with the `--engine-path` flag (e.g., `vsc model.vs --run --engine-path /path/to/engine`).
+2.  The `VSC_ENGINE_PATH` environment variable (recommended setup).
+3.  A known relative path (`../build/bin/monte-carlo-simulator`), which works out-of-the-box for developers running `vsc` from the `compiler/` directory.
+4.  The system's `PATH` variable.
+
+</details>
 
 ---
 
@@ -90,38 +138,19 @@ With the setup complete, you can now write, compile, and run models.
 <details>
 <summary>Click to expand developer instructions</summary>
 
-This path is for those who wish to modify the compiler or the C++ engine.
+Follow the "Getting Started" instructions to clone and build the C++ engine. Then, set up the Python environment:
 
-#### 📋 Prerequisites
+```bash
+cd compiler
+# Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate
+# Install in editable mode and add test dependencies
+pip install -e .
+pip install pytest
+```
 
-- **Git:** To clone the repository.
-- **C++ Compiler (C++17):** e.g., Clang, GCC, or MSVC.
-- **CMake (3.14+):** To build the C++ engine.
-- **Python (3.7+):** To build and run the `vsc` compiler from source.
-
-#### 🛠️ Build Instructions
-
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/Alessio2704/monte-carlo-simulator.git
-    cd monte-carlo-simulator
-    ```
-2.  **Build the C++ Engine:**
-    ```bash
-    cmake -B build
-    cmake --build build
-    ```
-3.  **Build and Install the `vsc` Compiler:**
-    ```bash
-    cd compiler
-    # Create a virtual environment
-    python3 -m venv venv
-    source venv/bin/activate
-    # Install in editable mode and install test dependencies
-    pip install -e .
-    pip install pytest
-    ```
-    The `vsc` command is now available in your shell as long as the virtual environment is active.
+The `vsc` command is now available in your shell. The `--run` flag will work automatically for developers without any configuration, as it will find the engine at the known relative path.
 
 </details>
 
@@ -300,20 +329,22 @@ By following these three steps, your new function will be fully and safely integ
 
 - [x] **V1.0 C++ Engine Core & ValuaScript Compiler**
 - [x] **V1.1 Compiler Upgrade with Full Type Inference & Robust Error Reporting**
+- [x] **V1.2 Workflow & Usability**
+  - [x] **Streamlined Workflow:** Added a `--run` flag to the `vsc` compiler to automatically execute the simulation after compilation, with an intelligent search strategy for the engine executable.
 
 ---
 
-### Tier 1: Major Features (V1.2+)
+### Tier 1: Major Features (V1.3+)
 
 <details>
 <summary>Click to see major planned features.</summary>
 
 - [ ] **External Data Integration:**
   - [ ] Add a `read_csv("path", "column")` function to ValuaScript to allow models to use external data sources.
-- [ ] **Streamlined Workflow:**
-  - [ ] Add a `--run` flag to the `vsc` compiler to automatically execute the simulation after compilation.
 - [ ] **Enhanced Output Options:**
   - [ ] Add an `@output_file = "results.csv"` directive to write all trial results to a file.
+- [ ] **Compiler Flags for Behavior Control:**
+  - [ ] Add `--no-warn-unused` and `--verbose` flags to give users more control over the compiler's output.
 
 </details>
 
