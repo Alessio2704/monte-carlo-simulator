@@ -5,11 +5,10 @@ import argparse
 import sys
 import os
 from lark import Lark, Transformer
-from lark.exceptions import UnexpectedInput
+from lark.exceptions import UnexpectedInput, UnexpectedCharacters
 from lark.lexer import Token
 
 
-# ANSI Color Constants for terminal output ---
 class TerminalColors:
     RED = "\033[91m"
     GREEN = "\033[92m"
@@ -17,7 +16,6 @@ class TerminalColors:
     RESET = "\033[0m"
 
 
-# --- Constants & Configuration ---
 DIRECTIVE_CONFIG = {
     "iterations": {
         "required": True,
@@ -159,6 +157,31 @@ class ValuaScriptTransformer(Transformer):
         return {"directives": directives, "execution_steps": assignments}
 
 
+# --- NEW: Pre-parsing Linter Function ---
+def lint_script(script_content: str):
+    """
+    Performs simple, line-by-line checks for common syntax errors that can
+    confuse the main parser and lead to misleading error locations.
+    Raises ValuaScriptError if a simple error is found.
+    """
+    lines = script_content.splitlines()
+    for i, line in enumerate(lines):
+        # Ignore comments and empty lines
+        clean_line = line.split("#", 1)[0].strip()
+        if not clean_line:
+            continue
+
+        # Check for unbalanced parentheses or brackets
+        if clean_line.count("(") != clean_line.count(")"):
+            raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening parenthesis '(' on this line.")
+        if clean_line.count("[") != clean_line.count("]"):
+            raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening bracket '[' on this line.")
+
+        # Check for incomplete assignments
+        if clean_line.startswith("let") and clean_line.endswith("="):
+            raise ValuaScriptError(f"L{i+1}: Syntax Error: Missing value or formula after the equals sign '='.")
+
+
 def validate_recipe(recipe: dict):
     print("\n--- Running Semantic Validation ---")
     directives = {d["name"]: d for d in recipe.get("directives", [])}
@@ -176,38 +199,28 @@ def validate_recipe(recipe: dict):
                 output_var = str(value)
     if not output_var:
         raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
-
-    defined_vars = {}  # Stores var_name -> {'type': str, 'line': int}
-    used_vars = set()  # Stores var_names that are used in expressions
-
+    defined_vars = {}
+    used_vars = set()
     for step in recipe["execution_steps"]:
         line, result_var = step["line"], step["result"]
         if result_var in defined_vars:
             raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once.")
         if "args" in step:
             step["args"] = [str(arg) if isinstance(arg, Token) else arg for arg in step.get("args", [])]
-
-        # Pass used_vars set to the inferencer
         rhs_type = infer_expression_type(step, defined_vars, used_vars, line, result_var)
         defined_vars[result_var] = {"type": rhs_type, "line": line}
-
     if output_var not in defined_vars:
         raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined.")
     print(f"Found {len(defined_vars)} defined variables. Type inference successful.")
-
-    # Unused Variable Check ---
     all_defined = set(defined_vars.keys())
     unused = all_defined - used_vars
-    # The output variable is always considered "used" by the engine
     if output_var in unused:
         unused.remove(output_var)
-
     if unused:
         print(f"\n{TerminalColors.YELLOW}--- Compiler Warnings ---{TerminalColors.RESET}")
         for var in sorted(list(unused)):
             line_num = defined_vars[var]["line"]
             print(f"{TerminalColors.YELLOW}Warning: Variable '{var}' was defined on line {line_num} but was never used.{TerminalColors.RESET}")
-
     print(f"{TerminalColors.GREEN}--- Validation Successful ---{TerminalColors.RESET}")
     for step in recipe["execution_steps"]:
         if "value" in step and isinstance(step, Token):
@@ -217,7 +230,6 @@ def validate_recipe(recipe: dict):
     return {"simulation_config": sim_config, "execution_steps": recipe["execution_steps"], "output_variable": output_var}
 
 
-# Function signature now accepts used_vars
 def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, current_result_var):
     expr_type = expression_dict.get("type")
     if expr_type == "literal_assignment":
@@ -227,7 +239,6 @@ def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, cu
         if isinstance(value, list):
             return "vector"
         raise ValuaScriptError(f"L{line_num}: Invalid or missing value assigned to '{current_result_var}'.")
-
     if expr_type == "execution_assignment":
         func_name = expression_dict["function"]
         args = expression_dict.get("args", [])
@@ -236,11 +247,9 @@ def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, cu
         signature = FUNCTION_SIGNATURES[func_name]
         if not signature.get("variadic", False) and len(args) != len(signature["arg_types"]):
             raise ValuaScriptError(f"L{line_num}: Function '{func_name}' expects {len(signature['arg_types'])} argument{'s' if len(signature['arg_types']) != 1 else ''}, but got {len(args)}.")
-
         inferred_arg_types = []
         for arg in args:
             if isinstance(arg, str):
-                # Mark variable as used
                 used_vars.add(arg)
                 arg_type = defined_vars.get(arg, {}).get("type")
             else:
@@ -249,7 +258,6 @@ def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, cu
             if arg_type is None:
                 raise ValuaScriptError(f"L{line_num}: Variable '{arg}' used in function '{func_name}' is not defined.")
             inferred_arg_types.append(arg_type)
-
         if signature.get("variadic"):
             if expected_types := signature["arg_types"]:
                 for i, arg_type in enumerate(inferred_arg_types):
@@ -259,30 +267,31 @@ def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, cu
             for i, expected_type in enumerate(signature["arg_types"]):
                 if expected_type != "any" and expected_type != inferred_arg_types[i]:
                     raise ValuaScriptError(f"L{line_num}: Argument {i+1} for function '{func_name}' expects a '{expected_type}', but got a '{inferred_arg_types[i]}'.")
-
         return_type_rule = signature["return_type"]
         return return_type_rule(inferred_arg_types) if callable(return_type_rule) else return_type_rule
-
     raise ValuaScriptError(f"L{line_num}: Could not determine the type for '{current_result_var}'.")
 
 
-def format_lark_error(e: UnexpectedInput, script_content: str) -> str:
-    line_content = script_content.splitlines()[e.line - 1].strip()
-    if line_content.endswith("="):
-        custom_msg = "Missing a value or formula after the equals sign '='."
-        e.column = len(line_content) + 1
-    elif line_content.startswith("let") and "=" not in line_content:
-        custom_msg = "A variable definition must include an equals sign '=' and a value.\nExample: let my_variable = 100"
-    elif "(" in line_content and ")" not in line_content:
-        custom_msg = "It looks like you have an opening parenthesis '(' without a matching closing one ')'."
-    elif "[" in line_content and "]" not in line_content:
-        custom_msg = "It looks like you have an opening bracket '[' without a matching closing one ']'."
+def format_lark_error(e, script_content: str) -> str:
+    if isinstance(e, UnexpectedCharacters):
+        line, column = e.line, e.column
+        custom_msg = "Invalid character or syntax."
+    elif isinstance(e, UnexpectedInput):
+        line, column = e.line, e.column
+        line_content = script_content.splitlines()[line - 1].strip()
+        if "(" in line_content and ")" not in line_content:
+            custom_msg = "It looks like you have an opening parenthesis '(' without a matching closing one ')'."
+        elif "[" in line_content and "]" not in line_content:
+            custom_msg = "It looks like you have an opening bracket '[' without a matching closing one ']'."
+        else:
+            expected_str = ", ".join(sorted([TOKEN_FRIENDLY_NAMES.get(s, s) for s in e.expected]))
+            custom_msg = f"The syntax is invalid here. I was expecting {expected_str}."
     else:
-        custom_msg = f"The syntax is invalid here. I was expecting {', '.join(sorted([TOKEN_FRIENDLY_NAMES.get(s, s) for s in e.expected]))}."
+        return f"\n{TerminalColors.RED}--- PARSING ERROR ---\n{e}{TerminalColors.RESET}"
     error_header = f"\n{TerminalColors.RED}--- SYNTAX ERROR ---{TerminalColors.RESET}"
-    line_indicator = f"L{e.line} | {script_content.splitlines()[e.line - 1]}"
-    pointer = f"{' ' * (e.column + 2 + len(str(e.line)))}^\n"
-    error_message = f"{TerminalColors.RED}Error at line {e.line}: {custom_msg}{TerminalColors.RESET}"
+    line_indicator = f"L{line} | {script_content.splitlines()[line - 1]}"
+    pointer = f"{' ' * (column + 2 + len(str(line)))}^\n"
+    error_message = f"{TerminalColors.RED}Error at line {line}: {custom_msg}{TerminalColors.RESET}"
     return f"{error_header}\n{line_indicator}\n{pointer}{error_message}"
 
 
@@ -302,17 +311,27 @@ def main():
     except Exception as e:
         print(f"{TerminalColors.RED}FATAL ERROR: Could not load internal grammar file: {e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
-    lark_parser = Lark(valuasc_grammar, start="start", parser="lalr", transformer=ValuaScriptTransformer())
+
+    lark_parser = Lark(valuasc_grammar, start="start", parser="earley")
+
     try:
         with open(script_path, "r") as f:
             script_content = f.read()
-        raw_recipe = lark_parser.parse(script_content)
+
+        # --- NEW: Linter runs first ---
+        lint_script(script_content)
+
+        parse_tree = lark_parser.parse(script_content)
+        transformer = ValuaScriptTransformer()
+        raw_recipe = transformer.transform(parse_tree)
         final_recipe = validate_recipe(raw_recipe)
         recipe_json = json.dumps(final_recipe, indent=2)
         with open(output_file_path, "w") as f:
             f.write(recipe_json)
-    except UnexpectedInput as e:
-        print(format_lark_error(e, script_content), file=sys.stderr)
+
+    except (UnexpectedInput, UnexpectedCharacters) as e:
+        error_msg = format_lark_error(e, script_content)
+        print(error_msg, file=sys.stderr)
         sys.exit(1)
     except ValuaScriptError as e:
         print(f"\n{TerminalColors.RED}--- SEMANTIC ERROR ---\n{e}{TerminalColors.RESET}", file=sys.stderr)
@@ -321,8 +340,9 @@ def main():
         print(f"{TerminalColors.RED}ERROR: Script file '{script_path}' not found.{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"\n{TerminalColors.RED}--- UNEXPECTED COMPILER ERROR ---\n{type(e).__name__}: {e}{TerminalColors.RESET}", file=sys.stderr)
+        print(f"\n{TerminalColors.RED}--- UNEXPECTED COMPILER ERROR ---\n{type(e).__name__}: {e}", file=sys.stderr)
         sys.exit(1)
+
     print(f"\n{TerminalColors.GREEN}--- Compilation Successful ---{TerminalColors.RESET}")
     print(f"Recipe written to {output_file_path}")
 
