@@ -5,7 +5,7 @@
 [![C++ Version](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
 [![Python Version](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/downloads/)
 
-**A high-performance, multithreaded C++ engine for quantitative financial modeling, driven by ValuaScript—a simple, dedicated scripting language.**
+**A high-performance, multithreaded C++ engine for quantitative financial modeling, driven by ValuaScript—a simple, dedicated scripting language with a smart, validating compiler.**
 
 ## 📖 About The Project
 
@@ -17,10 +17,10 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 - **✨ Simple & Intuitive Language:** Models are defined in **ValuaScript (`.vs`)**, a clean, declarative language with a **familiar, spreadsheet-like formula syntax** using standard mathematical operators (`+`, `-`, `*`, `/`, `^`).
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
-- **🐍 Smart Python Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe, providing clear, semantic error-checking before execution.
-- **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) with fully dynamic parameters.
+- **🐍 Smart Validating Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe. It provides **clear, user-friendly error messages** and performs advanced **static type inference** to catch logical errors before execution.
+- **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) with fully validated parameters.
 - **📈 Time-Series Aware:** Built from the ground up to handle multi-year forecasts, with operations for growth series, NPV, and element-wise vector math.
-- **🛡️ Robust & Tested:** Comprehensive unit test suite built using GoogleTest, ensuring the correctness of all C++ engine features.
+- **🛡️ Robust & Tested:** Comprehensive unit test suite for both the C++ engine (GoogleTest) and the Python compiler (Pytest), ensuring correctness and stability.
 
 ## 🏛️ Architecture
 
@@ -28,7 +28,7 @@ The platform is built on a clean, three-layer architecture that separates human-
 
 ```mermaid
 graph TD;
-    A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- transpiles via --> B["<b>vsc Compiler (Python)</b><br/><i>Validates & Translates</i>"];
+    A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- transpiles via --> B["<b>vsc Compiler (Python)</b><br/><i>Validates types & translates</i>"];
     B -- generates --> C["<b>JSON Recipe</b><br/><i>Intermediate Representation</i>"];
     C -- consumed by --> D["<b>Simulation Engine (C++)</b><br/><i>High-Performance Backend</i>"];
     D -- produces --> E["<b>Simulation Results</b><br/><i>Statistical Analysis</i>"];
@@ -39,7 +39,7 @@ graph TD;
 ```
 
 1.  **ValuaScript (Frontend):** A user defines their model in a simple `.vs` file.
-2.  **`vsc` Compiler (Middleware):** The Python-based `vsc` tool reads the `.vs` file, validates its logic, and transpiles it into a structured JSON "recipe."
+2.  **`vsc` Compiler (Middleware):** The Python-based `vsc` tool reads the `.vs` file, validates its syntax, logic, and types, and transpiles it into a structured JSON "recipe."
 3.  **Simulation Engine (Backend):** The multithreaded C++ `monte-carlo-simulator` executable reads the JSON recipe and acts as a high-speed, sequential interpreter to run the simulation.
 
 ## 🚀 Getting Started
@@ -117,8 +117,9 @@ This path is for those who wish to modify the compiler or the C++ engine.
     # Create a virtual environment
     python3 -m venv venv
     source venv/bin/activate
-    # Install in editable mode
+    # Install in editable mode and install test dependencies
     pip install -e .
+    pip install pytest
     ```
     The `vsc` command is now available in your shell as long as the virtual environment is active.
 
@@ -126,55 +127,53 @@ This path is for those who wish to modify the compiler or the C++ engine.
 
 ## 📜 ValuaScript Language Guide
 
-ValuaScript uses a simple, line-by-line syntax for defining variables and calculations.
+ValuaScript uses a simple, line-by-line syntax for defining variables and calculations. The compiler enforces a clean, readable style.
 
 #### Settings
 
-Special directives configure the simulation. They are required.
+Special `@` directives configure the simulation. They can appear anywhere in the file but are required.
 
 ```valuascript
+# Defines the number of Monte Carlo trials to run.
 @iterations = 100000
-# ... model logic ...
+
+# Specifies which variable's final value should be collected.
 @output = final_share_price
 ```
 
 #### Variable Assignment (`let`)
 
-Use the `let` keyword to define variables. The engine executes assignments sequentially.
+Use the `let` keyword to define variables. The compiler executes assignments sequentially and infers the type of each variable (`scalar` or `vector`).
 
-**1. Fixed Values (Scalars and Vectors)**
+**1. Literals (Scalars and Vectors)**
 
 ```valuascript
-let tax_rate = 0.21
-let margin_forecast = [0.25, 0.26, 0.27]
+let tax_rate = 0.21              # Inferred as 'scalar'
+let margin_forecast = [0.25, 0.26] # Inferred as 'vector'
 ```
 
-**2. Stochastic Variables (Distributions)**
+**2. Infix Expressions**
+ValuaScript supports standard mathematical operators for calculations, with correct precedence (`^` before `*`/`/`, before `+`/`-`). Parentheses `()` can be used to control the order of evaluation.
 
 ```valuascript
-let growth_rate = Normal(0.08, 0.02)
-let wacc = Pert(0.08, 0.09, 0.10)
-```
-
-_Supported Distributions:_ `Normal`, `Pert`, `Uniform`, `Lognormal`, `Triangular`, `Bernoulli`, `Beta`.
-
-**3. Operations and Expressions**
-ValuaScript supports standard mathematical operators for calculations, with correct precedence (`^` is evaluated before `*`/`/`, which are evaluated before `+`/`-`). Parentheses `()` can be used to control the order of evaluation.
-
-For more complex logic, the engine provides a rich library of built-in functions.
-
-```valuascript
-# Infix operators for simple arithmetic
+# The compiler infers the types of the variables and the final result.
 let cost_of_equity = risk_free_rate + beta * equity_risk_premium
+```
 
-# Parentheses for correct order of operations
-let nopat = EBIT * (1 - tax_rate)
+**3. Function Calls**
+For more complex logic, the engine provides a rich library of built-in functions. The compiler performs advanced, recursive type checking on all function calls:
 
-# Complex logic still uses functions
-let revenue_series = grow_series(base_revenue, growth_rate, 10)
+- The number of arguments must be correct.
+- The type of each argument (`scalar` or `vector`) must match the function's signature. This includes the results of nested function calls.
 
-# You can combine both in a single expression
-let pv_terminal_value = npv(wacc, cash_flows) / (1 + wacc) ^ num_years
+```valuascript
+# CORRECT: The result of grow_series (a vector) is a valid argument for sum_series.
+let total_sales = sum_series(grow_series(100, 0.1, 5))
+
+# INCORRECT: The result of grow_series (a vector) is not a valid argument
+# for the 'mean' parameter of Normal, which expects a scalar.
+# THIS WILL CAUSE A COMPILER ERROR:
+# let random_value = Normal(grow_series(100, 0.1, 5), 10)
 ```
 
 ## 🔬 Development & Contribution
@@ -183,82 +182,150 @@ Contributions are welcome! The project is designed to be highly extensible.
 
 ### Running Tests
 
-The project includes a comprehensive C++ unit test suite.
+The project includes comprehensive test suites for both the C++ engine and the Python compiler.
+
+**1. C++ Engine Tests (GoogleTest)**
 
 ```bash
 # First, build the project (see instructions above)
 ./build/bin/run_tests
 ```
 
-### Extending the Engine
+**2. Python Compiler Tests (Pytest)**
 
-<details>
-<summary>Click to see instructions for adding new functions (Distributions or Operations)</summary>
+```bash
+cd compiler
+source venv/bin/activate
+pytest -v
+```
 
-The new architecture makes adding any function (`Sampler` or `Operation`) a simple, unified process.
+### Extending the Engine: A Detailed Guide
 
-1.  **Define the Logic (C++):** In `include/engine/samplers.h` or `include/engine/operations.h`, create a new class (e.g., `NewFunction`) that inherits from `IExecutable` and implements the `TrialValue execute(const std::vector<TrialValue>& args) const` method.
-2.  **Register in Factory (C++):** In `src/engine/SimulationEngine.cpp`, go to the `build_executable_factory` method and add a new entry to the map:
-    ```cpp
-    m_executable_factory["new_function_name"] = [] { return std::make_unique<NewFunction>(); };
-    ```
-3.  **Register in Compiler (Python):** In `compiler/vsc.py`, add the `"new_function_name"` to the `VALID_FUNCTIONS` set.
-4.  **Add a Test (C++):** In `test/engine_tests.cpp`, add a new test case to the appropriate `INSTANTIATE_TEST_SUITE_P` block to validate your new function's logic.
-
-</details>
-
-## 🗺️ Roadmap
-
-The core platform is complete and functional. Future development will focus on improving the user experience, adding advanced features, and enhancing the development ecosystem.
-
-- [x] **V1.0 C++ Engine Core & ValuaScript Compiler**
-  - [x] Designed ValuaScript language and grammar
-  - [x] Built robust Python compiler (`vsc`) with semantic validation
-  - [x] Engineered a sequential, multithreaded C++17 execution engine
-  - [x] Achieved comprehensive test coverage with GoogleTest
-  - [x] Packaged compiler for distribution (source and standalone)
+Adding a new function is a three-step process that touches both the C++ engine and the Python compiler.
 
 ---
 
-### Tier 1: Polish and Testing (V1.1)
+#### Example 1: Adding a New Operation (`stdev`)
 
-<details>
-<summary>These are immediate goals to improve the robustness and usability of the current version.</summary>
+Let's add a `stdev` function that calculates the standard deviation of a vector.
 
-- [ ] **Compiler Test Suite:**
-  - [ ] Implement a test suite for the `vsc` compiler using `pytest`.
-- [ ] **Improved Error Reporting:**
-  - [ ] Enhance the compiler to report the line and column number where an error occurred.
-  </details>
+**Step 1: Implement the Logic in C++**
 
-### Tier 2: Major Features (V1.2+)
+1.  **Create the Class:** In `include/engine/operations.h`, create a new class that inherits from `IExecutable`.
+
+    ```cpp
+    // In include/engine/operations.h
+    class StdevOperation : public IExecutable {
+    public:
+        TrialValue execute(const std::vector<TrialValue>& args) const override {
+            const auto& series = std::get<std::vector<double>>(args[0]);
+            if (series.empty()) return 0.0;
+            double sum = std::accumulate(series.begin(), series.end(), 0.0);
+            double mean = sum / series.size();
+            double sq_sum = std::inner_product(series.begin(), series.end(), series.begin(), 0.0);
+            double stdev = std::sqrt(sq_sum / series.size() - mean * mean);
+            return stdev;
+        }
+    };
+    ```
+
+2.  **Register in Factory:** In `src/engine/SimulationEngine.cpp`, add it to the `build_executable_factory` method.
+
+    ```cpp
+    // In src/engine/SimulationEngine.cpp
+    m_executable_factory["stdev"] = [] { return std::make_unique<StdevOperation>(); };
+    ```
+
+**Step 2: Update the Python Compiler**
+
+1.  **Add to Signatures:** In `compiler/vsc.py`, add an entry to the `FUNCTION_SIGNATURES` dictionary.
+
+    ```python
+    # In compiler/vsc.py
+    "stdev": {"variadic": False, "arg_types": ["vector"], "return_type": "scalar"},
+    ```
+
+**Step 3: Add Tests (Crucial!)**
+
+1.  **C++ Test:** In `test/engine_tests.cpp`, add a test case to validate the logic.
+2.  **Python Tests:** In `compiler/tests/test_compiler.py`, add tests for the compiler's validation (e.g., test that `stdev(123)` fails and `stdev([1,2])` passes).
+
+---
+
+#### Example 2: Adding a New Distribution (`Poisson`)
+
+Let's add a `Poisson` distribution sampler.
+
+**Step 1: Implement the Logic in C++**
+
+1.  **Create the Class:** In `include/engine/samplers.h`, create the new sampler class.
+
+    ```cpp
+    // In include/engine/samplers.h
+    class PoissonSampler : public IExecutable {
+    public:
+        TrialValue execute(const std::vector<TrialValue>& args) const override {
+            // The compiler guarantees we get one scalar argument.
+            double lambda = std::get<double>(args[0]);
+            std::poisson_distribution<> dist(lambda);
+            return static_cast<double>(dist(get_thread_local_generator()));
+        }
+    };
+    ```
+
+2.  **Register in Factory:** In `src/engine/SimulationEngine.cpp`, add it to the factory.
+
+    ```cpp
+    // In src/engine/SimulationEngine.cpp
+    m_executable_factory["Poisson"] = [] { return std::make_unique<PoissonSampler>(); };
+    ```
+
+**Step 2: Update the Python Compiler**
+
+1.  **Add to Signatures:** In `compiler/vsc.py`, add the new function's signature.
+
+    ```python
+    # In compiler/vsc.py
+    "Poisson": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
+    ```
+
+**Step 3: Add Tests (Crucial!)**
+
+1.  **C++ Test:** In `test/engine_tests.cpp`, add a statistical test to verify the mean of many samples.
+2.  **Python Tests:** In `compiler/tests/test_compiler.py`, add arity and type tests (e.g., `Poisson()` and `Poisson([1,2])` should fail).
+
+By following these three steps, your new function will be fully and safely integrated into the entire platform.
+
+## 🗺️ Roadmap
+
+- [x] **V1.0 C++ Engine Core & ValuaScript Compiler**
+- [x] **V1.1 Compiler Upgrade with Full Type Inference & Robust Error Reporting**
+
+---
+
+### Tier 1: Major Features (V1.2+)
 
 <details>
 <summary>These features will significantly expand the capabilities of the platform.</summary>
 
 - [ ] **External Data Integration:**
   - [ ] Add a `read_csv("path", "column")` function to ValuaScript to allow models to use external data sources.
-  - [ ] Implement the corresponding `Operation` in the C++ engine.
 - [ ] **Streamlined Workflow:**
-  - [ ] Add a `--run` flag to the `vsc` compiler.
-  - [ ] When `--run` is used, `vsc` will automatically execute the `monte-carlo-simulator` with the newly generated JSON file.
+  - [ ] Add a `--run` flag to the `vsc` compiler to automatically execute the simulation after compilation.
 - [ ] **Enhanced Output Options:**
-  - [ ] Add a `@output_file = "results.csv"` directive to ValuaScript.
-  - [ ] Update the C++ engine to write all trial results to the specified CSV file for further analysis in tools like Excel, Python, or R.
+  - [ ] Add an `@output_file = "results.csv"` directive to write all trial results to a file.
 
 </details>
 
-### Tier 3: Ecosystem and Distribution (V2.0)
+### Tier 2: Ecosystem and Distribution (V2.0)
 
 <details>
 <summary>Long-term goals focused on making the project more accessible and professional.</summary>
 
 - [ ] **Automated Cross-Platform Builds (CI/CD):**
-  - [ ] Create a GitHub Actions workflow to automatically build the C++ engine and the standalone `vsc` executable for Windows, macOS, and Linux.
-  - [ ] Configure the workflow to attach all binaries to new GitHub Releases automatically.
+  - [ ] Create a GitHub Actions workflow to automatically build binaries for all major OSes and attach them to new GitHub Releases.
 - [ ] **Dedicated Documentation Website:**
-  - [ ] Use a static site generator like MkDocs or Docusaurus to create a full documentation website.
-  - [ ] Host the site on GitHub Pages for a polished, professional look.
+  - [ ] Use a static site generator like MkDocs or Docusaurus for full, searchable documentation.
 
 </details>
 
@@ -268,10 +335,9 @@ The core platform is complete and functional. Future development will focus on i
 <summary>Ambitious, long-term ideas for a next-generation modeling tool.</summary>
 
 - [ ] **VS Code Extension:**
-  - [ ] Develop an extension for Visual Studio Code providing syntax highlighting for `.vs` files.
-  - [ ] Implement real-time error checking (linting) and autocompletion for ValuaScript functions.
+  - [ ] Develop an extension for Visual Studio Code providing syntax highlighting, real-time error checking (linting), and autocompletion.
 - [ ] **Data Visualization:**
-  - [ ] Add a feature to automatically generate and display a histogram of the final output distribution after a simulation run.
+  - [ ] Add a feature to automatically generate and display a histogram of the final output distribution.
 
 </details>
 
