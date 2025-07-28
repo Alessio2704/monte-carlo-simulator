@@ -19,6 +19,7 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
 - **🐍 Smart Validating Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe. It provides **clear, user-friendly error messages** and performs advanced **static type inference** to catch logical errors before execution.
 - **⚙️ Streamlined Workflow:** A `--run` flag allows for a seamless, one-step compile-and-execute experience.
+- **📊 Data Export:** Natively supports exporting full simulation trial data to CSV files for further analysis with the `@output_file` directive.
 - **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) with fully validated parameters.
 - **🛡️ Robust & Tested:** Comprehensive unit test suite for both the C++ engine (GoogleTest) and the Python compiler (Pytest), ensuring correctness and stability.
 
@@ -160,14 +161,17 @@ ValuaScript uses a simple, line-by-line syntax for defining variables and calcul
 
 #### Settings
 
-Special `@` directives configure the simulation. They can appear anywhere in the file but are required.
+Special `@` directives configure the simulation. They can appear anywhere in the file but are typically placed at the top for clarity.
 
 ```valuascript
-# Defines the number of Monte Carlo trials to run.
+# Defines the number of Monte Carlo trials to run. (Required)
 @iterations = 100000
 
-# Specifies which variable's final value should be collected.
+# Specifies which variable's final value should be collected. (Required)
 @output = final_share_price
+
+# Exports all trial results to a CSV file for further analysis. (Optional)
+@output_file = "sim_results/amazon_model.csv"
 ```
 
 #### Variable Assignment (`let`)
@@ -329,8 +333,9 @@ By following these three steps, your new function will be fully and safely integ
 
 - [x] **V1.0 C++ Engine Core & ValuaScript Compiler**
 - [x] **V1.1 Compiler Upgrade with Full Type Inference & Robust Error Reporting**
-- [x] **V1.2 Workflow & Usability**
-  - [x] **Streamlined Workflow:** Added a `--run` flag to the `vsc` compiler to automatically execute the simulation after compilation, with an intelligent search strategy for the engine executable.
+- [x] **V1.2 Workflow & Usability Features**
+  - [x] **Streamlined Workflow:** Added a `--run` flag to `vsc`.
+  - [x] **Data Export:** Added the `@output_file` directive and CSV writing capabilities to the engine.
 
 ---
 
@@ -341,10 +346,6 @@ By following these three steps, your new function will be fully and safely integ
 
 - [ ] **External Data Integration:**
   - [ ] Add a `read_csv("path", "column")` function to ValuaScript to allow models to use external data sources.
-- [ ] **Enhanced Output Options:**
-  - [ ] Add an `@output_file = "results.csv"` directive to write all trial results to a file.
-- [ ] **Compiler Flags for Behavior Control:**
-  - [ ] Add `--no-warn-unused` and `--verbose` flags to give users more control over the compiler's output.
 
 </details>
 
