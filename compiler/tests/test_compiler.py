@@ -81,7 +81,7 @@ def test_variable_name_shadowing_function_name():
 # =============================================================================
 # --- Syntax and Structural Error Tests ---
 # =============================================================================
-@pytest.mark.parametrize("malformed_snippet", ["let = 100", "let v 100", "let v = ", "let x = (1+2", "let x = [1,2", '@iterations="abc"'])
+@pytest.mark.parametrize("malformed_snippet", ["let = 100", "let v 100", "let v = ", "let x = (1+2", "let x = [1,2"])
 def test_syntax_errors(base_script, malformed_snippet):
     if malformed_snippet.startswith("@"):
         script = malformed_snippet + "\n@output=x\nlet x=1"
@@ -110,7 +110,8 @@ def test_structural_integrity_errors(description, script_body, expected_error):
     "description, script_body, expected_error",
     [
         ("Missing @iterations", "@output=x\nlet x=1", "The @iterations directive is mandatory"),
-        ("Wrong @iterations type", "@iterations=1.5\n@output=x\nlet x=1", "must be a whole number"),
+        ("Wrong @iterations type (float)", "@iterations=1.5\n@output=x\nlet x=1", "must be a whole number"),
+        ("Wrong @iterations type (string)", '@iterations="abc"\n@output=x\nlet x=1', "must be a whole number"),
         ("Undefined output var", "@iterations=1\n@output=z\nlet x=1", "The final @output variable 'z' is not defined"),
         ("Undefined variable in assignment", "@iterations=1\n@output=y\nlet y=x", "Variable 'x' used in function 'identity' is not defined"),
         ("Undefined variable in function", "@iterations=1\n@output=y\nlet y=log(x)", "Variable 'x' used in function 'log' is not defined"),
@@ -118,6 +119,7 @@ def test_structural_integrity_errors(description, script_body, expected_error):
         ("Scalar expected, vector var", "let v=[1]\nlet result=Normal(1,v)", "expects a 'scalar', but got a 'vector'"),
         ("Vector expected, scalar var", "let s=1\nlet result=sum_series(s)", "expects a 'vector', but got a 'scalar'"),
         ("Variadic type error", "let v=[1]\nlet result=compose_vector(1,v)", "expects a 'scalar', but got a 'vector'"),
+        ("Wrong @output_file type", "@iterations=1\n@output=x\nlet x=1\n@output_file=123", "must be a string literal"),
     ],
 )
 def test_semantic_and_type_errors(base_script, description, script_body, expected_error):

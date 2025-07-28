@@ -1,4 +1,4 @@
-// --- Grammar for ValuaScript (V2.1 - Unambiguous) ---
+// --- Grammar for ValuaScript (V2.2 - String Literals) ---
 
 // A script is a sequence of directives and assignments in any order.
 start: (directive | assignment)*
@@ -10,8 +10,6 @@ directive: "@" CNAME "=" expression -> directive_setting
 assignment: "let" CNAME "=" expression -> assignment
 
 // --- HIERARCHY FOR MATHEMATICAL EXPRESSIONS ---
-// We use named terminals for operators (ADD, SUB, etc.) so that the
-// Transformer receives them as Tokens instead of discarding them.
 ?expression: term ((ADD|SUB) term)*         -> infix_expression
 ?term:       factor ((MUL|DIV) factor)*       -> infix_expression
 ?factor:     power
@@ -19,6 +17,7 @@ assignment: "let" CNAME "=" expression -> assignment
 
 ?atom: SIGNED_NUMBER
      | CNAME
+     | STRING // Add string literals as a possible value
      | function_call
      | vector
      | "(" expression ")"
@@ -29,13 +28,14 @@ function_call: CNAME "(" [arg ("," arg)*] ")"
 ?arg: expression
 
 // --- Terminal Definitions ---
-
-// By defining operators as named terminals, we ensure they are not discarded.
 ADD: "+"
 SUB: "-"
 MUL: "*"
 DIV: "/"
 POW: "^"
+
+// A terminal for double-quoted strings
+STRING: /"[^"]*"/
 
 %import common.CNAME
 %import common.SIGNED_NUMBER

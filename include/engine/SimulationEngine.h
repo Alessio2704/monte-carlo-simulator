@@ -20,6 +20,7 @@ public:
     // This will be called by ExecutionStep objects to resolve their arguments.
     // It needs access to the factory, so it must be part of the engine.
     TrialValue resolve_value_recursively(const json &arg, const TrialContext &context) const;
+    std::string get_output_file_path() const;
 
 private:
     void parse_recipe(const std::string &path);

@@ -61,4 +61,5 @@ struct SimulationRecipe
     int num_trials = 1000;
     std::string output_variable;
     std::vector<ExecutionStepDef> execution_steps; // The unified list of all steps
+    std::string output_file_path;
 };

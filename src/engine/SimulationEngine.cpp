@@ -84,6 +84,11 @@ void SimulationEngine::build_executable_factory()
     { return std::make_unique<TriangularSampler>(); };
 }
 
+std::string SimulationEngine::get_output_file_path() const
+{
+    return m_recipe.output_file_path;
+}
+
 void SimulationEngine::parse_recipe(const std::string &path)
 {
     std::ifstream file_stream(path);
@@ -93,10 +98,19 @@ void SimulationEngine::parse_recipe(const std::string &path)
     }
     json recipe_json = json::parse(file_stream);
 
-    m_recipe.num_trials = recipe_json["simulation_config"]["num_trials"];
+    const auto &config = recipe_json["simulation_config"];
+
+    m_recipe.num_trials = config["num_trials"];
     m_recipe.output_variable = recipe_json["output_variable"];
 
-    // The new JSON format uses "execution_steps"
+    if (config.contains("output_file"))
+    {
+        if (config["output_file"].is_string())
+        {
+            m_recipe.output_file_path = config["output_file"].get<std::string>();
+        }
+    }
+
     for (const auto &step_json : recipe_json["execution_steps"])
     {
         std::string type = step_json["type"];

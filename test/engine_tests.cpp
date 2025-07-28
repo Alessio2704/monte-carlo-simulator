@@ -240,3 +240,154 @@ TEST(EngineErrorTests, ThrowsOnInvalidPertParams)
     SimulationEngine engine("err.json");
     ASSERT_THROW(engine.run(), std::invalid_argument);
 }
+
+// =============================================================================
+// --- TEST SUITE FOR FILE OUTPUT ---
+// =============================================================================
+
+// Helper to write results to CSV, mirroring the logic in main.cpp
+void write_results_to_csv_for_test(const std::string &path, const std::vector<TrialValue> &results)
+{
+    if (results.empty())
+        return;
+    std::ofstream output_file(path);
+    if (!output_file.is_open())
+    {
+        throw std::runtime_error("Test setup error: Could not open test output file for writing.");
+    }
+    std::visit(
+        [&](auto &&first_result)
+        {
+            using T = std::decay_t<decltype(first_result)>;
+            if constexpr (std::is_same_v<T, double>)
+            {
+                output_file << "Result\n";
+                for (const auto &res : results)
+                {
+                    output_file << std::get<double>(res) << "\n";
+                }
+            }
+            else if constexpr (std::is_same_v<T, std::vector<double>>)
+            {
+                if (first_result.empty())
+                    return;
+                for (size_t i = 0; i < first_result.size(); ++i)
+                {
+                    output_file << "Period_" << i + 1 << (i == first_result.size() - 1 ? "" : ",");
+                }
+                output_file << "\n";
+                for (const auto &res : results)
+                {
+                    const auto &vec = std::get<std::vector<double>>(res);
+                    for (size_t i = 0; i < vec.size(); ++i)
+                    {
+                        output_file << vec[i] << (i == vec.size() - 1 ? "" : ",");
+                    }
+                    output_file << "\n";
+                }
+            }
+        },
+        results[0]);
+}
+
+// Helper to read a file's content into a string
+std::string read_file_content(const std::string &path)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        return "ERROR: FILE_NOT_FOUND";
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
+class EngineFileOutputTest : public ::testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        // Ensure old test files are removed before each test
+        std::remove("test_output.csv");
+        std::remove("recipe.json");
+    }
+    void TearDown() override
+    {
+        // Clean up created files after each test
+        std::remove("test_output.csv");
+        std::remove("recipe.json");
+    }
+};
+
+TEST_F(EngineFileOutputTest, WritesScalarOutputCorrectly)
+{
+    const std::string recipe_content = R"({
+        "simulation_config": {
+            "num_trials": 1,
+            "output_file": "test_output.csv"
+        },
+        "output_variable": "A",
+        "execution_steps": [
+            {"type": "literal_assignment", "result": "A", "value": 123.45}
+        ]
+    })";
+    create_test_recipe("recipe.json", recipe_content);
+
+    SimulationEngine engine("recipe.json");
+    std::vector<TrialValue> results = engine.run();
+
+    // Mimic the main function's logic
+    std::string output_path = engine.get_output_file_path();
+    ASSERT_EQ(output_path, "test_output.csv");
+    write_results_to_csv_for_test(output_path, results);
+
+    std::string file_content = read_file_content("test_output.csv");
+    std::string expected_content = "Result\n123.45\n";
+    EXPECT_EQ(file_content, expected_content);
+}
+
+TEST_F(EngineFileOutputTest, WritesVectorOutputCorrectly)
+{
+    const std::string recipe_content = R"({
+        "simulation_config": {
+            "num_trials": 1,
+            "output_file": "test_output.csv"
+        },
+        "output_variable": "A",
+        "execution_steps": [
+            {"type": "literal_assignment", "result": "A", "value": [10.1, 20.2, 30.3]}
+        ]
+    })";
+    create_test_recipe("recipe.json", recipe_content);
+
+    SimulationEngine engine("recipe.json");
+    std::vector<TrialValue> results = engine.run();
+
+    std::string output_path = engine.get_output_file_path();
+    ASSERT_EQ(output_path, "test_output.csv");
+    write_results_to_csv_for_test(output_path, results);
+
+    std::string file_content = read_file_content("test_output.csv");
+    std::string expected_content = "Period_1,Period_2,Period_3\n10.1,20.2,30.3\n";
+    EXPECT_EQ(file_content, expected_content);
+}
+
+TEST_F(EngineFileOutputTest, DoesNotWriteFileWhenNotSpecified)
+{
+    const std::string recipe_content = R"({
+        "simulation_config": {"num_trials": 1},
+        "output_variable": "A",
+        "execution_steps": [{"type": "literal_assignment", "result": "A", "value": 10}]
+    })";
+    create_test_recipe("recipe.json", recipe_content);
+
+    SimulationEngine engine("recipe.json");
+    engine.run();
+
+    std::string output_path = engine.get_output_file_path();
+    ASSERT_TRUE(output_path.empty());
+    // Check that the file does not exist
+    std::ifstream file("test_output.csv");
+    EXPECT_FALSE(file.good());
+}

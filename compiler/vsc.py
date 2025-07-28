@@ -30,6 +30,7 @@ DIRECTIVE_CONFIG = {
         "error_missing": "The @output directive is mandatory (e.g., '@output = final_result').",
         "error_type": "The value for @output must be a variable name (e.g., 'final_result').",
     },
+    "output_file": {"required": False, "type": str, "error_type": 'The value for @output_file must be a string literal (e.g., "path/to/results.csv").'},
 }
 
 FUNCTION_SIGNATURES = {
@@ -69,6 +70,7 @@ TOKEN_FRIENDLY_NAMES = {
     "CNAME": "a variable name",
     "expression": "a value or formula",
     "EQUAL": "an equals sign '='",
+    "STRING": "a string in double quotes",
     "ADD": "a plus sign '+'",
     "SUB": "a minus sign '-'",
     "MUL": "a multiplication sign '*'",
@@ -88,6 +90,11 @@ class ValuaScriptError(Exception):
 
 
 class ValuaScriptTransformer(Transformer):
+
+    def STRING(self, s: Token) -> str:
+        """Strips the quotes from a string literal."""
+        return s.value[1:-1]
+
     def infix_expression(self, items):
         if len(items) == 1:
             return items[0]
@@ -176,6 +183,7 @@ def validate_recipe(recipe: dict):
     print("\n--- Running Semantic Validation ---")
     directives = {d["name"]: d for d in recipe.get("directives", [])}
     sim_config, output_var = {}, ""
+
     for name, config in DIRECTIVE_CONFIG.items():
         if config["required"] and name not in directives:
             raise ValuaScriptError(config["error_missing"])
@@ -187,6 +195,8 @@ def validate_recipe(recipe: dict):
                 sim_config["num_trials"] = value
             elif name == "output":
                 output_var = str(value)
+            elif name == "output_file":
+                sim_config["output_file"] = value
     if not output_var:
         raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
     defined_vars = {}
@@ -228,6 +238,8 @@ def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, cu
             return "scalar"
         if isinstance(value, list):
             return "vector"
+        if isinstance(value, str):
+            return "string"
         raise ValuaScriptError(f"L{line_num}: Invalid or missing value assigned to '{current_result_var}'.")
     if expr_type == "execution_assignment":
         func_name = expression_dict["function"]
@@ -264,8 +276,7 @@ def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, cu
 
 def format_lark_error(e, script_content: str) -> str:
     if isinstance(e, UnexpectedCharacters):
-        line, column = e.line, e.column
-        custom_msg = "Invalid character or syntax."
+        line, column, custom_msg = e.line, e.column, "Invalid character or syntax."
     elif isinstance(e, UnexpectedInput):
         line, column = e.line, e.column
         line_content = script_content.splitlines()[line - 1].strip()
@@ -286,34 +297,22 @@ def format_lark_error(e, script_content: str) -> str:
 
 
 def find_engine_executable(provided_path):
-    """
-    Finds the simulation engine executable using a prioritized search strategy.
-    Returns the path to the executable or None if not found.
-    """
-    if provided_path:
-        if os.path.isfile(provided_path) and os.access(provided_path, os.X_OK):
-            print(f"--- Using engine executable from provided path: {provided_path} ---")
-            return provided_path
-        else:
-            print(f"{TerminalColors.YELLOW}Warning: Path from --engine-path '{provided_path}' is not a valid executable. Continuing search...{TerminalColors.RESET}", file=sys.stderr)
+    if provided_path and os.path.isfile(provided_path) and os.access(provided_path, os.X_OK):
+        return provided_path
     env_path = os.environ.get("VSC_ENGINE_PATH")
     if env_path and os.path.isfile(env_path) and os.access(env_path, os.X_OK):
-        print(f"--- Using engine executable from VSC_ENGINE_PATH: {env_path} ---")
         return env_path
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         dev_path = os.path.join(script_dir, "..", "build", "bin", "monte-carlo-simulator")
         if os.path.isfile(dev_path) and os.access(dev_path, os.X_OK):
-            print(f"--- Found development engine executable at: {dev_path} ---")
             return dev_path
     except NameError:
         pass
     from shutil import which
 
     if which("monte-carlo-simulator"):
-        path = which("monte-carlo-simulator")
-        print(f"--- Found engine executable in system PATH: {path} ---")
-        return path
+        return which("monte-carlo-simulator")
     return None
 
 
@@ -324,7 +323,6 @@ def main():
     parser.add_argument("--run", action="store_true", help="Execute the simulation engine after a successful compilation.")
     parser.add_argument("--engine-path", help="Explicit path to the 'monte-carlo-simulator' executable.")
     args = parser.parse_args()
-
     output_file_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json"
     script_path = args.input_file
     print(f"--- Compiling {script_path} -> {output_file_path} ---")
@@ -336,9 +334,7 @@ def main():
     except Exception as e:
         print(f"{TerminalColors.RED}FATAL ERROR: Could not load internal grammar file: {e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
-
     lark_parser = Lark(valuasc_grammar, start="start", parser="earley")
-
     try:
         with open(script_path, "r") as f:
             script_content = f.read()
@@ -350,23 +346,12 @@ def main():
         recipe_json = json.dumps(final_recipe, indent=2)
         with open(output_file_path, "w") as f:
             f.write(recipe_json)
-
         print(f"\n{TerminalColors.GREEN}--- Compilation Successful ---{TerminalColors.RESET}")
         print(f"Recipe written to {output_file_path}")
-
         if args.run:
             engine_executable = find_engine_executable(args.engine_path)
             if not engine_executable:
-                error_msg = (
-                    f"\n{TerminalColors.RED}--- Execution Failed ---\n"
-                    "Could not find the 'monte-carlo-simulator' executable.\n\n"
-                    "Please try one of these options:\n"
-                    "1. Use the --engine-path flag: vsc your_model.vs --run --engine-path /path/to/engine\n"
-                    "2. Set the VSC_ENGINE_PATH environment variable.\n"
-                    "3. Place the executable in your system's PATH.\n"
-                    f"4. For developers, ensure it is built at '../build/bin/'.{TerminalColors.RESET}"
-                )
-                print(error_msg, file=sys.stderr)
+                print(f"\n{TerminalColors.RED}--- Execution Failed ---\nCould not find 'monte-carlo-simulator'.{TerminalColors.RESET}", file=sys.stderr)
                 sys.exit(1)
             print(f"\n--- Running Simulation ---")
             result = subprocess.run([engine_executable, output_file_path], capture_output=False, text=True)
@@ -375,7 +360,6 @@ def main():
             else:
                 print(f"{TerminalColors.RED}--- Simulation Failed (Exit Code: {result.returncode}) ---{TerminalColors.RESET}", file=sys.stderr)
                 sys.exit(result.returncode)
-
     except (UnexpectedInput, UnexpectedCharacters) as e:
         error_msg = format_lark_error(e, script_content)
         print(error_msg, file=sys.stderr)
