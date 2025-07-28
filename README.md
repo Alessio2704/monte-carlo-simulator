@@ -229,8 +229,6 @@ The core platform is complete and functional. Future development will focus on i
   - [ ] Implement a test suite for the `vsc` compiler using `pytest`.
 - [ ] **Improved Error Reporting:**
   - [ ] Enhance the compiler to report the line and column number where an error occurred.
-- [ ] **Official "Examples" Directory:**
-  - [ ] Create a top-level `/examples` directory with real-world model examples.
   </details>
 
 ### Tier 2: Major Features (V1.2+)
