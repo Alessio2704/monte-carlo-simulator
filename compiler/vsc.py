@@ -9,10 +9,11 @@ from lark.exceptions import UnexpectedInput
 from lark.lexer import Token
 
 
-# --- NEW: ANSI Color Constants for terminal output ---
+# ANSI Color Constants for terminal output ---
 class TerminalColors:
     RED = "\033[91m"
     GREEN = "\033[92m"
+    YELLOW = "\033[93m"
     RESET = "\033[0m"
 
 
@@ -175,18 +176,38 @@ def validate_recipe(recipe: dict):
                 output_var = str(value)
     if not output_var:
         raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
-    symbol_table = {}
+
+    defined_vars = {}  # Stores var_name -> {'type': str, 'line': int}
+    used_vars = set()  # Stores var_names that are used in expressions
+
     for step in recipe["execution_steps"]:
         line, result_var = step["line"], step["result"]
-        if result_var in symbol_table:
+        if result_var in defined_vars:
             raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once.")
         if "args" in step:
             step["args"] = [str(arg) if isinstance(arg, Token) else arg for arg in step.get("args", [])]
-        rhs_type = infer_expression_type(step, symbol_table, line, result_var)
-        symbol_table[result_var] = rhs_type
-    if output_var not in symbol_table:
+
+        # Pass used_vars set to the inferencer
+        rhs_type = infer_expression_type(step, defined_vars, used_vars, line, result_var)
+        defined_vars[result_var] = {"type": rhs_type, "line": line}
+
+    if output_var not in defined_vars:
         raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined.")
-    print(f"Found {len(symbol_table)} defined variables. Type inference successful.")
+    print(f"Found {len(defined_vars)} defined variables. Type inference successful.")
+
+    # Unused Variable Check ---
+    all_defined = set(defined_vars.keys())
+    unused = all_defined - used_vars
+    # The output variable is always considered "used" by the engine
+    if output_var in unused:
+        unused.remove(output_var)
+
+    if unused:
+        print(f"\n{TerminalColors.YELLOW}--- Compiler Warnings ---{TerminalColors.RESET}")
+        for var in sorted(list(unused)):
+            line_num = defined_vars[var]["line"]
+            print(f"{TerminalColors.YELLOW}Warning: Variable '{var}' was defined on line {line_num} but was never used.{TerminalColors.RESET}")
+
     print(f"{TerminalColors.GREEN}--- Validation Successful ---{TerminalColors.RESET}")
     for step in recipe["execution_steps"]:
         if "value" in step and isinstance(step, Token):
@@ -196,7 +217,8 @@ def validate_recipe(recipe: dict):
     return {"simulation_config": sim_config, "execution_steps": recipe["execution_steps"], "output_variable": output_var}
 
 
-def infer_expression_type(expression_dict, symbol_table, line_num, current_result_var):
+# Function signature now accepts used_vars
+def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, current_result_var):
     expr_type = expression_dict.get("type")
     if expr_type == "literal_assignment":
         value = expression_dict.get("value")
@@ -205,6 +227,7 @@ def infer_expression_type(expression_dict, symbol_table, line_num, current_resul
         if isinstance(value, list):
             return "vector"
         raise ValuaScriptError(f"L{line_num}: Invalid or missing value assigned to '{current_result_var}'.")
+
     if expr_type == "execution_assignment":
         func_name = expression_dict["function"]
         args = expression_dict.get("args", [])
@@ -213,16 +236,20 @@ def infer_expression_type(expression_dict, symbol_table, line_num, current_resul
         signature = FUNCTION_SIGNATURES[func_name]
         if not signature.get("variadic", False) and len(args) != len(signature["arg_types"]):
             raise ValuaScriptError(f"L{line_num}: Function '{func_name}' expects {len(signature['arg_types'])} argument{'s' if len(signature['arg_types']) != 1 else ''}, but got {len(args)}.")
+
         inferred_arg_types = []
         for arg in args:
             if isinstance(arg, str):
-                arg_type = symbol_table.get(arg)
+                # Mark variable as used
+                used_vars.add(arg)
+                arg_type = defined_vars.get(arg, {}).get("type")
             else:
                 temp_dict = {"type": "execution_assignment", **arg} if isinstance(arg, dict) else {"type": "literal_assignment", "value": arg}
-                arg_type = infer_expression_type(temp_dict, symbol_table, line_num, current_result_var)
+                arg_type = infer_expression_type(temp_dict, defined_vars, used_vars, line_num, current_result_var)
             if arg_type is None:
                 raise ValuaScriptError(f"L{line_num}: Variable '{arg}' used in function '{func_name}' is not defined.")
             inferred_arg_types.append(arg_type)
+
         if signature.get("variadic"):
             if expected_types := signature["arg_types"]:
                 for i, arg_type in enumerate(inferred_arg_types):
@@ -232,8 +259,10 @@ def infer_expression_type(expression_dict, symbol_table, line_num, current_resul
             for i, expected_type in enumerate(signature["arg_types"]):
                 if expected_type != "any" and expected_type != inferred_arg_types[i]:
                     raise ValuaScriptError(f"L{line_num}: Argument {i+1} for function '{func_name}' expects a '{expected_type}', but got a '{inferred_arg_types[i]}'.")
+
         return_type_rule = signature["return_type"]
         return return_type_rule(inferred_arg_types) if callable(return_type_rule) else return_type_rule
+
     raise ValuaScriptError(f"L{line_num}: Could not determine the type for '{current_result_var}'.")
 
 
@@ -250,13 +279,10 @@ def format_lark_error(e: UnexpectedInput, script_content: str) -> str:
         custom_msg = "It looks like you have an opening bracket '[' without a matching closing one ']'."
     else:
         custom_msg = f"The syntax is invalid here. I was expecting {', '.join(sorted([TOKEN_FRIENDLY_NAMES.get(s, s) for s in e.expected]))}."
-
-    # --- NEW: Using colors for the output ---
     error_header = f"\n{TerminalColors.RED}--- SYNTAX ERROR ---{TerminalColors.RESET}"
     line_indicator = f"L{e.line} | {script_content.splitlines()[e.line - 1]}"
     pointer = f"{' ' * (e.column + 2 + len(str(e.line)))}^\n"
     error_message = f"{TerminalColors.RED}Error at line {e.line}: {custom_msg}{TerminalColors.RESET}"
-
     return f"{error_header}\n{line_indicator}\n{pointer}{error_message}"
 
 
@@ -276,7 +302,6 @@ def main():
     except Exception as e:
         print(f"{TerminalColors.RED}FATAL ERROR: Could not load internal grammar file: {e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
-
     lark_parser = Lark(valuasc_grammar, start="start", parser="lalr", transformer=ValuaScriptTransformer())
     try:
         with open(script_path, "r") as f:
@@ -287,8 +312,7 @@ def main():
         with open(output_file_path, "w") as f:
             f.write(recipe_json)
     except UnexpectedInput as e:
-        error_msg = format_lark_error(e, script_content)
-        print(error_msg, file=sys.stderr)
+        print(format_lark_error(e, script_content), file=sys.stderr)
         sys.exit(1)
     except ValuaScriptError as e:
         print(f"\n{TerminalColors.RED}--- SEMANTIC ERROR ---\n{e}{TerminalColors.RESET}", file=sys.stderr)
@@ -299,7 +323,6 @@ def main():
     except Exception as e:
         print(f"\n{TerminalColors.RED}--- UNEXPECTED COMPILER ERROR ---\n{type(e).__name__}: {e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
-
     print(f"\n{TerminalColors.GREEN}--- Compilation Successful ---{TerminalColors.RESET}")
     print(f"Recipe written to {output_file_path}")
 

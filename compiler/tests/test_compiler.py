@@ -49,7 +49,7 @@ def test_valid_scripts_compile_successfully():
 
 
 def test_compiler_resilience_to_formatting():
-    """NEW: Ensures comments and extra whitespace are handled gracefully."""
+    """Ensures comments and extra whitespace are handled gracefully."""
     script = """
     # This is a test model
     @iterations = 100
@@ -145,3 +145,33 @@ def test_all_function_arities(base_script, func, provided_argc):
     expected_error = f"Function '{func}' expects {expected_argc} argument"
     with pytest.raises(ValuaScriptError, match=expected_error):
         compile_and_validate(script)
+
+
+def test_unused_variable_warning(capsys):
+    """
+    Tests that the compiler prints a warning for unused variables but still
+    compiles successfully. `capsys` is a pytest fixture to capture stdout.
+    """
+    script = """
+    @iterations = 1
+    @output = b
+    let a = 10  # This variable is unused
+    let b = 20
+    let c = 30  # This one is also unused
+    """
+    # Compilation should succeed (no exception)
+    result = compile_and_validate(script)
+    assert result is not None
+    assert result["output_variable"] == "b"
+
+    # Capture the standard output
+    captured = capsys.readouterr()
+    stdout = captured.out
+
+    # Check that the warnings are present in the output
+    assert "--- Compiler Warnings ---" in stdout
+    assert "Warning: Variable 'a' was defined on line 4 but was never used." in stdout
+    assert "Warning: Variable 'c' was defined on line 6 but was never used." in stdout
+
+    # Check that the output variable 'b' is NOT warned about
+    assert "Warning: Variable 'b'" not in stdout
