@@ -1,5 +1,3 @@
-# CMakeLists.txt
-
 # Set a modern CMake version
 cmake_minimum_required(VERSION 3.14)
 
@@ -33,7 +31,8 @@ include_directories(include)
 # The library is now much simpler, as most logic is header-only.
 # It only contains the implementation of the SimulationEngine.
 add_library(engine_core STATIC
-    src/engine/SimulationEngine.cpp
+    src/engine/SimulationEngine.cpp 
+    src/engine/io.cpp
 )
 
 # Tell our core library that it needs to link against the JSON library.

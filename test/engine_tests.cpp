@@ -1,5 +1,3 @@
-// test/engine_tests.cpp
-
 #include <gtest/gtest.h>
 #include <fstream>
 #include <string>
@@ -8,6 +6,7 @@
 #include <numeric>
 #include <cmath>
 #include "engine/SimulationEngine.h"
+#include "engine/io.h"
 
 // Helper function to create a test recipe file.
 void create_test_recipe(const std::string &filename, const std::string &content)
@@ -245,51 +244,6 @@ TEST(EngineErrorTests, ThrowsOnInvalidPertParams)
 // --- TEST SUITE FOR FILE OUTPUT ---
 // =============================================================================
 
-// Helper to write results to CSV, mirroring the logic in main.cpp
-void write_results_to_csv_for_test(const std::string &path, const std::vector<TrialValue> &results)
-{
-    if (results.empty())
-        return;
-    std::ofstream output_file(path);
-    if (!output_file.is_open())
-    {
-        throw std::runtime_error("Test setup error: Could not open test output file for writing.");
-    }
-    std::visit(
-        [&](auto &&first_result)
-        {
-            using T = std::decay_t<decltype(first_result)>;
-            if constexpr (std::is_same_v<T, double>)
-            {
-                output_file << "Result\n";
-                for (const auto &res : results)
-                {
-                    output_file << std::get<double>(res) << "\n";
-                }
-            }
-            else if constexpr (std::is_same_v<T, std::vector<double>>)
-            {
-                if (first_result.empty())
-                    return;
-                for (size_t i = 0; i < first_result.size(); ++i)
-                {
-                    output_file << "Period_" << i + 1 << (i == first_result.size() - 1 ? "" : ",");
-                }
-                output_file << "\n";
-                for (const auto &res : results)
-                {
-                    const auto &vec = std::get<std::vector<double>>(res);
-                    for (size_t i = 0; i < vec.size(); ++i)
-                    {
-                        output_file << vec[i] << (i == vec.size() - 1 ? "" : ",");
-                    }
-                    output_file << "\n";
-                }
-            }
-        },
-        results[0]);
-}
-
 // Helper to read a file's content into a string
 std::string read_file_content(const std::string &path)
 {
@@ -337,10 +291,10 @@ TEST_F(EngineFileOutputTest, WritesScalarOutputCorrectly)
     SimulationEngine engine("recipe.json");
     std::vector<TrialValue> results = engine.run();
 
-    // Mimic the main function's logic
+    // Call the shared library function, which is now the same as the main logic
     std::string output_path = engine.get_output_file_path();
     ASSERT_EQ(output_path, "test_output.csv");
-    write_results_to_csv_for_test(output_path, results);
+    write_results_to_csv(output_path, results);
 
     std::string file_content = read_file_content("test_output.csv");
     std::string expected_content = "Result\n123.45\n";
@@ -366,7 +320,7 @@ TEST_F(EngineFileOutputTest, WritesVectorOutputCorrectly)
 
     std::string output_path = engine.get_output_file_path();
     ASSERT_EQ(output_path, "test_output.csv");
-    write_results_to_csv_for_test(output_path, results);
+    write_results_to_csv(output_path, results);
 
     std::string file_content = read_file_content("test_output.csv");
     std::string expected_content = "Period_1,Period_2,Period_3\n10.1,20.2,30.3\n";
