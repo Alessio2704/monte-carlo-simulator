@@ -306,7 +306,7 @@ By following these three steps, your new function will be fully and safely integ
 ### Tier 1: Major Features (V1.2+)
 
 <details>
-<summary>These features will significantly expand the capabilities of the platform.</summary>
+<summary>Click to see major planned features.</summary>
 
 - [ ] **External Data Integration:**
   - [ ] Add a `read_csv("path", "column")` function to ValuaScript to allow models to use external data sources.
@@ -317,23 +317,48 @@ By following these three steps, your new function will be fully and safely integ
 
 </details>
 
-### Tier 2: Ecosystem and Distribution (V2.0)
+### Tier 2: Future Language Features (V2.0+)
 
 <details>
-<summary>Long-term goals focused on making the project more accessible and professional.</summary>
+<summary>Click to see long-term ideas for language evolution.</summary>
+
+This section outlines a potential path for evolving ValuaScript into a more powerful, modular language. These are complex architectural ideas for future development.
+
+- [ ] **Phase 1: Simple Includes**
+
+  - **Goal:** Allow basic code reuse by including one `.vs` file in another.
+  - **Syntax:** `@include "wacc_module.vs"`
+  - **Implementation:** A simple pre-processing step in the compiler that concatenates file contents before parsing. This approach does not handle namespaces or parameters and would place the responsibility on the user to avoid variable name collisions.
+
+- [ ] **Phase 2: User-Defined Functions (Modules)**
+
+  - **Goal:** Introduce true, parameterized functions to ValuaScript for building reusable, abstract components.
+  - **Syntax:**
+
+    ```valuascript
+    # In option_pricing.vs
+    @export(scalar, scalar) # Exports a function taking two scalars
+    let internal_var = ...
+    @output = result_var
+
+    # In main.vs
+    @import option_pricing.vs
+    let my_option_value = option_pricing(arg1, arg2)
+    ```
+
+  - **Implementation:** This is a major architectural step requiring the compiler to manage a dependency graph, parse multiple files, handle function scopes (namespaces) to prevent variable collisions (likely via name mangling), and correctly inline the module's logic during JSON generation.
+
+</details>
+
+### Tier 3: Ecosystem and Distribution
+
+<details>
+<summary>Click to see long-term ecosystem goals.</summary>
 
 - [ ] **Automated Cross-Platform Builds (CI/CD):**
   - [ ] Create a GitHub Actions workflow to automatically build binaries for all major OSes and attach them to new GitHub Releases.
 - [ ] **Dedicated Documentation Website:**
   - [ ] Use a static site generator like MkDocs or Docusaurus for full, searchable documentation.
-
-</details>
-
-### The "Blue Sky" Vision
-
-<details>
-<summary>Ambitious, long-term ideas for a next-generation modeling tool.</summary>
-
 - [ ] **VS Code Extension:**
   - [ ] Develop an extension for Visual Studio Code providing syntax highlighting, real-time error checking (linting), and autocompletion.
 - [ ] **Data Visualization:**
