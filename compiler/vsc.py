@@ -25,42 +25,36 @@ DIRECTIVE_CONFIG = {
     },
 }
 
-# Function signatures with full type information ---
-# 'arg_types': A list of expected argument types ('scalar' or 'vector').
-# 'return_type': A rule for determining the output type. A lambda function
-#                is used for variadic functions whose return type depends
-#                on the input types.
 FUNCTION_SIGNATURES = {
-    "add": {"arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
-    "subtract": {"arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
-    "multiply": {"arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
-    "divide": {"arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
-    "power": {"arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
-    "compose_vector": {"arg_types": ["scalar"], "return_type": "vector"},
-    "identity": {"arg_types": [], "return_type": lambda types: types[0]},
-    "log": {"arg_types": ["scalar"], "return_type": "scalar"},
-    "log10": {"arg_types": ["scalar"], "return_type": "scalar"},
-    "exp": {"arg_types": ["scalar"], "return_type": "scalar"},
-    "sin": {"arg_types": ["scalar"], "return_type": "scalar"},
-    "cos": {"arg_types": ["scalar"], "return_type": "scalar"},
-    "tan": {"arg_types": ["scalar"], "return_type": "scalar"},
-    "sum_series": {"arg_types": ["vector"], "return_type": "scalar"},
-    "series_delta": {"arg_types": ["vector"], "return_type": "vector"},
-    "Bernoulli": {"arg_types": ["scalar"], "return_type": "scalar"},
-    "npv": {"arg_types": ["scalar", "vector"], "return_type": "scalar"},
-    "compound_series": {"arg_types": ["scalar", "vector"], "return_type": "vector"},
-    "get_element": {"arg_types": ["vector", "scalar"], "return_type": "scalar"},
-    "Normal": {"arg_types": ["scalar", "scalar"], "return_type": "scalar"},
-    "Lognormal": {"arg_types": ["scalar", "scalar"], "return_type": "scalar"},
-    "Beta": {"arg_types": ["scalar", "scalar"], "return_type": "scalar"},
-    "Uniform": {"arg_types": ["scalar", "scalar"], "return_type": "scalar"},
-    "grow_series": {"arg_types": ["scalar", "scalar", "scalar"], "return_type": "vector"},
-    "interpolate_series": {"arg_types": ["scalar", "scalar", "scalar"], "return_type": "vector"},
-    "capitalize_expense": {"arg_types": ["scalar", "vector", "scalar"], "return_type": "vector"},
-    "Pert": {"arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar"},
-    "Triangular": {"arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar"},
+    "add": {"variadic": True, "arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
+    "subtract": {"variadic": True, "arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
+    "multiply": {"variadic": True, "arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
+    "divide": {"variadic": True, "arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
+    "power": {"variadic": True, "arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
+    "compose_vector": {"variadic": True, "arg_types": ["scalar"], "return_type": "vector"},
+    "identity": {"variadic": False, "arg_types": ["any"], "return_type": lambda types: types[0] if types else "any"},  # Corrected
+    "log": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
+    "log10": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
+    "exp": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
+    "sin": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
+    "cos": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
+    "tan": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
+    "sum_series": {"variadic": False, "arg_types": ["vector"], "return_type": "scalar"},
+    "series_delta": {"variadic": False, "arg_types": ["vector"], "return_type": "vector"},
+    "Bernoulli": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
+    "npv": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "scalar"},
+    "compound_series": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "vector"},
+    "get_element": {"variadic": False, "arg_types": ["vector", "scalar"], "return_type": "scalar"},
+    "Normal": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar"},
+    "Lognormal": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar"},
+    "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar"},
+    "Uniform": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar"},
+    "grow_series": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "vector"},
+    "interpolate_series": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "vector"},
+    "capitalize_expense": {"variadic": False, "arg_types": ["scalar", "vector", "scalar"], "return_type": "vector"},
+    "Pert": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar"},
+    "Triangular": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar"},
 }
-
 
 OPERATOR_MAP = {"+": "add", "-": "subtract", "*": "multiply", "/": "divide", "^": "power"}
 TOKEN_FRIENDLY_NAMES = {
@@ -87,7 +81,6 @@ class ValuaScriptError(Exception):
 
 
 class ValuaScriptTransformer(Transformer):
-    # This class is now stable and doesn't need changes.
     def infix_expression(self, items):
         if len(items) == 1:
             return items[0]
@@ -130,7 +123,9 @@ class ValuaScriptTransformer(Transformer):
         return c
 
     def function_call(self, items):
-        func_name_token, *args = items
+        # Correctly handle calls with zero arguments like `func()`
+        func_name_token = items[0]
+        args = [item for item in items[1:] if item is not None]
         return {"function": str(func_name_token), "args": args}
 
     def vector(self, items):
@@ -159,7 +154,6 @@ class ValuaScriptTransformer(Transformer):
 
 def validate_recipe(recipe: dict):
     print("\n--- Running Semantic Validation ---")
-    # --- Directive validation (no changes needed) ---
     directives = {d["name"]: d for d in recipe.get("directives", [])}
     sim_config, output_var = {}, ""
     for name, config in DIRECTIVE_CONFIG.items():
@@ -175,95 +169,68 @@ def validate_recipe(recipe: dict):
                 output_var = str(value)
     if not output_var:
         raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
-
-    # --- NEW: Type Inference and Checking Pass ---
-    symbol_table = {}  # This will store var_name -> type ('scalar' or 'vector')
-
+    symbol_table = {}
     for step in recipe["execution_steps"]:
         line, result_var = step["line"], step["result"]
         if result_var in symbol_table:
-            raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once. It was first defined on a previous line.")
-
-        # Convert any remaining Tokens to strings before processing
+            raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once.")
         if "args" in step:
             step["args"] = [str(arg) if isinstance(arg, Token) else arg for arg in step.get("args", [])]
-
-        # Infer the type of the right-hand side of the assignment
-        rhs_type = infer_expression_type(step, symbol_table, line)
+        rhs_type = infer_expression_type(step, symbol_table, line, result_var)
         symbol_table[result_var] = rhs_type
-
     if output_var not in symbol_table:
-        raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined anywhere in the script.")
+        raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined.")
     print(f"Found {len(symbol_table)} defined variables. Type inference successful.")
     print("--- Validation Successful ---")
-
-    # Clean up and return the final recipe
     for step in recipe["execution_steps"]:
-        if "value" in step and isinstance(step["value"], Token):
+        if "value" in step and isinstance(step, Token):
             step["value"] = str(step["value"])
         if "line" in step:
             del step["line"]
     return {"simulation_config": sim_config, "execution_steps": recipe["execution_steps"], "output_variable": output_var}
 
 
-def infer_expression_type(expression_dict, symbol_table, line_num):
-    """
-    Recursively infers the type of an expression and validates it along the way.
-    Returns 'scalar' or 'vector'.
-    """
-    expr_type = expression_dict["type"]
-
+def infer_expression_type(expression_dict, symbol_table, line_num, current_result_var):
+    expr_type = expression_dict.get("type")
     if expr_type == "literal_assignment":
-        value = expression_dict["value"]
+        value = expression_dict.get("value")
         if isinstance(value, (int, float)):
             return "scalar"
         if isinstance(value, list):
             return "vector"
-
+        raise ValuaScriptError(f"L{line_num}: Invalid or missing value assigned to '{current_result_var}'.")
     if expr_type == "execution_assignment":
         func_name = expression_dict["function"]
         args = expression_dict.get("args", [])
-
         if func_name not in FUNCTION_SIGNATURES:
             raise ValuaScriptError(f"L{line_num}: Unknown function '{func_name}'.")
-
-        # 1. Infer types of all arguments first
-        inferred_arg_types = [
-            (
-                infer_expression_type({"type": "execution_assignment", **arg} if isinstance(arg, dict) else {"type": "literal_assignment", "value": arg}, symbol_table, line_num)
-                if not isinstance(arg, str)
-                else symbol_table.get(arg)
-            )
-            for arg in args
-        ]
-
-        # 2. Check for undefined variables
-        for i, arg_type in enumerate(inferred_arg_types):
-            if arg_type is None:
-                raise ValuaScriptError(f"L{line_num}: Variable '{args[i]}' used in function '{func_name}' is not defined before this line.")
-
-        # 3. Check arity (argument count)
         signature = FUNCTION_SIGNATURES[func_name]
-        expected_arg_types = signature["arg_types"]
-        if expected_arg_types and len(inferred_arg_types) != len(expected_arg_types):
-            raise ValuaScriptError(f"L{line_num}: Function '{func_name}' expects {len(expected_arg_types)} argument{'s' if len(expected_arg_types) != 1 else ''}, but got {len(inferred_arg_types)}.")
-
-        # 4. Check argument types
-        for i, expected_type in enumerate(expected_arg_types):
-            if expected_type != inferred_arg_types[i]:
-                raise ValuaScriptError(f"L{line_num}: Argument {i+1} for function '{func_name}' expects a '{expected_type}', but got a '{inferred_arg_types[i]}'.")
-
-        # 5. Determine the return type
+        if not signature.get("variadic", False) and len(args) != len(signature["arg_types"]):
+            raise ValuaScriptError(f"L{line_num}: Function '{func_name}' expects {len(signature['arg_types'])} argument{'s' if len(signature['arg_types']) != 1 else ''}, but got {len(args)}.")
+        inferred_arg_types = []
+        for arg in args:
+            if isinstance(arg, str):
+                arg_type = symbol_table.get(arg)
+            else:
+                temp_dict = {"type": "execution_assignment", **arg} if isinstance(arg, dict) else {"type": "literal_assignment", "value": arg}
+                arg_type = infer_expression_type(temp_dict, symbol_table, line_num, current_result_var)
+            if arg_type is None:
+                raise ValuaScriptError(f"L{line_num}: Variable '{arg}' used in function '{func_name}' is not defined.")
+            inferred_arg_types.append(arg_type)
+        if signature.get("variadic"):
+            if expected_types := signature["arg_types"]:
+                for i, arg_type in enumerate(inferred_arg_types):
+                    if arg_type != expected_types[0] and expected_types[0] != "any":
+                        raise ValuaScriptError(f"L{line_num}: Argument {i+1} for function '{func_name}' expects a '{expected_types[0]}', but got a '{arg_type}'.")
+        else:
+            for i, expected_type in enumerate(signature["arg_types"]):
+                if expected_type != "any" and expected_type != inferred_arg_types[i]:
+                    raise ValuaScriptError(f"L{line_num}: Argument {i+1} for function '{func_name}' expects a '{expected_type}', but got a '{inferred_arg_types[i]}'.")
         return_type_rule = signature["return_type"]
-        if callable(return_type_rule):  # If it's a lambda function
-            return return_type_rule(inferred_arg_types)
-        else:  # If it's a fixed string
-            return return_type_rule
-
-    raise ValuaScriptError(f"L{line_num}: Could not determine the type of the expression for '{expression_dict['result']}'.")
+        return return_type_rule(inferred_arg_types) if callable(return_type_rule) else return_type_rule
+    raise ValuaScriptError(f"L{line_num}: Could not determine the type for '{current_result_var}'.")
 
 
-# --- Main execution and error formatting (no changes needed) ---
 def format_lark_error(e: UnexpectedInput, script_content: str) -> str:
     line_content = script_content.splitlines()[e.line - 1].strip()
     if line_content.endswith("="):
