@@ -4,6 +4,7 @@ import json
 import argparse
 import sys
 import os
+import subprocess
 from lark import Lark, Transformer
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters
 from lark.lexer import Token
@@ -157,27 +158,16 @@ class ValuaScriptTransformer(Transformer):
         return {"directives": directives, "execution_steps": assignments}
 
 
-# --- NEW: Pre-parsing Linter Function ---
 def lint_script(script_content: str):
-    """
-    Performs simple, line-by-line checks for common syntax errors that can
-    confuse the main parser and lead to misleading error locations.
-    Raises ValuaScriptError if a simple error is found.
-    """
     lines = script_content.splitlines()
     for i, line in enumerate(lines):
-        # Ignore comments and empty lines
         clean_line = line.split("#", 1)[0].strip()
         if not clean_line:
             continue
-
-        # Check for unbalanced parentheses or brackets
         if clean_line.count("(") != clean_line.count(")"):
             raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening parenthesis '(' on this line.")
         if clean_line.count("[") != clean_line.count("]"):
             raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening bracket '[' on this line.")
-
-        # Check for incomplete assignments
         if clean_line.startswith("let") and clean_line.endswith("="):
             raise ValuaScriptError(f"L{i+1}: Syntax Error: Missing value or formula after the equals sign '='.")
 
@@ -295,11 +285,46 @@ def format_lark_error(e, script_content: str) -> str:
     return f"{error_header}\n{line_indicator}\n{pointer}{error_message}"
 
 
+def find_engine_executable(provided_path):
+    """
+    Finds the simulation engine executable using a prioritized search strategy.
+    Returns the path to the executable or None if not found.
+    """
+    if provided_path:
+        if os.path.isfile(provided_path) and os.access(provided_path, os.X_OK):
+            print(f"--- Using engine executable from provided path: {provided_path} ---")
+            return provided_path
+        else:
+            print(f"{TerminalColors.YELLOW}Warning: Path from --engine-path '{provided_path}' is not a valid executable. Continuing search...{TerminalColors.RESET}", file=sys.stderr)
+    env_path = os.environ.get("VSC_ENGINE_PATH")
+    if env_path and os.path.isfile(env_path) and os.access(env_path, os.X_OK):
+        print(f"--- Using engine executable from VSC_ENGINE_PATH: {env_path} ---")
+        return env_path
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        dev_path = os.path.join(script_dir, "..", "build", "bin", "monte-carlo-simulator")
+        if os.path.isfile(dev_path) and os.access(dev_path, os.X_OK):
+            print(f"--- Found development engine executable at: {dev_path} ---")
+            return dev_path
+    except NameError:
+        pass
+    from shutil import which
+
+    if which("monte-carlo-simulator"):
+        path = which("monte-carlo-simulator")
+        print(f"--- Found engine executable in system PATH: {path} ---")
+        return path
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Compile a .vs file into a .json recipe.")
     parser.add_argument("input_file", help="The path to the input .vs file.")
     parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file.")
+    parser.add_argument("--run", action="store_true", help="Execute the simulation engine after a successful compilation.")
+    parser.add_argument("--engine-path", help="Explicit path to the 'monte-carlo-simulator' executable.")
     args = parser.parse_args()
+
     output_file_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json"
     script_path = args.input_file
     print(f"--- Compiling {script_path} -> {output_file_path} ---")
@@ -317,10 +342,7 @@ def main():
     try:
         with open(script_path, "r") as f:
             script_content = f.read()
-
-        # --- NEW: Linter runs first ---
         lint_script(script_content)
-
         parse_tree = lark_parser.parse(script_content)
         transformer = ValuaScriptTransformer()
         raw_recipe = transformer.transform(parse_tree)
@@ -328,6 +350,31 @@ def main():
         recipe_json = json.dumps(final_recipe, indent=2)
         with open(output_file_path, "w") as f:
             f.write(recipe_json)
+
+        print(f"\n{TerminalColors.GREEN}--- Compilation Successful ---{TerminalColors.RESET}")
+        print(f"Recipe written to {output_file_path}")
+
+        if args.run:
+            engine_executable = find_engine_executable(args.engine_path)
+            if not engine_executable:
+                error_msg = (
+                    f"\n{TerminalColors.RED}--- Execution Failed ---\n"
+                    "Could not find the 'monte-carlo-simulator' executable.\n\n"
+                    "Please try one of these options:\n"
+                    "1. Use the --engine-path flag: vsc your_model.vs --run --engine-path /path/to/engine\n"
+                    "2. Set the VSC_ENGINE_PATH environment variable.\n"
+                    "3. Place the executable in your system's PATH.\n"
+                    f"4. For developers, ensure it is built at '../build/bin/'.{TerminalColors.RESET}"
+                )
+                print(error_msg, file=sys.stderr)
+                sys.exit(1)
+            print(f"\n--- Running Simulation ---")
+            result = subprocess.run([engine_executable, output_file_path], capture_output=False, text=True)
+            if result.returncode == 0:
+                print(f"{TerminalColors.GREEN}--- Simulation Finished Successfully ---{TerminalColors.RESET}")
+            else:
+                print(f"{TerminalColors.RED}--- Simulation Failed (Exit Code: {result.returncode}) ---{TerminalColors.RESET}", file=sys.stderr)
+                sys.exit(result.returncode)
 
     except (UnexpectedInput, UnexpectedCharacters) as e:
         error_msg = format_lark_error(e, script_content)
@@ -340,11 +387,8 @@ def main():
         print(f"{TerminalColors.RED}ERROR: Script file '{script_path}' not found.{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"\n{TerminalColors.RED}--- UNEXPECTED COMPILER ERROR ---\n{type(e).__name__}: {e}", file=sys.stderr)
+        print(f"\n{TerminalColors.RED}--- UNEXPECTED COMPILER ERROR ---\n{type(e).__name__}: {e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
-
-    print(f"\n{TerminalColors.GREEN}--- Compilation Successful ---{TerminalColors.RESET}")
-    print(f"Recipe written to {output_file_path}")
 
 
 if __name__ == "__main__":
