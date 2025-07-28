@@ -11,7 +11,7 @@ from vsc import Lark, ValuaScriptTransformer, validate_recipe, ValuaScriptError,
 grammar_path = os.path.join(os.path.dirname(__file__), "..", "valuascript.lark")
 with open(grammar_path, "r") as f:
     valuascript_grammar = f.read()
-lark_parser = Lark(valuascript_grammar, start="start", parser="lalr")
+lark_parser = Lark(valuascript_grammar, start="start", parser="earley")
 
 
 @pytest.fixture
