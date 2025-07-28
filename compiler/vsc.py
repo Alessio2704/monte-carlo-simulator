@@ -8,8 +8,15 @@ from lark import Lark, Transformer
 from lark.exceptions import UnexpectedInput
 from lark.lexer import Token
 
-# --- Constants & Configuration ---
 
+# --- NEW: ANSI Color Constants for terminal output ---
+class TerminalColors:
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    RESET = "\033[0m"
+
+
+# --- Constants & Configuration ---
 DIRECTIVE_CONFIG = {
     "iterations": {
         "required": True,
@@ -32,7 +39,7 @@ FUNCTION_SIGNATURES = {
     "divide": {"variadic": True, "arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
     "power": {"variadic": True, "arg_types": [], "return_type": lambda types: "vector" if "vector" in types else "scalar"},
     "compose_vector": {"variadic": True, "arg_types": ["scalar"], "return_type": "vector"},
-    "identity": {"variadic": False, "arg_types": ["any"], "return_type": lambda types: types[0] if types else "any"},  # Corrected
+    "identity": {"variadic": False, "arg_types": ["any"], "return_type": lambda types: types[0] if types else "any"},
     "log": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
     "log10": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
     "exp": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
@@ -123,7 +130,6 @@ class ValuaScriptTransformer(Transformer):
         return c
 
     def function_call(self, items):
-        # Correctly handle calls with zero arguments like `func()`
         func_name_token = items[0]
         args = [item for item in items[1:] if item is not None]
         return {"function": str(func_name_token), "args": args}
@@ -181,7 +187,7 @@ def validate_recipe(recipe: dict):
     if output_var not in symbol_table:
         raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined.")
     print(f"Found {len(symbol_table)} defined variables. Type inference successful.")
-    print("--- Validation Successful ---")
+    print(f"{TerminalColors.GREEN}--- Validation Successful ---{TerminalColors.RESET}")
     for step in recipe["execution_steps"]:
         if "value" in step and isinstance(step, Token):
             step["value"] = str(step["value"])
@@ -244,7 +250,14 @@ def format_lark_error(e: UnexpectedInput, script_content: str) -> str:
         custom_msg = "It looks like you have an opening bracket '[' without a matching closing one ']'."
     else:
         custom_msg = f"The syntax is invalid here. I was expecting {', '.join(sorted([TOKEN_FRIENDLY_NAMES.get(s, s) for s in e.expected]))}."
-    return f"\n--- SYNTAX ERROR ---\nL{e.line} | {script_content.splitlines()[e.line - 1]}\n{' ' * (e.column + 2 + len(str(e.line)))}^\nError at line {e.line}: {custom_msg}"
+
+    # --- NEW: Using colors for the output ---
+    error_header = f"\n{TerminalColors.RED}--- SYNTAX ERROR ---{TerminalColors.RESET}"
+    line_indicator = f"L{e.line} | {script_content.splitlines()[e.line - 1]}"
+    pointer = f"{' ' * (e.column + 2 + len(str(e.line)))}^\n"
+    error_message = f"{TerminalColors.RED}Error at line {e.line}: {custom_msg}{TerminalColors.RESET}"
+
+    return f"{error_header}\n{line_indicator}\n{pointer}{error_message}"
 
 
 def main():
@@ -261,8 +274,9 @@ def main():
         with open(grammar_path, "r") as f:
             valuasc_grammar = f.read()
     except Exception as e:
-        print(f"FATAL ERROR: Could not load internal grammar file: {e}", file=sys.stderr)
+        print(f"{TerminalColors.RED}FATAL ERROR: Could not load internal grammar file: {e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
+
     lark_parser = Lark(valuasc_grammar, start="start", parser="lalr", transformer=ValuaScriptTransformer())
     try:
         with open(script_path, "r") as f:
@@ -273,18 +287,20 @@ def main():
         with open(output_file_path, "w") as f:
             f.write(recipe_json)
     except UnexpectedInput as e:
-        print(format_lark_error(e, script_content), file=sys.stderr)
+        error_msg = format_lark_error(e, script_content)
+        print(error_msg, file=sys.stderr)
         sys.exit(1)
     except ValuaScriptError as e:
-        print(f"\n--- SEMANTIC ERROR ---\n{e}", file=sys.stderr)
+        print(f"\n{TerminalColors.RED}--- SEMANTIC ERROR ---\n{e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
     except FileNotFoundError:
-        print(f"ERROR: Script file '{script_path}' not found.", file=sys.stderr)
+        print(f"{TerminalColors.RED}ERROR: Script file '{script_path}' not found.{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"\n--- UNEXPECTED COMPILER ERROR ---\n{type(e).__name__}: {e}", file=sys.stderr)
+        print(f"\n{TerminalColors.RED}--- UNEXPECTED COMPILER ERROR ---\n{type(e).__name__}: {e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
-    print("\n--- Compilation Successful ---")
+
+    print(f"\n{TerminalColors.GREEN}--- Compilation Successful ---{TerminalColors.RESET}")
     print(f"Recipe written to {output_file_path}")
 
 
