@@ -1,14 +1,16 @@
-// --- Grammar for ValuaScript (FINAL WORKING VERSION) ---
+// --- Grammar for ValuaScript (V2.1 - Unambiguous) ---
 
-start: config_block assignment* output_block
+// A script is a sequence of directives and assignments in any order.
+start: (directive | assignment)*
 
-config_block: "@iterations" "=" SIGNED_NUMBER -> iterations_setting
-output_block: "@output" "=" CNAME           -> output_setting
+// A generic directive like @name = value
+directive: "@" CNAME "=" expression -> directive_setting
 
-?assignment: "let" CNAME "=" expression -> assignment
+// The let assignment remains the same
+assignment: "let" CNAME "=" expression -> assignment
 
 // --- HIERARCHY FOR MATHEMATICAL EXPRESSIONS ---
-// We now use named terminals for operators (ADD, SUB, etc.) so that the
+// We use named terminals for operators (ADD, SUB, etc.) so that the
 // Transformer receives them as Tokens instead of discarding them.
 ?expression: term ((ADD|SUB) term)*         -> infix_expression
 ?term:       factor ((MUL|DIV) factor)*       -> infix_expression
