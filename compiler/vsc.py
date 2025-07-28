@@ -106,7 +106,8 @@ class ValuaScriptTransformer(Transformer):
         return {"function": func_name, "args": args}
 
     def vector(self, items):
-        return list(items)
+        """Processes a list of numbers from the vector rule."""
+        return [item for item in items if item is not None]
 
     def assignment(self, items):
         var_name, expression = items
