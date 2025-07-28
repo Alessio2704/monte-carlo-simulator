@@ -11,7 +11,6 @@ from lark.lexer import Token
 # --- Constants & Configuration ---
 
 # This dictionary drives the validation for all @-directives.
-# It's now the single source of truth for directives.
 DIRECTIVE_CONFIG = {
     "iterations": {
         "required": True,
@@ -60,6 +59,25 @@ VALID_FUNCTIONS = {
 
 OPERATOR_MAP = {"+": "add", "-": "subtract", "*": "multiply", "/": "divide", "^": "power"}
 
+# --- NEW: Expanded mapping for Lark tokens to friendly names ---
+TOKEN_FRIENDLY_NAMES = {
+    "SIGNED_NUMBER": "a number",
+    "CNAME": "a variable name",
+    "expression": "a value or formula",
+    "EQUAL": "an equals sign '='",
+    "ADD": "a plus sign '+'",
+    "SUB": "a minus sign '-'",
+    "MUL": "a multiplication sign '*'",
+    "DIV": "a division sign '/'",
+    "POW": "a power sign '^'",
+    "LPAR": "an opening parenthesis '('",
+    "RPAR": "a closing parenthesis ')'",
+    "LSQB": "an opening bracket '['",
+    "RSQB": "a closing bracket ']'",
+    "COMMA": "a comma ','",
+    "AT": "an '@' symbol for a directive",
+}
+
 
 # --- Custom Exception for User-Friendly Errors ---
 class ValuaScriptError(Exception):
@@ -68,11 +86,6 @@ class ValuaScriptError(Exception):
 
 # --- Transformer: From Parse Tree to Dictionary ---
 class ValuaScriptTransformer(Transformer):
-    """
-    Transforms the Lark parse tree into a structured dictionary, preserving
-    metadata like line numbers for high-quality error reporting.
-    """
-
     def infix_expression(self, items):
         if len(items) == 1:
             return items[0]
@@ -87,7 +100,6 @@ class ValuaScriptTransformer(Transformer):
             i += 2
         return tree
 
-    # --- Pass-through methods ---
     def expression(self, i):
         return i[0]
 
@@ -106,19 +118,14 @@ class ValuaScriptTransformer(Transformer):
     def arg(self, i):
         return i[0]
 
-    # --- Token and Rule Transformers ---
-    #
-    # >>> THIS IS THE CORRECTED METHOD <<<
-    #
     def SIGNED_NUMBER(self, n: Token):
-        """Converts a number token to int or float as appropriate."""
         val = n.value
         if "." in val or "e" in val.lower():
             return float(val)
         return int(val)
 
     def CNAME(self, c: Token) -> Token:
-        return c  # Keep as Token to access line/column
+        return c
 
     def function_call(self, items):
         func_name_token, *args = items
@@ -133,13 +140,12 @@ class ValuaScriptTransformer(Transformer):
 
     def assignment(self, items):
         var_token, expression = items
-        # Base dictionary with metadata
         base_step = {"result": str(var_token), "line": var_token.line}
-        if isinstance(expression, dict):  # Function call or infix expression
+        if isinstance(expression, dict):
             base_step.update({"type": "execution_assignment", **expression})
-        elif isinstance(expression, Token):  # Variable-to-variable assignment
+        elif isinstance(expression, Token):
             base_step.update({"type": "execution_assignment", "function": "identity", "args": [str(expression)]})
-        else:  # Literal assignment (number or vector)
+        else:
             base_step.update({"type": "literal_assignment", "value": expression})
         return base_step
 
@@ -151,10 +157,7 @@ class ValuaScriptTransformer(Transformer):
 
 # --- Semantic Validation ---
 def validate_recipe(recipe: dict):
-    """Performs all semantic validation and returns a clean recipe for the engine."""
     print("\n--- Running Semantic Validation ---")
-
-    # 1. Validate directives
     directives = {d["name"]: d for d in recipe.get("directives", [])}
     sim_config = {}
     output_var = ""
@@ -162,37 +165,26 @@ def validate_recipe(recipe: dict):
     for name, config in DIRECTIVE_CONFIG.items():
         if config["required"] and name not in directives:
             raise ValuaScriptError(config["error_missing"])
-
         if name in directives:
             directive = directives[name]
             value = directive["value"]
-
-            # --- THE VALIDATOR IS NOW CORRECT BECAUSE THE TYPE IS CORRECT ---
             if not isinstance(value, config["type"]):
                 raise ValuaScriptError(f"L{directive['line']}: {config['error_type']}")
-
-            # Assign to final config
             if name == "iterations":
                 sim_config["num_trials"] = value
             elif name == "output":
-                output_var = str(value)  # ensure it's a string
+                output_var = str(value)
 
-    if not output_var:  # Should be caught by required check, but as a safeguard
+    if not output_var:
         raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
 
-    # 2. Validate execution steps
-    defined_vars = {}  # Store var_name -> line_number
+    defined_vars = {}
     for step in recipe["execution_steps"]:
-        line = step["line"]
-        result_var = step["result"]
-
+        line, result_var = step["line"], step["result"]
         if result_var in defined_vars:
             raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once. It was first defined at L{defined_vars[result_var]}.")
-
-        # Convert args that are Tokens to strings for validation
         if "args" in step:
             step["args"] = [str(arg) if isinstance(arg, Token) else arg for arg in step.get("args", [])]
-
         if step["type"] == "execution_assignment":
             func_name = step["function"]
             if func_name not in VALID_FUNCTIONS:
@@ -202,17 +194,15 @@ def validate_recipe(recipe: dict):
                 for arg in args_list:
                     if isinstance(arg, str) and arg not in defined_vars:
                         raise ValuaScriptError(f"L{line}: Variable '{arg}' used in the calculation for '{result_var}' is not defined before this line.")
-                    if isinstance(arg, dict):  # Nested expression
+                    if isinstance(arg, dict):
                         nested_func = arg["function"]
                         if nested_func not in VALID_FUNCTIONS:
                             raise ValuaScriptError(f"L{line}: Unknown function '{nested_func}' used inside the expression for '{result_var}'.")
-                        # Recurse, ensuring nested args are also strings if they were tokens
                         if "args" in arg:
                             arg["args"] = [str(a) if isinstance(a, Token) else a for a in arg.get("args", [])]
                         check_args_recursively(arg.get("args", []))
 
             check_args_recursively(step.get("args", []))
-
         defined_vars[result_var] = line
 
     if output_var not in defined_vars:
@@ -221,35 +211,48 @@ def validate_recipe(recipe: dict):
     print(f"Found {len(defined_vars)} defined variables. Output variable '{output_var}' is valid.")
     print("--- Validation Successful ---")
 
-    # In the final step, convert any remaining Token values to strings for JSON serialization
     for step in recipe["execution_steps"]:
         if "value" in step and isinstance(step["value"], Token):
             step["value"] = str(step["value"])
 
-    # Return the final, clean JSON structure for the C++ engine
     return {"simulation_config": sim_config, "execution_steps": recipe["execution_steps"], "output_variable": output_var}
 
 
 # --- Main Execution ---
 def format_lark_error(e: UnexpectedInput, script_content: str) -> str:
-    """Creates a user-friendly error message from a Lark exception."""
-    line_content = script_content.splitlines()[e.line - 1]
-    # A map from Lark's internal token names to plain English
-    expected_map = {
-        "SIGNED_NUMBER": "a number",
-        "CNAME": "a variable name",
-        "expression": "a value or formula",
-    }
-    expected_str = ", ".join(sorted([expected_map.get(s, f"'{s}'") for s in e.expected]))
+    """Creates a user-friendly error message from a Lark exception with contextual heuristics."""
+    line_content = script_content.splitlines()[e.line - 1].strip()
 
-    error_message = (
-        f"\n--- SYNTAX ERROR ---\n"
-        f"L{e.line} | {line_content}\n"
-        f"{' ' * (e.column + 2)}^\n"
-        f"Error at line {e.line}, column {e.column}: Invalid syntax.\n"
-        f"I was expecting one of these: {expected_str}."
-    )
-    return error_message
+    # --- HEURISTICS FOR COMMON ERRORS ---
+
+    # Heuristic 1: Missing value after an equals sign.
+    # This happens when the line ends with '='. Lark expects an 'expression'.
+    if line_content.endswith("="):
+        custom_msg = "Missing a value or formula after the equals sign '='."
+        e.column = len(line_content) + 1  # Point to the end of the line
+
+    # Heuristic 2: Missing equals sign in an assignment.
+    # This happens when a `let` statement is followed by something other than '='.
+    elif line_content.startswith("let") and "=" not in line_content:
+        custom_msg = "A variable definition must include an equals sign '=' and a value.\nExample: let my_variable = 100"
+
+    # Heuristic 3: Unmatched opening parenthesis or bracket.
+    elif "(" in line_content and ")" not in line_content:
+        custom_msg = "It looks like you have an opening parenthesis '(' without a matching closing one ')'."
+    elif "[" in line_content and "]" not in line_content:
+        custom_msg = "It looks like you have an opening bracket '[' without a matching closing one ']'."
+
+    else:
+        # Fallback to the generic message if no heuristic matches
+        expected_str = ", ".join(sorted([TOKEN_FRIENDLY_NAMES.get(s, s) for s in e.expected]))
+        custom_msg = f"The syntax is invalid here. I was expecting {expected_str}."
+
+    # --- FORMAT THE FINAL OUTPUT ---
+    error_header = "\n--- SYNTAX ERROR ---"
+    line_indicator = f"L{e.line} | {script_content.splitlines()[e.line - 1]}"
+    pointer = f"{' ' * (e.column + 2 + len(str(e.line)))}^\n"
+
+    return f"{error_header}\n{line_indicator}\n{pointer}Error at line {e.line}: {custom_msg}"
 
 
 def main():
@@ -263,7 +266,6 @@ def main():
     print(f"--- Compiling {script_path} -> {output_file_path} ---")
 
     try:
-        # This logic handles running from source vs. a bundled executable
         bundle_dir = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
         grammar_path = os.path.join(bundle_dir, "valuascript.lark")
         with open(grammar_path, "r") as f:
@@ -279,10 +281,8 @@ def main():
             script_content = f.read()
 
         raw_recipe = lark_parser.parse(script_content)
-
         final_recipe = validate_recipe(raw_recipe)
 
-        # Remove line numbers before final output
         for step in final_recipe["execution_steps"]:
             del step["line"]
 
