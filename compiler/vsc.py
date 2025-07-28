@@ -10,7 +10,6 @@ from lark.lexer import Token
 
 # --- Constants & Configuration ---
 
-# This dictionary drives the validation for all @-directives.
 DIRECTIVE_CONFIG = {
     "iterations": {
         "required": True,
@@ -26,40 +25,45 @@ DIRECTIVE_CONFIG = {
     },
 }
 
-VALID_FUNCTIONS = {
-    "add",
-    "subtract",
-    "multiply",
-    "divide",
-    "power",
-    "log",
-    "log10",
-    "exp",
-    "sin",
-    "cos",
-    "tan",
-    "identity",
-    "grow_series",
-    "npv",
-    "sum_series",
-    "get_element",
-    "series_delta",
-    "compound_series",
-    "compose_vector",
-    "interpolate_series",
-    "capitalize_expense",
-    "Normal",
-    "Pert",
-    "Uniform",
-    "Lognormal",
-    "Triangular",
-    "Bernoulli",
-    "Beta",
+# --- NEW: Function signatures with argument counts (-1 means variadic) ---
+# This is now the single source of truth for all valid functions.
+FUNCTION_SIGNATURES = {
+    # Variadic Operations
+    "add": -1,
+    "subtract": -1,
+    "multiply": -1,
+    "divide": -1,
+    "power": -1,
+    "compose_vector": -1,
+    # Unary Operations
+    "log": 1,
+    "log10": 1,
+    "exp": 1,
+    "sin": 1,
+    "cos": 1,
+    "tan": 1,
+    "identity": 1,
+    "sum_series": 1,
+    "series_delta": 1,
+    "Bernoulli": 1,
+    # Binary Operations
+    "npv": 2,
+    "compound_series": 2,
+    "get_element": 2,
+    "Normal": 2,
+    "Lognormal": 2,
+    "Beta": 2,
+    "Uniform": 2,
+    # Ternary Operations
+    "grow_series": 3,
+    "interpolate_series": 3,
+    "capitalize_expense": 3,
+    "Pert": 3,
+    "Triangular": 3,
 }
 
 OPERATOR_MAP = {"+": "add", "-": "subtract", "*": "multiply", "/": "divide", "^": "power"}
 
-# --- NEW: Expanded mapping for Lark tokens to friendly names ---
 TOKEN_FRIENDLY_NAMES = {
     "SIGNED_NUMBER": "a number",
     "CNAME": "a variable name",
@@ -79,12 +83,10 @@ TOKEN_FRIENDLY_NAMES = {
 }
 
 
-# --- Custom Exception for User-Friendly Errors ---
 class ValuaScriptError(Exception):
     pass
 
 
-# --- Transformer: From Parse Tree to Dictionary ---
 class ValuaScriptTransformer(Transformer):
     def infix_expression(self, items):
         if len(items) == 1:
@@ -155,7 +157,6 @@ class ValuaScriptTransformer(Transformer):
         return {"directives": directives, "execution_steps": assignments}
 
 
-# --- Semantic Validation ---
 def validate_recipe(recipe: dict):
     print("\n--- Running Semantic Validation ---")
     directives = {d["name"]: d for d in recipe.get("directives", [])}
@@ -186,23 +187,30 @@ def validate_recipe(recipe: dict):
         if "args" in step:
             step["args"] = [str(arg) if isinstance(arg, Token) else arg for arg in step.get("args", [])]
         if step["type"] == "execution_assignment":
-            func_name = step["function"]
-            if func_name not in VALID_FUNCTIONS:
-                raise ValuaScriptError(f"L{line}: Unknown function '{func_name}' in assignment for '{result_var}'.")
 
-            def check_args_recursively(args_list):
+            # --- NEW ARITY CHECKING LOGIC IS HERE ---
+            def check_function_and_args(func_dict, current_var_name, line_num):
+                func_name = func_dict["function"]
+                args_list = func_dict.get("args", [])
+
+                if func_name not in FUNCTION_SIGNATURES:
+                    raise ValuaScriptError(f"L{line_num}: Unknown function '{func_name}' used in assignment for '{current_var_name}'.")
+
+                expected_argc = FUNCTION_SIGNATURES[func_name]
+                actual_argc = len(args_list)
+
+                if expected_argc != -1 and actual_argc != expected_argc:
+                    plural = "s" if expected_argc != 1 else ""
+                    raise ValuaScriptError(f"L{line_num}: Function '{func_name}' expects {expected_argc} argument{plural}, but got {actual_argc}.")
+
                 for arg in args_list:
                     if isinstance(arg, str) and arg not in defined_vars:
-                        raise ValuaScriptError(f"L{line}: Variable '{arg}' used in the calculation for '{result_var}' is not defined before this line.")
+                        raise ValuaScriptError(f"L{line_num}: Variable '{arg}' used in the calculation for '{current_var_name}' is not defined before this line.")
                     if isinstance(arg, dict):
-                        nested_func = arg["function"]
-                        if nested_func not in VALID_FUNCTIONS:
-                            raise ValuaScriptError(f"L{line}: Unknown function '{nested_func}' used inside the expression for '{result_var}'.")
-                        if "args" in arg:
-                            arg["args"] = [str(a) if isinstance(a, Token) else a for a in arg.get("args", [])]
-                        check_args_recursively(arg.get("args", []))
+                        check_function_and_args(arg, current_var_name, line_num)
 
-            check_args_recursively(step.get("args", []))
+            check_function_and_args(step, result_var, line)
+
         defined_vars[result_var] = line
 
     if output_var not in defined_vars:
@@ -218,36 +226,22 @@ def validate_recipe(recipe: dict):
     return {"simulation_config": sim_config, "execution_steps": recipe["execution_steps"], "output_variable": output_var}
 
 
-# --- Main Execution ---
 def format_lark_error(e: UnexpectedInput, script_content: str) -> str:
-    """Creates a user-friendly error message from a Lark exception with contextual heuristics."""
     line_content = script_content.splitlines()[e.line - 1].strip()
 
-    # --- HEURISTICS FOR COMMON ERRORS ---
-
-    # Heuristic 1: Missing value after an equals sign.
-    # This happens when the line ends with '='. Lark expects an 'expression'.
     if line_content.endswith("="):
         custom_msg = "Missing a value or formula after the equals sign '='."
-        e.column = len(line_content) + 1  # Point to the end of the line
-
-    # Heuristic 2: Missing equals sign in an assignment.
-    # This happens when a `let` statement is followed by something other than '='.
+        e.column = len(line_content) + 1
     elif line_content.startswith("let") and "=" not in line_content:
         custom_msg = "A variable definition must include an equals sign '=' and a value.\nExample: let my_variable = 100"
-
-    # Heuristic 3: Unmatched opening parenthesis or bracket.
     elif "(" in line_content and ")" not in line_content:
         custom_msg = "It looks like you have an opening parenthesis '(' without a matching closing one ')'."
     elif "[" in line_content and "]" not in line_content:
         custom_msg = "It looks like you have an opening bracket '[' without a matching closing one ']'."
-
     else:
-        # Fallback to the generic message if no heuristic matches
         expected_str = ", ".join(sorted([TOKEN_FRIENDLY_NAMES.get(s, s) for s in e.expected]))
         custom_msg = f"The syntax is invalid here. I was expecting {expected_str}."
 
-    # --- FORMAT THE FINAL OUTPUT ---
     error_header = "\n--- SYNTAX ERROR ---"
     line_indicator = f"L{e.line} | {script_content.splitlines()[e.line - 1]}"
     pointer = f"{' ' * (e.column + 2 + len(str(e.line)))}^\n"
