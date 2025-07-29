@@ -467,12 +467,38 @@ The project is actively developed. Our current roadmap prioritizes practical uti
 ### ⏩ Tier 2: Improving the User Experience
 
 - [ ] **VS Code Extension**
+
   - **Why:** To transform the model-writing process from editing plain text to working in a smart environment. This dramatically lowers the barrier to entry and improves productivity.
   - **How:**
     1.  **Phase 1 (Easy):** Implement syntax highlighting for `.vs` files and snippets for common functions.
     2.  **Phase 2 (Advanced):** Develop a Language Server that uses the `vsc` compiler package to provide real-time error checking (linting) and diagnostics directly in the editor.
 
----
+- [ ] **Empirical Distribution Sampler (`create_sampler_from_data`)**
+
+  - **Why:** Models often require inputs that follow a specific, but not standard, distribution. Instead of forcing users to guess (`Normal`? `Lognormal`?), this feature would allow them to create a custom sampler directly from a real-world data series (e.g., historical oil prices, stock returns). This grounds the simulation in empirical evidence, significantly improving model realism.
+  - **User-Facing Syntax:**
+
+    ```valuascript
+    # 1. Read the historical data from a CSV file.
+    let oil_price_history = read_csv_vector("data/oil_prices.csv", "Price")
+
+    # 2. Create a custom sampler based on that data's distribution.
+    let oil_price_sampler = create_sampler_from_data(oil_price_history)
+
+    # 3. Use the sampler like any other distribution (e.g., Normal, Pert).
+    # Each time this line is executed in a trial, it will draw a new value
+    # from the custom distribution.
+    let future_oil_price = oil_price_sampler()
+    ```
+
+  - **How It Works (Implementation):**
+    1.  **`create_sampler_from_data` Function:** This new function would take a `vector` as input. Instead of returning a `scalar` or `vector`, it would return a new, special type we could call a **`sampler`**. This `sampler` is essentially a handle or an ID that refers to the created distribution.
+    2.  **Engine Implementation:** When `create_sampler_from_data` is executed, the C++ engine would analyze the input vector and store its statistical properties. The simplest and most common method for this is to create a **Kernel Density Estimate (KDE)** or simply store the empirical data points for resampling (a method called **bootstrapping**).
+    3.  **Using the Sampler:** When the user calls `oil_price_sampler()`, the engine recognizes the variable is of type `sampler`. Instead of treating it as a value, it executes the sampling logic associated with that handle, drawing a random value from the stored empirical distribution.
+    4.  **Compiler Support:** This is a significant language extension. The compiler would need to:
+        - Recognize the new `sampler` type.
+        - Add a new syntax for "calling" a sampler variable (e.g., `variable_name()`).
+        - Update the type inference engine to handle this new type and its usage.
 
 ### 🚀 Tier 3: Advanced Language Features
 
