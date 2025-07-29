@@ -19,7 +19,8 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
 - **🐍 Smart Validating Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe. It provides **clear, user-friendly error messages** and performs advanced **static type inference** to catch logical errors before execution.
 - **⚙️ Streamlined Workflow:** A `--run` flag allows for a seamless, one-step compile-and-execute experience.
-- **📊 Data Export:** Natively supports exporting full simulation trial data to CSV files for further analysis with the `@output_file` directive.
+- **📊 Instant Visualization:** A `--plot` flag automatically generates a histogram of the simulation output, providing immediate visual analysis.
+- **📈 Data Export:** Natively supports exporting full simulation trial data to CSV files for further analysis with the `@output_file` directive.
 - **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) with fully validated parameters.
 - **🛡️ Robust & Tested:** Comprehensive unit test suite for both the C++ engine (GoogleTest) and the Python compiler (Pytest), ensuring correctness and stability.
 
@@ -32,7 +33,7 @@ graph TD;
     A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- "vsc my_model.vs --run" --> B["<b>vsc Compiler (Python)</b><br/><i>Validates, translates, & executes</i>"];
     B -- generates & consumes --> C["<b>JSON Recipe</b><br/><i>Intermediate Representation</i>"];
     C -- consumed by --> D["<b>Simulation Engine (C++)</b><br/><i>High-Performance Backend</i>"];
-    D -- produces --> E["<b>Simulation Results</b><br/><i>Statistical Analysis</i>"];
+    D -- produces --> E["<b>Simulation Results</b><br/><i>Statistical Analysis & Plot</i>"];
 
     style A fill:#f9f,stroke:#333,stroke-width:2px
     style B fill:#ccf,stroke:#333,stroke-width:2px
@@ -68,14 +69,15 @@ There are two paths for using this project: as an **End-User** (recommended for 
 
 ### Full Workflow Example
 
-Once set up, you can compile and run a simulation with a single command:
+Once set up, you can compile, run, and visualize a simulation with a single command:
 
-1.  **Write a model** in a file named `my_model.vs`.
-2.  **Compile and run it:**
+1.  **Write a model** in a file named `my_model.vs`. Make sure it includes an `@output_file` directive.
+2.  **Compile, run, and plot it:**
     ```bash
-    # This will compile my_model.vs to my_model.json, then
-    # automatically execute the simulation engine and print the results.
-    /path/to/downloaded/vsc my_model.vs --run
+    # This will compile my_model.vs to my_model.json,
+    # execute the simulation, save results to the specified CSV,
+    # and finally display a histogram of the results.
+    /path/to/downloaded/vsc my_model.vs --run --plot
     ```
 
 ---
@@ -127,7 +129,7 @@ The `vsc` compiler searches for the engine in this order:
 
 1.  A path specified with the `--engine-path` flag (e.g., `vsc model.vs --run --engine-path /path/to/engine`).
 2.  The `VSC_ENGINE_PATH` environment variable (recommended setup).
-3.  A known relative path (`../build/bin/monte-carlo-simulator`), which works out-of-the-box for developers running `vsc` from the `compiler/` directory.
+3.  A known relative path (`../../build/bin/monte-carlo-simulator`), which works out-of-the-box for developers running `vsc` from within the Python package source.
 4.  The system's `PATH` variable.
 
 </details>
@@ -146,8 +148,12 @@ cd compiler
 # Create and activate a virtual environment
 python3 -m venv venv
 source venv/bin/activate
-# Install in editable mode and add test dependencies
+# Install the vsc package in editable mode and its dependencies
 pip install -e .
+```
+
+To run the test suite, you will need to install `pytest`:
+```bash
 pip install pytest
 ```
 
@@ -170,7 +176,7 @@ Special `@` directives configure the simulation. They can appear anywhere in the
 # Specifies which variable's final value should be collected. (Required)
 @output = final_share_price
 
-# Exports all trial results to a CSV file for further analysis. (Optional)
+# Exports all trial results to a CSV for analysis and plotting. (Optional)
 @output_file = "sim_results/amazon_model.csv"
 ```
 
@@ -211,7 +217,7 @@ let total_sales = sum_series(grow_series(100, 0.1, 5))
 
 ## 🔬 Development & Contribution
 
-Contributions are welcome! The project is designed to be highly extensible.
+Contributions are welcome! The project is designed to be highly extensible. The compiler code is now a proper Python package located in the `compiler/vsc/` directory.
 
 ### Running Tests
 
@@ -234,169 +240,52 @@ pytest -v
 
 ### Extending the Engine: A Detailed Guide
 
-Adding a new function is a three-step process that touches both the C++ engine and the Python compiler.
+Adding a new function is a three-step process that touches both the C++ engine and the Python compiler package. A full example is available in the project's development history. The key steps are:
+1.  **C++ Engine:** Create a new class inheriting from `IExecutable` in `include/engine/` and register it in the factory in `src/engine/SimulationEngine.cpp`.
+2.  **Python Compiler:** Add the function's signature to `FUNCTION_SIGNATURES` in `compiler/vsc/config.py`.
+3.  **Testing:** Add comprehensive unit tests to `test/engine_tests.cpp` (for logic) and `compiler/tests/test_compiler.py` (for validation).
 
----
-
-#### Example 1: Adding a New Operation (`stdev`)
-
-Let's add a `stdev` function that calculates the standard deviation of a vector.
-
-**Step 1: Implement the Logic in C++**
-
-1.  **Create the Class:** In `include/engine/operations.h`, create a new class that inherits from `IExecutable`.
-
-    ```cpp
-    // In include/engine/operations.h
-    class StdevOperation : public IExecutable {
-    public:
-        TrialValue execute(const std::vector<TrialValue>& args) const override {
-            const auto& series = std::get<std::vector<double>>(args[0]);
-            if (series.empty()) return 0.0;
-            double sum = std::accumulate(series.begin(), series.end(), 0.0);
-            double mean = sum / series.size();
-            double sq_sum = std::inner_product(series.begin(), series.end(), series.begin(), 0.0);
-            double stdev = std::sqrt(sq_sum / series.size() - mean * mean);
-            return stdev;
-        }
-    };
-    ```
-
-2.  **Register in Factory:** In `src/engine/SimulationEngine.cpp`, add it to the `build_executable_factory` method.
-
-    ```cpp
-    // In src/engine/SimulationEngine.cpp
-    m_executable_factory["stdev"] = [] { return std::make_unique<StdevOperation>(); };
-    ```
-
-**Step 2: Update the Python Compiler**
-
-1.  **Add to Signatures:** In `compiler/vsc.py`, add an entry to the `FUNCTION_SIGNATURES` dictionary.
-
-    ```python
-    # In compiler/vsc.py
-    "stdev": {"variadic": False, "arg_types": ["vector"], "return_type": "scalar"},
-    ```
-
-**Step 3: Add Tests (Crucial!)**
-
-1.  **C++ Test:** In `test/engine_tests.cpp`, add a test case to validate the logic.
-2.  **Python Tests:** In `compiler/tests/test_compiler.py`, add tests for the compiler's validation (e.g., test that `stdev(123)` fails and `stdev([1,2])` passes).
-
----
-
-#### Example 2: Adding a New Distribution (`Poisson`)
-
-Let's add a `Poisson` distribution sampler.
-
-**Step 1: Implement the Logic in C++**
-
-1.  **Create the Class:** In `include/engine/samplers.h`, create the new sampler class.
-
-    ```cpp
-    // In include/engine/samplers.h
-    class PoissonSampler : public IExecutable {
-    public:
-        TrialValue execute(const std::vector<TrialValue>& args) const override {
-            // The compiler guarantees we get one scalar argument.
-            double lambda = std::get<double>(args[0]);
-            std::poisson_distribution<> dist(lambda);
-            return static_cast<double>(dist(get_thread_local_generator()));
-        }
-    };
-    ```
-
-2.  **Register in Factory:** In `src/engine/SimulationEngine.cpp`, add it to the factory.
-
-    ```cpp
-    // In src/engine/SimulationEngine.cpp
-    m_executable_factory["Poisson"] = [] { return std::make_unique<PoissonSampler>(); };
-    ```
-
-**Step 2: Update the Python Compiler**
-
-1.  **Add to Signatures:** In `compiler/vsc.py`, add the new function's signature.
-
-    ```python
-    # In compiler/vsc.py
-    "Poisson": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar"},
-    ```
-
-**Step 3: Add Tests (Crucial!)**
-
-1.  **C++ Test:** In `test/engine_tests.cpp`, add a statistical test to verify the mean of many samples.
-2.  **Python Tests:** In `compiler/tests/test_compiler.py`, add arity and type tests (e.g., `Poisson()` and `Poisson([1,2])` should fail).
-
-By following these three steps, your new function will be fully and safely integrated into the entire platform.
 
 ## 🗺️ Roadmap
 
-- [x] **V1.0 C++ Engine Core & ValuaScript Compiler**
-- [x] **V1.1 Compiler Upgrade with Full Type Inference & Robust Error Reporting**
-- [x] **V1.2 Workflow & Usability Features**
-  - [x] **Streamlined Workflow:** Added a `--run` flag to `vsc`.
-  - [x] **Data Export:** Added the `@output_file` directive and CSV writing capabilities to the engine.
+The project is actively developed. Our current roadmap prioritizes practical utility and user experience.
+
+### ✅ Completed Milestones
+- **V1.0:** Core C++ Engine & ValuaScript Compiler.
+- **V1.1:** Compiler with full type inference & robust error reporting.
+- **V1.2:**
+  - Streamlined `--run` flag.
+  - Data export via `@output_file` and CSV writing.
+  - Instant visualization via `--plot` flag.
+  - Compiler refactored into a scalable Python package.
 
 ---
 
-### Tier 1: Major Features (V1.3+)
+### 🔜 Tier 1: Next Immediate Feature
 
-<details>
-<summary>Click to see major planned features.</summary>
+- [ ] **External Data Integration (`read_csv`)**
+  - **Why:** To enable models to use real-world data (e.g., historical financials, assumption sets) from external files, which is a critical feature for any serious modeling tool.
+  - **How:**
+    1.  **Engine:** Add a C++ CSV parsing library. Implement a new `ReadCsvOperation` that takes a file path and column name, reads the data, and returns a vector.
+    2.  **Compiler:** Add a `read_csv(string, string) -> vector` function signature. The compiler will validate the call and pass the arguments to the JSON recipe.
 
-- [ ] **External Data Integration:**
-  - [ ] Add a `read_csv("path", "column")` function to ValuaScript to allow models to use external data sources.
+---
 
-</details>
+### ⏩ Tier 2: Improving the User Experience
 
-### Tier 2: Future Language Features (V2.0+)
+- [ ] **VS Code Extension**
+  - **Why:** To transform the model-writing process from editing plain text to working in a smart environment. This dramatically lowers the barrier to entry and improves productivity.
+  - **How:**
+    1.  **Phase 1 (Easy):** Implement syntax highlighting for `.vs` files and snippets for common functions.
+    2.  **Phase 2 (Advanced):** Develop a Language Server that uses the `vsc` compiler package to provide real-time error checking (linting) and diagnostics directly in the editor.
 
-<details>
-<summary>Click to see long-term ideas for language evolution.</summary>
+---
 
-This section outlines a potential path for evolving ValuaScript into a more powerful, modular language. These are complex architectural ideas for future development.
+### 🚀 Tier 3: Advanced Language Features
 
-- [ ] **Phase 1: Simple Includes**
-
-  - **Goal:** Allow basic code reuse by including one `.vs` file in another.
-  - **Syntax:** `@include "wacc_module.vs"`
-  - **Implementation:** A simple pre-processing step in the compiler that concatenates file contents before parsing. This approach does not handle namespaces or parameters and would place the responsibility on the user to avoid variable name collisions.
-
-- [ ] **Phase 2: User-Defined Functions (Modules)**
-
-  - **Goal:** Introduce true, parameterized functions to ValuaScript for building reusable, abstract components.
-  - **Syntax:**
-
-    ```valuascript
-    # In option_pricing.vs
-    @export(scalar, scalar) # Exports a function taking two scalars
-    let internal_var = ...
-    @output = result_var
-
-    # In main.vs
-    @import option_pricing.vs
-    let my_option_value = option_pricing(arg1, arg2)
-    ```
-
-  - **Implementation:** This is a major architectural step requiring the compiler to manage a dependency graph, parse multiple files, handle function scopes (namespaces) to prevent variable collisions (likely via name mangling), and correctly inline the module's logic during JSON generation.
-
-</details>
-
-### Tier 3: Ecosystem and Distribution
-
-<details>
-<summary>Click to see long-term ecosystem goals.</summary>
-
-- [ ] **Automated Cross-Platform Builds (CI/CD):**
-  - [ ] Create a GitHub Actions workflow to automatically build binaries for all major OSes and attach them to new GitHub Releases.
-- [ ] **Dedicated Documentation Website:**
-  - [ ] Use a static site generator like MkDocs or Docusaurus for full, searchable documentation.
-- [ ] **VS Code Extension:**
-  - [ ] Develop an extension for Visual Studio Code providing syntax highlighting, real-time error checking (linting), and autocompletion.
-- [ ] **Data Visualization:**
-  - [ ] Add a feature to automatically generate and display a histogram of the final output distribution.
-
-</details>
+- [ ] **Modularization (`@import` / `@export`)**
+  - **Why:** To allow users to create reusable, importable modules (e.g., a standard WACC calculation). This promotes cleaner, more abstract, and more scalable models, avoiding code duplication.
+  - **How:** This is a major architectural evolution for the compiler. It will require implementing a dependency graph, handling namespaces (to prevent variable collisions), and defining a clear contract for how modules pass arguments and return values.
 
 ## 📄 License
 
