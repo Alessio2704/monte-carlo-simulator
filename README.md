@@ -305,7 +305,7 @@ void SimulationEngine::build_executable_factory()
     // ... other operations
     m_executable_factory["capitalize_expense"] = []
     { return std::make_unique<CapitalizeExpenseOperation>(); };
-    
+
     // Add our new line here
     m_executable_factory["clip"] = []
     { return std::make_unique<ClipOperation>(); };
@@ -337,7 +337,7 @@ Find the `FUNCTION_SIGNATURES` dictionary and add an entry for `"clip"`. This en
 FUNCTION_SIGNATURES = {
     # ... other functions
     "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar"},
-    
+
     # Add our new signature here (alphabetically)
     "clip": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar"},
 
@@ -345,9 +345,10 @@ FUNCTION_SIGNATURES = {
     # ... other functions
 }
 ```
-*   `"variadic": False`: `clip` takes a fixed number of arguments.
-*   `"arg_types": ["scalar", "scalar", "scalar"]`: It requires three arguments, all of which must be scalars. The compiler will now enforce this.
-*   `"return_type": "scalar"`: The result of `clip` is a single number, so its type is `scalar`. This is crucial for type inference in larger expressions.
+
+- `"variadic": False`: `clip` takes a fixed number of arguments.
+- `"arg_types": ["scalar", "scalar", "scalar"]`: It requires three arguments, all of which must be scalars. The compiler will now enforce this.
+- `"return_type": "scalar"`: The result of `clip` is a single number, so its type is `scalar`. This is crucial for type inference in larger expressions.
 
 ---
 
@@ -373,7 +374,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         // ... all the existing math tests
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":0},{"type":"execution_assignment","result":"B","function":"tan","args":["A"]}]})", TrialValue(std::tan(0.0)), false),
-        
+
         // Add our new test cases for clip()
         // Case 1: Value is below the minimum, should be clipped up
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"clip","args":[5, 10, 20]}]})", TrialValue(10.0), false),
@@ -391,7 +392,7 @@ Now, we test the compiler's validation rules.
 Open the Python test file:
 **File:** `compiler/tests/test_compiler.py`
 
-*   **Add a "happy path" test** to ensure a valid call compiles successfully.
+- **Add a "happy path" test** to ensure a valid call compiles successfully.
 
 ```python
 # In test_compiler.py, inside test_valid_scripts_compile_successfully()
@@ -403,7 +404,7 @@ def test_valid_scripts_compile_successfully():
     compile_and_validate("@iterations=1\n@output=x\nlet x = clip(100, 0, 50)")
 ```
 
-*   **Add a "sad path" test** for a type error. The arity (argument count) tests will be handled automatically by the existing `get_arity_test_cases` fixture, but we should add a specific test for passing a wrong type, like a vector.
+- **Add a "sad path" test** for a type error. The arity (argument count) tests will be handled automatically by the existing `get_arity_test_cases` fixture, but we should add a specific test for passing a wrong type, like a vector.
 
 ```python
 # In test_compiler.py, add a new entry to the test_semantic_and_type_errors parameters
@@ -426,6 +427,7 @@ def test_semantic_and_type_errors(base_script, description, script_body, expecte
 #### Final Step: Build and Test
 
 You are now done! To confirm everything works:
+
 1.  Navigate to the project root.
 2.  Re-build the C++ engine: `cmake --build build`
 3.  Run the C++ tests: `./build/bin/run_tests`
@@ -451,13 +453,16 @@ The project is actively developed. Our current roadmap prioritizes practical uti
 
 ### 🔜 Tier 1: Next Immediate Feature
 
-- [ ] **External Data Integration (`read_csv`)**
-  - **Why:** To enable models to use real-world data (e.g., historical financials, assumption sets) from external files, which is a critical feature for any serious modeling tool.
-  - **How:**
-    1.  **Engine:** Add a C++ CSV parsing library. Implement a new `ReadCsvOperation` that takes a file path and column name, reads the data, and returns a vector.
-    2.  **Compiler:** Add a `read_csv(string, string) -> vector` function signature. The compiler will validate the call and pass the arguments to the JSON recipe.
-
----
+- [ ] **External Data Integration (CSV Reading)**
+  - **Why:** To enable models to use real-world data (e.g., historical financials, assumption sets) from external files. This is a critical feature for any serious modeling tool, moving beyond hardcoded assumptions.
+  - **How:** To ensure clarity and simple, robust validation, we will implement two distinct functions:
+    - `read_csv_vector(file_path, column_name)` -> **vector**: Reads an entire column from a CSV file and returns it as a vector. Used for importing time series data.
+    - `read_csv_scalar(file_path, column_name, row_index)` -> **scalar**: Reads a single cell from a CSV at a specific column and row, returning it as a scalar. Used for importing individual configuration parameters.
+  - **Implementation Steps:**
+    1.  **Engine:** Add a robust C++ CSV parsing library. Implement two new classes, `ReadCsvVectorOperation` and `ReadCsvScalarOperation`, inheriting from `IExecutable`. The engine should intelligently cache opened CSV files to avoid redundant disk I/O. Register these in the `SimulationEngine` factory.
+    2.  **Compiler:** Add two new, distinct signatures to `FUNCTION_SIGNATURES`:
+        - `"read_csv_vector": {"variadic": False, "arg_types": ["string", "string"], "return_type": "vector"}`
+        - `"read_csv_scalar": {"variadic": False, "arg_types": ["string", "string", "scalar"], "return_type": "scalar"}`
 
 ### ⏩ Tier 2: Improving the User Experience
 
@@ -474,6 +479,12 @@ The project is actively developed. Our current roadmap prioritizes practical uti
 - [ ] **Modularization (`@import` / `@export`)**
   - **Why:** To allow users to create reusable, importable modules (e.g., a standard WACC calculation). This promotes cleaner, more abstract, and more scalable models, avoiding code duplication.
   - **How:** This is a major architectural evolution for the compiler. It will require implementing a dependency graph, handling namespaces (to prevent variable collisions), and defining a clear contract for how modules pass arguments and return values.
+
+### 🌌 V-Next: The "Blue Sky" Goal (JIT Compilation)
+
+- [ ] **Native Code Generation (JIT Compiler)**
+  - **Why:** The ultimate performance goal. While the current C++ engine is extremely fast, it still operates by interpreting the JSON recipe for each of the millions of trials. A Just-In-Time (JIT) compiler would represent the final evolution of the engine. It would take the JSON recipe, and at the start of the simulation, compile it _in memory_ into a highly optimized, native machine code function tailored to execute that specific model. This would eliminate all interpretation overhead, pushing the execution speed to the theoretical maximum—as if the model had been written directly in optimized C++.
+  - **How:** This is a major undertaking, suitable for a future V2.0 or V3.0 release, once the current feature set is complete and stable. It would involve integrating a code generation library (like `asmjit` or even `LLVM`) into the C++ engine. The engine would transition from being an _interpreter_ of the JSON recipe to a _compiler_ that consumes the recipe and emits executable code. The choice of JSON as a clean, structured Intermediate Representation (IR) was a crucial first step that makes this future evolution possible.
 
 ## 📄 License
 
