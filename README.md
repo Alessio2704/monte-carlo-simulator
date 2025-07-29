@@ -26,7 +26,7 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 ## 🏛️ Architecture
 
-The platform is built on a clean, three-layer architecture that separates human-readable modeling from high-speed computation.
+The project is cleanly separated into two main components: a Python **compiler** and a C++ **engine**. This modular structure separates the user-facing language tools from the high-performance computation core.
 
 ```mermaid
 graph TD;
@@ -42,7 +42,7 @@ graph TD;
 
 ## 🚀 Getting Started
 
-There are two paths for using this project: as an **End-User** (recommended for most) or as a **Developer** (if you want to contribute).
+There are two paths for using this project: as an **End-User** (recommended for most) or as a **Developer**.
 
 ### For End-Users
 
@@ -57,12 +57,12 @@ There are two paths for using this project: as an **End-User** (recommended for 
     git clone https://github.com/Alessio2704/monte-carlo-simulator.git
     cd monte-carlo-simulator
 
-    # Configure and build the C++ engine
+    # Configure and build the project from the root directory
     cmake -B build
     cmake --build build
     ```
 
-    This creates the `monte-carlo-simulator` executable inside the `build/bin/` directory.
+    This creates the `monte-carlo-simulator` executable inside the top-level `build/bin/` directory.
 
 3.  **Configure the `--run` Flag (One-Time Setup):**
     To use the streamlined workflow, you need to tell the `vsc` compiler where to find the C++ engine you just built. Follow the platform-specific instructions in the **"Configuring the `--run` Flag"** section below.
@@ -86,7 +86,7 @@ Once set up, you can compile, run, and visualize a simulation with a single comm
 
 To make `vsc my_model.vs --run` work seamlessly, you need to tell the `vsc` compiler where to find the `monte-carlo-simulator` executable. The recommended method is to set an environment variable. This is a one-time setup.
 
-First, get the **absolute path** to your C++ engine executable. You can find this by navigating to its directory and running `pwd` (on macOS/Linux) or copying the path from File Explorer (on Windows).
+First, get the **absolute path** to your C++ engine executable. After building, you can find this by navigating to the `build/bin` directory and running `pwd` (on macOS/Linux) or copying the path from File Explorer (on Windows).
 
 - Example path on macOS/Linux: `/Users/yourname/monte-carlo-simulator/build/bin/monte-carlo-simulator`
 - Example path on Windows: `C:\Users\yourname\monte-carlo-simulator\build\bin\monte-carlo-simulator.exe`
@@ -129,7 +129,7 @@ The `vsc` compiler searches for the engine in this order:
 
 1.  A path specified with the `--engine-path` flag (e.g., `vsc model.vs --run --engine-path /path/to/engine`).
 2.  The `VSC_ENGINE_PATH` environment variable (recommended setup).
-3.  A known relative path (`../../build/bin/monte-carlo-simulator`), which works out-of-the-box for developers running `vsc` from within the Python package source.
+3.  A known relative path (`../../build/bin/monte-carlo-simulator` from `compiler/vsc/`), which works out-of-the-box for developers running `vsc` from within the Python package source.
 4.  The system's `PATH` variable.
 
 </details>
@@ -141,23 +141,23 @@ The `vsc` compiler searches for the engine in this order:
 <details>
 <summary>Click to expand developer instructions</summary>
 
-Follow the "Getting Started" instructions to clone and build the C++ engine. Then, set up the Python environment:
+First, build the C++ engine using the end-user instructions. The developer workflow assumes the engine has been built and its artifacts are in the top-level `/build` directory.
+
+Then, set up the Python environment for the compiler:
 
 ```bash
+# Navigate to the compiler's directory
 cd compiler
+
 # Create and activate a virtual environment
 python3 -m venv venv
 source venv/bin/activate
+
 # Install the vsc package in editable mode and its dependencies
 pip install -e .
 ```
 
-To run the test suite, you will need to install `pytest`:
-```bash
-pip install pytest
-```
-
-The `vsc` command is now available in your shell. The `--run` flag will work automatically for developers without any configuration, as it will find the engine at the known relative path.
+The `vsc` command is now available in your shell. For developers, the `--run` flag will work automatically without any extra configuration, as the compiler will find the engine at the known relative path from the `compiler/` directory to the `build/` directory.
 
 </details>
 
@@ -217,47 +217,235 @@ let total_sales = sum_series(grow_series(100, 0.1, 5))
 
 ## 🔬 Development & Contribution
 
-Contributions are welcome! The project is designed to be highly extensible. The compiler code is now a proper Python package located in the `compiler/vsc/` directory.
+Contributions are welcome! The project's clean separation into `engine/` and `compiler/` directories makes it highly extensible.
 
 ### Running Tests
 
-The project includes comprehensive test suites for both the C++ engine and the Python compiler.
+The project includes comprehensive test suites for both components.
 
 **1. C++ Engine Tests (GoogleTest)**
 
 ```bash
-# First, build the project (see instructions above)
+# First, build the project from the root directory (see "Getting Started")
+# Then, run the test executable
 ./build/bin/run_tests
 ```
 
 **2. Python Compiler Tests (Pytest)**
 
 ```bash
+# Navigate to the compiler directory
 cd compiler
+
+# Activate your virtual environment if not already active
 source venv/bin/activate
+
+# Install pytest if needed
+pip install pytest
+
+# Run the tests
 pytest -v
 ```
 
 ### Extending the Engine: A Detailed Guide
 
-Adding a new function is a three-step process that touches both the C++ engine and the Python compiler package. A full example is available in the project's development history. The key steps are:
-1.  **C++ Engine:** Create a new class inheriting from `IExecutable` in `include/engine/` and register it in the factory in `src/engine/SimulationEngine.cpp`.
-2.  **Python Compiler:** Add the function's signature to `FUNCTION_SIGNATURES` in `compiler/vsc/config.py`.
-3.  **Testing:** Add comprehensive unit tests to `test/engine_tests.cpp` (for logic) and `compiler/tests/test_compiler.py` (for validation).
+Adding a new function to ValuaScript is a clean, three-stage process that touches the C++ engine, the Python compiler, and their respective test suites. This ensures that every new function is not only implemented correctly but also fully validated and type-checked by the compiler.
 
+Let's walk through a complete example: we will add a new function `clip(value, min_val, max_val)` that constrains a value to be within a specified range.
+
+---
+
+#### Stage 1: Implement the Core Logic in the C++ Engine
+
+First, we'll add the C++ class that performs the actual calculation.
+
+**1.1. Add the `IExecutable` Class**
+
+Open the header file where other simple operations are defined:
+**File:** `engine/include/engine/operations.h`
+
+At the end of the file, before the final `#endif` or `#pragma once`, add the new `ClipOperation` class. We can use `std::clamp` (available in C++17) for a clean implementation.
+
+```cpp
+// Add this to the end of engine/include/engine/operations.h
+
+class ClipOperation : public IExecutable
+{
+public:
+    TrialValue execute(const std::vector<TrialValue> &args) const override
+    {
+        if (args.size() != 3)
+        {
+            throw std::runtime_error("ClipOperation requires 3 arguments: value, min_val, max_val.");
+        }
+        // The compiler has already guaranteed these are scalars, so we can safely use std::get.
+        double value = std::get<double>(args[0]);
+        double min_val = std::get<double>(args[1]);
+        double max_val = std::get<double>(args[2]);
+
+        return std::clamp(value, min_val, max_val);
+    }
+};
+```
+
+**1.2. Register the New Function in the Factory**
+
+Now, we need to tell the simulation engine that the string `"clip"` in a JSON recipe should map to our new `ClipOperation` class.
+
+Open the engine's main source file:
+**File:** `engine/src/engine/SimulationEngine.cpp`
+
+Find the `build_executable_factory()` method and add a new entry for `"clip"`. The list is alphabetical, so let's place it there.
+
+```cpp
+// In engine/src/engine/SimulationEngine.cpp, inside build_executable_factory()
+
+void SimulationEngine::build_executable_factory()
+{
+    // ... other operations
+    m_executable_factory["capitalize_expense"] = []
+    { return std::make_unique<CapitalizeExpenseOperation>(); };
+    
+    // Add our new line here
+    m_executable_factory["clip"] = []
+    { return std::make_unique<ClipOperation>(); };
+
+    m_executable_factory["compound_series"] = []
+    { return std::make_unique<CompoundSeriesOperation>(); };
+    // ... other operations
+}
+```
+
+At this point, the C++ engine is now capable of executing the `clip` function.
+
+---
+
+#### Stage 2: Teach the Python Compiler About the New Function
+
+Next, we must update the compiler's configuration so it can validate calls to `clip`.
+
+**2.1. Add the Function Signature**
+
+Open the compiler's static configuration file:
+**File:** `compiler/vsc/config.py`
+
+Find the `FUNCTION_SIGNATURES` dictionary and add an entry for `"clip"`. This entry tells the validator everything it needs to know: the number of arguments, their expected types, and the type of the value it returns.
+
+```python
+# In compiler/vsc/config.py, inside FUNCTION_SIGNATURES
+
+FUNCTION_SIGNATURES = {
+    # ... other functions
+    "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar"},
+    
+    # Add our new signature here (alphabetically)
+    "clip": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar"},
+
+    "compound_series": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "vector"},
+    # ... other functions
+}
+```
+*   `"variadic": False`: `clip` takes a fixed number of arguments.
+*   `"arg_types": ["scalar", "scalar", "scalar"]`: It requires three arguments, all of which must be scalars. The compiler will now enforce this.
+*   `"return_type": "scalar"`: The result of `clip` is a single number, so its type is `scalar`. This is crucial for type inference in larger expressions.
+
+---
+
+#### Stage 3: Add Comprehensive Tests
+
+The final and most critical stage is to add tests that verify both the C++ logic and the Python validation rules.
+
+**3.1. Add C++ Unit Tests (GoogleTest)**
+
+We'll add tests to verify the core logic: that `clip` correctly constrains values.
+
+Open the C++ test file:
+**File:** `engine/test/engine_tests.cpp`
+
+Find the `MathOperationTests` test suite and add a few test cases for `clip`. We'll add them to the `INSTANTIATE_TEST_SUITE_P` block.
+
+```cpp
+// In engine/test/engine_tests.cpp
+
+INSTANTIATE_TEST_SUITE_P(
+    MathOperationTests,
+    DeterministicEngineTest,
+    ::testing::Values(
+        // ... all the existing math tests
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":0},{"type":"execution_assignment","result":"B","function":"tan","args":["A"]}]})", TrialValue(std::tan(0.0)), false),
+        
+        // Add our new test cases for clip()
+        // Case 1: Value is below the minimum, should be clipped up
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"clip","args":[5, 10, 20]}]})", TrialValue(10.0), false),
+        // Case 2: Value is within the range, should be unchanged
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"clip","args":[15, 10, 20]}]})", TrialValue(15.0), false),
+        // Case 3: Value is above the maximum, should be clipped down
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"clip","args":[25, 10, 20]}]})", TrialValue(20.0), false)
+    ));
+```
+
+**3.2. Add Python Compiler Tests (Pytest)**
+
+Now, we test the compiler's validation rules.
+
+Open the Python test file:
+**File:** `compiler/tests/test_compiler.py`
+
+*   **Add a "happy path" test** to ensure a valid call compiles successfully.
+
+```python
+# In test_compiler.py, inside test_valid_scripts_compile_successfully()
+
+def test_valid_scripts_compile_successfully():
+    # ... other valid scripts
+    compile_and_validate("@iterations=1\n@output=x\nlet x = sum_series(grow_series(1, 1, 1))")
+    # Add a test for our new clip function
+    compile_and_validate("@iterations=1\n@output=x\nlet x = clip(100, 0, 50)")
+```
+
+*   **Add a "sad path" test** for a type error. The arity (argument count) tests will be handled automatically by the existing `get_arity_test_cases` fixture, but we should add a specific test for passing a wrong type, like a vector.
+
+```python
+# In test_compiler.py, add a new entry to the test_semantic_and_type_errors parameters
+
+@pytest.mark.parametrize(
+    "description, script_body, expected_error",
+    [
+        # ... other error cases
+        ("Wrong @output_file type", "@iterations=1\n@output=x\nlet x=1\n@output_file=123", "must be a string literal"),
+        # Add our new type error test case
+        ("Wrong type for clip", "let result=clip([1,2], 0, 10)", "expects a 'scalar', but got a 'vector'"),
+    ],
+)
+def test_semantic_and_type_errors(base_script, description, script_body, expected_error):
+    # ... test body remains the same
+```
+
+---
+
+#### Final Step: Build and Test
+
+You are now done! To confirm everything works:
+1.  Navigate to the project root.
+2.  Re-build the C++ engine: `cmake --build build`
+3.  Run the C++ tests: `./build/bin/run_tests`
+4.  Run the Python tests: `cd compiler && pytest`
+
+Both test suites should pass, confirming your new `clip` function is correctly implemented, integrated, and validated. You have successfully extended the ValuaScript language.
 
 ## 🗺️ Roadmap
 
 The project is actively developed. Our current roadmap prioritizes practical utility and user experience.
 
 ### ✅ Completed Milestones
+
 - **V1.0:** Core C++ Engine & ValuaScript Compiler.
 - **V1.1:** Compiler with full type inference & robust error reporting.
 - **V1.2:**
   - Streamlined `--run` flag.
   - Data export via `@output_file` and CSV writing.
   - Instant visualization via `--plot` flag.
-  - Compiler refactored into a scalable Python package.
+- **V1.3 (Current):** Major architectural refactor into modular `compiler` and `engine` directories.
 
 ---
 
