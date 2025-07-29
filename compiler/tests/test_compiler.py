@@ -1,13 +1,17 @@
 import pytest
 import sys
 import os
+from lark import Lark
 from lark.exceptions import UnexpectedInput
 
-# Allow the test file to import 'vsc.py'
+# Allow the test file to import from the 'vsc' package
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from vsc import Lark, ValuaScriptTransformer, validate_recipe, ValuaScriptError, FUNCTION_SIGNATURES
+from vsc.compiler import ValuaScriptTransformer, validate_recipe
+from vsc.exceptions import ValuaScriptError
+from vsc.config import FUNCTION_SIGNATURES
 
 # --- Test Setup ---
+# The grammar path needs to be adjusted since we are in the vsc package now.
 grammar_path = os.path.join(os.path.dirname(__file__), "..", "valuascript.lark")
 with open(grammar_path, "r") as f:
     valuascript_grammar = f.read()
