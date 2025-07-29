@@ -1,8 +1,8 @@
 #pragma once
 
-#include "engine/datastructures.h"
-#include "engine/IExecutionStep.h"
-#include "engine/IExecutable.h"
+#include "datastructures.h"
+#include "IExecutionStep.h"
+#include "IExecutable.h"
 #include <string>
 #include <vector>
 #include <unordered_map>

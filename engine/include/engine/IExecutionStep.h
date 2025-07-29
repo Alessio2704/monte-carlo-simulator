@@ -2,7 +2,7 @@
 
 #include <string>
 #include <unordered_map>
-#include "engine/datastructures.h"
+#include "datastructures.h"
 
 using TrialContext = std::unordered_map<std::string, TrialValue>;
 

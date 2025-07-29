@@ -1,7 +1,7 @@
 #pragma once
 
-#include "engine/IExecutionStep.h"
-#include "engine/IExecutable.h"
+#include "IExecutionStep.h"
+#include "IExecutable.h"
 #include <string>
 #include <vector>
 #include <memory>

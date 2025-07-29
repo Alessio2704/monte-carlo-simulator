@@ -1,0 +1,72 @@
+# This file defines the 'engine_core' library and its tests.
+# Paths are relative to this directory (monte-carlo-simulator/engine/).
+
+project(MonteCarloEngine)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-Werror=switch")
+
+# --- Fetch Dependencies ---
+# This part is unchanged.
+include(FetchContent)
+FetchContent_Declare(
+  json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG "v3.12.0" 
+)
+FetchContent_MakeAvailable(json)
+
+# --- Define our Core Library ---
+add_library(engine_core STATIC
+    src/engine/SimulationEngine.cpp 
+    src/engine/io.cpp
+)
+
+
+target_include_directories(engine_core PUBLIC
+    # For builds, add the 'include' directory from this subdirectory.
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    # For installs, specify the destination.
+    $<INSTALL_INTERFACE:include>
+)
+
+# Link the engine library against the JSON library.
+target_link_libraries(engine_core PUBLIC nlohmann_json::nlohmann_json)
+
+
+# --- Define our Main Executable ---
+add_executable(monte-carlo-simulator
+    src/main.cpp
+)
+
+# Link the main executable against our core library.
+target_link_libraries(monte-carlo-simulator PRIVATE engine_core)
+
+
+# --- Testing Configuration ---
+enable_testing()
+
+FetchContent_Declare(
+  googletest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG "v1.14.0"
+)
+FetchContent_MakeAvailable(googletest)
+
+# Define our test executable.
+add_executable(run_tests
+    test/engine_tests.cpp
+)
+
+# Link the test executable against our core library and GoogleTest.
+# Because engine_core's include directories are PUBLIC, run_tests automatically
+# knows where to find the engine headers.
+target_link_libraries(run_tests PRIVATE
+    engine_core
+    gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(run_tests)

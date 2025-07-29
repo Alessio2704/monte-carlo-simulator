@@ -1,47 +1,74 @@
-# .gitignore for C++ CMake projects
+# =============================================================================
+# >> C++ ENGINE & CMAKE ARTIFACTS
+# =============================================================================
+# Ignore the primary build directory where all compiled C++ output resides.
+# The leading slash anchors this to the project root.
+**/build/
 
-# 1. Build System & Compiled Artifacts
-#----------------------------------------------------------------
-# The primary rule: ignore the entire build directory.
-# This is where all compiled object files and the final executable live.
-/build
+# Ignore Gemini-generated files
+/gemini/
 
-#Gemini
-/gemini
-
-# In case CMake is run in the source directory by mistake, ignore its files.
+# Safety net for in-source builds (in case CMake is run from the wrong directory).
 CMakeCache.txt
 CMakeFiles/
 Makefile
 cmake_install.cmake
+compile_commands.json
 
-# Ignore compiled object files and libraries no matter where they are.
+# Ignore all compiled libraries, objects, and executables, regardless of location.
+# This is a robust catch-all.
 *.o
 *.a
 *.so
 *.dylib
-
-# Ignore the final executable by name.
-# This is good practice for clarity.
-monte-carlo-simulator
-# If you build for Windows, ignore .exe files.
+*.lib
+*.dll
 *.exe
+*.pdb
+*.ilk
 
 
-# 2. Operating System Specific Files
-#----------------------------------------------------------------
-# Ignore macOS system files.
-.DS_Store
-.AppleDouble
-.LSOverride
+# =============================================================================
+# >> PYTHON COMPILER ARTIFACTS
+# =============================================================================
+# Python virtual environments (e.g., venv, .venv, env).
+# No leading slash, so they are ignored whether at the root or in /compiler/.
+venv/
+.venv/
+env/
 
-# Ignore thumbnail cache files from Windows.
-Thumbs.db
-ehthumbs.db
+# Python cache files and compiled bytecode.
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / Installation artifacts.
+# Scoped to the compiler directory to avoid conflict with the C++ build directory.
+/compiler/dist/
+/compiler/build/
+/compiler/*.egg-info/
+.eggs/
+*.egg
+
+# Pytest and coverage reports.
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 
-# 3. IDE & Editor Configuration
-#----------------------------------------------------------------
+# =============================================================================
+# >> GENERATED WORKFLOW & DATA FILES
+# =============================================================================
+# Ignore intermediate JSON recipes and simulation output files.
+# These are generated artifacts and should not be tracked in version control.
+*.json
+*.csv
+
+
+# =============================================================================
+# >> IDE & EDITOR CONFIGURATION
+# =============================================================================
 # Visual Studio Code
 .vscode/
 
@@ -53,3 +80,16 @@ cmake-build-*/
 *.xcodeproj/
 *.xcworkspace/
 xcuserdata/
+
+
+# =============================================================================
+# >> OPERATING SYSTEM SPECIFIC FILES
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db

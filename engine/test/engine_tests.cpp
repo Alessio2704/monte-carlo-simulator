@@ -5,8 +5,10 @@
 #include <tuple>
 #include <numeric>
 #include <cmath>
-#include "engine/SimulationEngine.h"
-#include "engine/io.h"
+#include <cstdio>
+
+#include "include/engine/SimulationEngine.h"
+#include "include/engine/io.h"
 
 // Helper function to create a test recipe file.
 void create_test_recipe(const std::string &filename, const std::string &content)
@@ -16,12 +18,102 @@ void create_test_recipe(const std::string &filename, const std::string &content)
     test_file.close();
 }
 
-// --- Parameterized Test Fixture for Deterministic Operations ---
+// Helper to read a file's content into a string
+std::string read_file_content(const std::string &path)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        return "ERROR: FILE_NOT_FOUND";
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
+// =============================================================================
+// --- BASE FIXTURE FOR AUTOMATIC FILE CLEANUP ---
+// =============================================================================
+// Any test class that creates temporary files can inherit from this fixture.
+// It ensures that files are removed before and after each test, guaranteeing
+// a clean state and preventing tests from interfering with each other.
+class FileCleanupTest : public ::testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        // This runs BEFORE each test.
+        std::remove("test_output.csv");
+        std::remove("recipe.json");
+        std::remove("param_test.json");
+        std::remove("sampler_test.json");
+        std::remove("err.json");
+    }
+
+    void TearDown() override
+    {
+        // This runs AFTER each test.
+        std::remove("test_output.csv");
+        std::remove("recipe.json");
+        std::remove("param_test.json");
+        std::remove("sampler_test.json");
+        std::remove("err.json");
+    }
+};
+
+// --- Parameterized Test Fixture now inherits from our cleanup fixture ---
 using TestParam = std::tuple<std::string, TrialValue, bool>;
 
-class DeterministicEngineTest : public ::testing::TestWithParam<TestParam>
+class DeterministicEngineTest : public FileCleanupTest, // <-- MODIFICATION
+                                public ::testing::WithParamInterface<TestParam>
 {
 };
+
+// --- Sampler Test Fixture now inherits from our cleanup fixture ---
+class EngineSamplerTest : public FileCleanupTest // <-- MODIFICATION
+{
+protected:
+    void RunAndAnalyze(const std::string &recipe_content, int num_trials, double expected_mean, double tolerance, bool check_bounds = false, double min_bound = 0.0, double max_bound = 0.0)
+    {
+        const std::string filename = "sampler_test.json";
+        create_test_recipe(filename, recipe_content);
+        SimulationEngine engine(filename);
+        std::vector<TrialValue> results = engine.run();
+
+        ASSERT_EQ(results.size(), num_trials);
+
+        std::vector<double> samples;
+        samples.reserve(results.size());
+        for (const auto &res : results)
+        {
+            double sample = std::get<double>(res);
+            samples.push_back(sample);
+            if (check_bounds)
+            {
+                ASSERT_GE(sample, min_bound);
+                ASSERT_LE(sample, max_bound);
+            }
+        }
+
+        double sum = std::accumulate(samples.begin(), samples.end(), 0.0);
+        double mean = sum / samples.size();
+        EXPECT_NEAR(mean, expected_mean, tolerance);
+    }
+};
+
+// --- Error Test Fixture now inherits from our cleanup fixture ---
+class EngineErrorTests : public FileCleanupTest // <-- MODIFICATION
+{
+};
+
+// --- File Output Test Fixture now inherits from our cleanup fixture ---
+class EngineFileOutputTest : public FileCleanupTest // <-- MODIFICATION
+{
+};
+
+// =============================================================================
+// --- TEST CASES
+// =============================================================================
 
 TEST_P(DeterministicEngineTest, ExecutesCorrectly)
 {
@@ -36,7 +128,6 @@ TEST_P(DeterministicEngineTest, ExecutesCorrectly)
     std::vector<TrialValue> results = engine.run();
     ASSERT_EQ(results.size(), 1);
 
-    // Use a slightly larger tolerance for complex calcs like capitalize_expense
     const double tolerance = 1e-6;
     if (is_vector_output)
     {
@@ -57,8 +148,6 @@ TEST_P(DeterministicEngineTest, ExecutesCorrectly)
         EXPECT_NEAR(final_value, expected_value, tolerance);
     }
 }
-
-// --- Test Suites for Deterministic Operations ---
 
 // --- Basic Assignment Tests ---
 INSTANTIATE_TEST_SUITE_P(
@@ -112,55 +201,16 @@ INSTANTIATE_TEST_SUITE_P(
     MixedTypeVectorMathTests,
     DeterministicEngineTest,
     ::testing::Values(
-        // Add
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20,30]},{"type":"execution_assignment","result":"C","function":"add","args":["A",5.0]}]})", TrialValue(std::vector<double>{15.0, 25.0, 35.0}), true),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20,30]},{"type":"execution_assignment","result":"C","function":"add","args":[5.0,"A"]}]})", TrialValue(std::vector<double>{15.0, 25.0, 35.0}), true),
-        // Subtract
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20]},{"type":"execution_assignment","result":"C","function":"subtract","args":["A",3.0]}]})", TrialValue(std::vector<double>{7.0, 17.0}), true),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20]},{"type":"execution_assignment","result":"C","function":"subtract","args":[100.0,"A"]}]})", TrialValue(std::vector<double>{90.0, 80.0}), true),
-        // Multiply
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[2,4,6]},{"type":"execution_assignment","result":"C","function":"multiply","args":["A",10.0]}]})", TrialValue(std::vector<double>{20.0, 40.0, 60.0}), true),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20,30]},{"type":"execution_assignment","result":"C","function":"multiply","args":[0.5,"A"]}]})", TrialValue(std::vector<double>{5.0, 10.0, 15.0}), true),
-        // Divide
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[100,200]},{"type":"execution_assignment","result":"C","function":"divide","args":["A",10.0]}]})", TrialValue(std::vector<double>{10.0, 20.0}), true),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[2,4,5]},{"type":"execution_assignment","result":"C","function":"divide","args":[100.0,"A"]}]})", TrialValue(std::vector<double>{50.0, 25.0, 20.0}), true),
-        // Power
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[2,3,4]},{"type":"execution_assignment","result":"C","function":"power","args":["A",2.0]}]})", TrialValue(std::vector<double>{4.0, 9.0, 16.0}), true),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[1,2,3]},{"type":"execution_assignment","result":"C","function":"power","args":[2.0,"A"]}]})", TrialValue(std::vector<double>{2.0, 4.0, 8.0}), true)));
-
-// =============================================================================
-// --- STATISTICAL TESTS FOR SAMPLERS ---
-// =============================================================================
-class EngineSamplerTest : public ::testing::Test
-{
-protected:
-    void RunAndAnalyze(const std::string &recipe_content, int num_trials, double expected_mean, double tolerance, bool check_bounds = false, double min_bound = 0.0, double max_bound = 0.0)
-    {
-        const std::string filename = "sampler_test.json";
-        create_test_recipe(filename, recipe_content);
-        SimulationEngine engine(filename);
-        std::vector<TrialValue> results = engine.run();
-
-        ASSERT_EQ(results.size(), num_trials);
-
-        std::vector<double> samples;
-        samples.reserve(results.size());
-        for (const auto &res : results)
-        {
-            double sample = std::get<double>(res);
-            samples.push_back(sample);
-            if (check_bounds)
-            {
-                ASSERT_GE(sample, min_bound);
-                ASSERT_LE(sample, max_bound);
-            }
-        }
-
-        double sum = std::accumulate(samples.begin(), samples.end(), 0.0);
-        double mean = sum / samples.size();
-        EXPECT_NEAR(mean, expected_mean, tolerance);
-    }
-};
 
 TEST_F(EngineSamplerTest, Normal)
 {
@@ -202,77 +252,40 @@ TEST_F(EngineSamplerTest, Lognormal)
     RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Lognormal","args":[2.0,0.5]}]})", 20000, expected_mean, 0.5, true, 0.0, 1e9);
 }
 
-// =============================================================================
-// --- ERROR HANDLING AND EDGE CASE TESTS ---
-// =============================================================================
-TEST(EngineErrorTests, ThrowsOnUndefinedVariable)
+TEST_F(EngineErrorTests, ThrowsOnUndefinedVariable)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"execution_assignment","result":"C","function":"add","args":["A","B"]}]})");
     SimulationEngine engine("err.json");
     ASSERT_THROW(engine.run(), std::runtime_error);
 }
 
-TEST(EngineErrorTests, ThrowsOnDivisionByZero)
+TEST_F(EngineErrorTests, ThrowsOnDivisionByZero)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":100},{"type":"literal_assignment","result":"B","value":0},{"type":"execution_assignment","result":"C","function":"divide","args":["A","B"]}]})");
     SimulationEngine engine("err.json");
     ASSERT_THROW(engine.run(), std::runtime_error);
 }
 
-TEST(EngineErrorTests, ThrowsOnVectorSizeMismatch)
+TEST_F(EngineErrorTests, ThrowsOnVectorSizeMismatch)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[1,2]},{"type":"literal_assignment","result":"B","value":[1,2,3]},{"type":"execution_assignment","result":"C","function":"add","args":["A","B"]}]})");
     SimulationEngine engine("err.json");
     ASSERT_THROW(engine.run(), std::runtime_error);
 }
 
-TEST(EngineErrorTests, ThrowsOnIndexOutOfBounds)
+TEST_F(EngineErrorTests, ThrowsOnIndexOutOfBounds)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"C","execution_steps":[{"type":"literal_assignment","result":"A","value":[10,20]},{"type":"execution_assignment","result":"C","function":"get_element","args":["A",5]}]})");
     SimulationEngine engine("err.json");
     ASSERT_THROW(engine.run(), std::runtime_error);
 }
 
-TEST(EngineErrorTests, ThrowsOnInvalidPertParams)
+TEST_F(EngineErrorTests, ThrowsOnInvalidPertParams)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"Pert","args":[100,50,200]}]})");
     SimulationEngine engine("err.json");
     ASSERT_THROW(engine.run(), std::invalid_argument);
 }
-
-// =============================================================================
-// --- TEST SUITE FOR FILE OUTPUT ---
-// =============================================================================
-
-// Helper to read a file's content into a string
-std::string read_file_content(const std::string &path)
-{
-    std::ifstream file(path);
-    if (!file.is_open())
-    {
-        return "ERROR: FILE_NOT_FOUND";
-    }
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
-}
-
-class EngineFileOutputTest : public ::testing::Test
-{
-protected:
-    void SetUp() override
-    {
-        // Ensure old test files are removed before each test
-        std::remove("test_output.csv");
-        std::remove("recipe.json");
-    }
-    void TearDown() override
-    {
-        // Clean up created files after each test
-        std::remove("test_output.csv");
-        std::remove("recipe.json");
-    }
-};
 
 TEST_F(EngineFileOutputTest, WritesScalarOutputCorrectly)
 {
@@ -291,7 +304,6 @@ TEST_F(EngineFileOutputTest, WritesScalarOutputCorrectly)
     SimulationEngine engine("recipe.json");
     std::vector<TrialValue> results = engine.run();
 
-    // Call the shared library function, which is now the same as the main logic
     std::string output_path = engine.get_output_file_path();
     ASSERT_EQ(output_path, "test_output.csv");
     write_results_to_csv(output_path, results);
@@ -341,7 +353,7 @@ TEST_F(EngineFileOutputTest, DoesNotWriteFileWhenNotSpecified)
 
     std::string output_path = engine.get_output_file_path();
     ASSERT_TRUE(output_path.empty());
-    // Check that the file does not exist
+
     std::ifstream file("test_output.csv");
     EXPECT_FALSE(file.good());
 }

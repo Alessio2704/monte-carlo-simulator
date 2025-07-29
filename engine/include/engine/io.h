@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/datastructures.h"
+#include "datastructures.h"
 #include <string>
 #include <vector>
 
