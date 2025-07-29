@@ -1,5 +1,3 @@
-// include/engine/io.h
-
 #pragma once
 
 #include "engine/datastructures.h"

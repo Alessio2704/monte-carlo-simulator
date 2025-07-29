@@ -107,7 +107,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"D","execution_steps":[{"type":"literal_assignment","result":"A","value":10},{"type":"literal_assignment","result":"B","value":20},{"type":"literal_assignment","result":"C","value":5},{"type":"execution_assignment","result":"D","function":"multiply","args":["A",{"function":"subtract","args":["B","C"]}]}]})", TrialValue(150.0), false)));
 
-// --- NEW: Mixed-Type Vector Math Tests ---
+// --- Mixed-Type Vector Math Tests ---
 INSTANTIATE_TEST_SUITE_P(
     MixedTypeVectorMathTests,
     DeterministicEngineTest,

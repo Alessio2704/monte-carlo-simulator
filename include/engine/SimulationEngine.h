@@ -1,5 +1,3 @@
-// include/engine/SimulationEngine.h
-
 #pragma once
 
 #include "engine/datastructures.h"

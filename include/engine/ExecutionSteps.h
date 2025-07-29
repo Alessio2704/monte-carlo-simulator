@@ -1,5 +1,3 @@
-// include/engine/ExecutionSteps.h
-
 #pragma once
 
 #include "engine/IExecutionStep.h"
@@ -8,7 +6,7 @@
 #include <vector>
 #include <memory>
 #include <stdexcept>
-#include <functional> // Required for std::function
+#include <functional>
 
 // --- Concrete Step for `let x = 123.45` ---
 class LiteralAssignmentStep : public IExecutionStep
@@ -38,14 +36,14 @@ public:
         const std::string &result_name,
         std::unique_ptr<IExecutable> logic,
         const std::vector<json> &args,
-        const ExecutableFactory &factory // <-- NEW: Pass in a reference to the factory
+        const ExecutableFactory &factory
         )
         : m_result_name(result_name),
           m_logic(std::move(logic)),
           m_args(args),
           m_factory_ref(factory)
     {
-    } // <-- NEW: Store the reference
+    }
 
     void execute(TrialContext &context) const override
     {
@@ -64,9 +62,8 @@ private:
     std::string m_result_name;
     std::unique_ptr<IExecutable> m_logic;
     std::vector<json> m_args;
-    const ExecutableFactory &m_factory_ref; // <-- NEW: Stored reference
+    const ExecutableFactory &m_factory_ref;
 
-    // --- NEW: Recursive helper function ---
     TrialValue resolve_value_recursively(const json &arg, const TrialContext &context) const
     {
         if (arg.is_string())
@@ -87,7 +84,7 @@ private:
         {
             return arg.get<std::vector<double>>();
         }
-        // --- THIS IS THE NEW LOGIC FOR NESTED EXPRESSIONS ---
+
         if (arg.is_object())
         {
             std::string func_name = arg.at("function");

@@ -173,7 +173,7 @@ void SimulationEngine::build_execution_steps()
                         step_def.result_name,
                         std::move(executable_logic),
                         step_def.args,
-                        m_executable_factory // <-- THE FIX: Pass the factory by reference
+                        m_executable_factory
                     )
                 );
             } }, step_def_variant);

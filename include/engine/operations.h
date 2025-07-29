@@ -1,5 +1,3 @@
-// include/engine/operations.h
-
 #pragma once
 
 #include "engine/IExecutable.h"
@@ -46,8 +44,7 @@ inline double perform_variadic_op(OpCode code, const std::vector<double> &values
     return accumulator;
 }
 
-// --- NEW CORRECTED VISITOR ---
-// This visitor is now a proper binary visitor for std::visit.
+// This is a binary visitor for std::visit.
 struct ElementWiseVisitor
 {
     OpCode code;
@@ -97,7 +94,6 @@ struct ElementWiseVisitor
     }
 };
 
-// --- NEW CORRECTED BASE CLASS ---
 class VariadicBaseOperation : public IExecutable
 {
 public:
@@ -134,7 +130,6 @@ public:
         TrialValue accumulator = args[0];
         for (size_t i = 1; i < args.size(); ++i)
         {
-            // This is now a clean, direct call to std::visit
             accumulator = std::visit(ElementWiseVisitor{m_code}, accumulator, args[i]);
         }
         return accumulator;
@@ -144,7 +139,6 @@ private:
     OpCode m_code;
 };
 
-// --- Concrete classes are trivial wrappers (UNCHANGED) ---
 class AddOperation : public VariadicBaseOperation
 {
 public:
@@ -170,16 +164,6 @@ class PowerOperation : public VariadicBaseOperation
 public:
     PowerOperation() : VariadicBaseOperation(OpCode::POWER) {}
 };
-
-// --- Unary and other non-variadic operations remain the same ---
-// (Copy the rest of your operations classes here: Log, Npv, Identity, etc.)
-// These classes are UNCHANGED from the previous working version.
-#include "engine/IExecutable.h"
-#include <stdexcept>
-#include <cmath>
-#include <numeric>
-#include <variant>
-#include <vector>
 
 class LogOperation : public IExecutable
 {

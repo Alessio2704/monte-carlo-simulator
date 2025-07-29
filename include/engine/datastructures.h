@@ -32,10 +32,8 @@ enum class OpCode
     COMPOSE_VECTOR,
     INTERPOLATE_SERIES,
     CAPITALIZE_EXPENSE,
-    IDENTITY // NEW: For variable-to-variable assignment
+    IDENTITY // For variable-to-variable assignment
 };
-
-// --- NEW STRUCTS FOR THE UNIFIED JSON FORMAT ---
 
 // Represents a step like: `let x = 123.45` or `let y = [1, 2]`
 struct LiteralAssignmentDef
@@ -55,7 +53,6 @@ struct ExecutionAssignmentDef
 // A definition for any step in the execution sequence
 using ExecutionStepDef = std::variant<LiteralAssignmentDef, ExecutionAssignmentDef>;
 
-// --- THE REFACTORED SIMULATION RECIPE ---
 struct SimulationRecipe
 {
     int num_trials = 1000;
