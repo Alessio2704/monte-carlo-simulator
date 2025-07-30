@@ -9,7 +9,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-Werror=switch")
 
 # --- Fetch Dependencies ---
-# This part is unchanged.
 include(FetchContent)
 FetchContent_Declare(
   json
@@ -20,8 +19,11 @@ FetchContent_MakeAvailable(json)
 
 # --- Define our Core Library ---
 add_library(engine_core STATIC
-    src/engine/SimulationEngine.cpp 
-    src/engine/io.cpp
+    src/engine/core/SimulationEngine.cpp 
+    src/engine/io/io.cpp
+    src/engine/functions/operations.cpp
+    src/engine/functions/samplers.cpp
+    src/engine/core/ExecutionSteps.cpp
 )
 
 

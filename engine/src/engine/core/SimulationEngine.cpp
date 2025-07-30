@@ -1,7 +1,7 @@
-#include "include/engine/SimulationEngine.h"
-#include "include/engine/operations.h"
-#include "include/engine/samplers.h"
-#include "include/engine/ExecutionSteps.h"
+#include "include/engine/core/SimulationEngine.h"
+#include "include/engine/functions/operations.h"
+#include "include/engine/functions/samplers.h"
+#include "include/engine/core/ExecutionSteps.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>

@@ -7,8 +7,8 @@
 #include <cmath>
 #include <cstdio>
 
-#include "include/engine/SimulationEngine.h"
-#include "include/engine/io.h"
+#include "include/engine/core/SimulationEngine.h"
+#include "include/engine/io/io.h"
 
 // Helper function to create a test recipe file.
 void create_test_recipe(const std::string &filename, const std::string &content)
