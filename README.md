@@ -28,6 +28,8 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 The project is cleanly separated into two main components: a Python **compiler** and a C++ **engine**. This modular structure separates the user-facing language tools from the high-performance computation core.
 
+The compilation process now generates a structured JSON recipe with distinct execution phases, making the engine's job clear and scalable.
+
 ```mermaid
 graph TD;
     A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- "vsc my_model.vs --run" --> B["<b>vsc Compiler (Python)</b><br/><i>Validates, translates, & executes</i>"];
@@ -38,6 +40,43 @@ graph TD;
     style A fill:#f9f,stroke:#333,stroke-width:2px
     style B fill:#ccf,stroke:#333,stroke-width:2px
     style D fill:#9f9,stroke:#333,stroke-width:2px
+```
+
+**Example JSON Recipe Structure:**
+The compiler transforms a `.vs` script into a JSON recipe that the C++ engine can execute. This recipe explicitly separates one-time data loading steps from the core per-trial calculations.
+
+```json
+{
+  "simulation_config": {
+    "num_trials": 10000,
+    "output_file": "results.csv"
+  },
+  "output_variable": "final_value",
+  "pre_trial_steps": [
+    {
+      "type": "execution_assignment",
+      "result": "assumptions",
+      "function": "read_csv_vector",
+      "args": [
+        { "type": "string_literal", "value": "data.csv" },
+        { "type": "string_literal", "value": "GrowthRate" }
+      ]
+    }
+  ],
+  "per_trial_steps": [
+    {
+      "type": "execution_assignment",
+      "result": "random_growth",
+      "function": "Normal",
+      "args": [ 0.1, 0.02 ]
+    },
+    {
+      "type": "literal_assignment",
+      "result": "final_value",
+      "value": 100
+    }
+  ]
+}
 ```
 
 ## 🚀 Getting Started
@@ -184,10 +223,11 @@ Special `@` directives configure the simulation. They can appear anywhere in the
 
 Use the `let` keyword to define variables. The compiler executes assignments sequentially and infers the type of each variable (`scalar` or `vector`).
 
-**1. Literals (Scalars and Vectors)**
+**1. Literals (Scalars, Strings, and Vectors)**
 
 ```valuascript
 let tax_rate = 0.21              # Inferred as 'scalar'
+let model_name = "Q4 Forecast"   # Inferred as 'string'
 let margin_forecast = [0.25, 0.26] # Inferred as 'vector'
 ```
 
@@ -203,7 +243,7 @@ let cost_of_equity = risk_free_rate + beta * equity_risk_premium
 For more complex logic, the engine provides a rich library of built-in functions. The compiler performs advanced, recursive type checking on all function calls:
 
 - The number of arguments must be correct.
-- The type of each argument (`scalar` or `vector`) must match the function's signature. This includes the results of nested function calls.
+- The type of each argument (`scalar`, `vector`, or `string`) must match the function's signature. This includes the results of nested function calls.
 
 ```valuascript
 # CORRECT: The result of grow_series (a vector) is a valid argument for sum_series.
@@ -213,6 +253,39 @@ let total_sales = sum_series(grow_series(100, 0.1, 5))
 # for the 'mean' parameter of Normal, which expects a scalar.
 # THIS WILL CAUSE A COMPILER ERROR:
 # let random_value = Normal(grow_series(100, 0.1, 5), 10)
+```
+
+#### External Data Integration (CSV Reading)
+
+ValuaScript can import data from external CSV files. This is a critical feature for building realistic models based on real-world data. These functions are executed **once** before the simulation begins for maximum performance.
+
+**`read_csv_vector(file_path, column_name)`**
+Reads an entire column from a CSV file and returns it as a `vector`. This is ideal for importing time-series data.
+
+- **`file_path`** (string): The path to the CSV file. Must be a string literal (in double quotes).
+- **`column_name`** (string): The name of the column to read. Must be a string literal.
+- **Returns**: `vector`
+
+**`read_csv_scalar(file_path, column_name, row_index)`**
+Reads a single cell from a CSV file and returns it as a `scalar`. This is useful for importing specific parameters or assumptions.
+
+- **`file_path`** (string): The path to the CSV file. Must be a string literal.
+- **`column_name`** (string): The name of the column to read. Must be a string literal.
+- **`row_index`** (scalar): The zero-based index of the row to read.
+- **Returns**: `scalar`
+
+**Example:**
+Assume you have a file `assumptions.csv`:
+```csv
+Parameter,Value
+BaseSales,5000
+GrowthRate,0.08
+```
+You can use it in your model like this:
+```valuascript
+let sales = read_csv_scalar("assumptions.csv", "Value", 0)
+let growth = read_csv_scalar("assumptions.csv", "Value", 1)
+let sales_forecast = grow_series(sales, growth, 10)
 ```
 
 ## 🔬 Development & Contribution
@@ -251,6 +324,8 @@ pytest -v
 
 Adding a new function to ValuaScript is a clean, three-stage process that touches the C++ engine, the Python compiler, and their respective test suites. This ensures that every new function is not only implemented correctly but also fully validated and type-checked by the compiler.
 
+The engine's architecture now distinguishes between functions that run once (`pre_trial`) and functions that run in every simulation loop (`per_trial`). This is controlled by a simple configuration in the compiler.
+
 Let's walk through a complete example: we will add a new function `clip(value, min_val, max_val)` that constrains a value to be within a specified range.
 
 ---
@@ -262,30 +337,34 @@ First, we'll add the C++ class that performs the actual calculation.
 **1.1. Add the `IExecutable` Class**
 
 Open the header file where other simple operations are defined:
-**File:** `engine/include/engine/operations.h`
+**File:** `engine/include/engine/functions/operations.h`
 
-At the end of the file, before the final `#endif` or `#pragma once`, add the new `ClipOperation` class. We can use `std::clamp` (available in C++17) for a clean implementation.
+At the end of the file, add the new `ClipOperation` class. We can use `std::clamp` (available in C++17) for a clean implementation.
 
 ```cpp
-// Add this to the end of engine/include/engine/operations.h
+// Add this to the end of engine/include/engine/functions/operations.h
 
 class ClipOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override
-    {
-        if (args.size() != 3)
-        {
-            throw std::runtime_error("ClipOperation requires 3 arguments: value, min_val, max_val.");
-        }
-        // The compiler has already guaranteed these are scalars, so we can safely use std::get.
-        double value = std::get<double>(args[0]);
-        double min_val = std::get<double>(args[1]);
-        double max_val = std::get<double>(args[2]);
-
-        return std::clamp(value, min_val, max_val);
-    }
+    TrialValue execute(const std::vector<TrialValue> &args) const override;
 };
+```
+And in `engine/src/engine/functions/operations.cpp`:
+```cpp
+// Add this to the end of engine/src/engine/functions/operations.cpp
+
+TrialValue ClipOperation::execute(const std::vector<TrialValue> &args) const
+{
+    if (args.size() != 3)
+    {
+        throw std::runtime_error("ClipOperation requires 3 arguments: value, min_val, max_val.");
+    }
+    double value = std::get<double>(args[0]);
+    double min_val = std::get<double>(args[1]);
+    double max_val = std::get<double>(args[2]);
+    return std::clamp(value, min_val, max_val);
+}
 ```
 
 **1.2. Register the New Function in the Factory**
@@ -293,27 +372,14 @@ public:
 Now, we need to tell the simulation engine that the string `"clip"` in a JSON recipe should map to our new `ClipOperation` class.
 
 Open the engine's main source file:
-**File:** `engine/src/engine/SimulationEngine.cpp`
+**File:** `engine/src/engine/core/SimulationEngine.cpp`
 
 Find the `build_executable_factory()` method and add a new entry for `"clip"`. The list is alphabetical, so let's place it there.
 
 ```cpp
-// In engine/src/engine/SimulationEngine.cpp, inside build_executable_factory()
-
-void SimulationEngine::build_executable_factory()
-{
-    // ... other operations
-    m_executable_factory["capitalize_expense"] = []
-    { return std::make_unique<CapitalizeExpenseOperation>(); };
-
-    // Add our new line here
-    m_executable_factory["clip"] = []
-    { return std::make_unique<ClipOperation>(); };
-
-    m_executable_factory["compound_series"] = []
-    { return std::make_unique<CompoundSeriesOperation>(); };
-    // ... other operations
-}
+// In engine/src/engine/core/SimulationEngine.cpp, inside build_executable_factory()
+m_executable_factory["clip"] = []
+{ return std::make_unique<ClipOperation>(); };
 ```
 
 At this point, the C++ engine is now capable of executing the `clip` function.
@@ -329,111 +395,36 @@ Next, we must update the compiler's configuration so it can validate calls to `c
 Open the compiler's static configuration file:
 **File:** `compiler/vsc/config.py`
 
-Find the `FUNCTION_SIGNATURES` dictionary and add an entry for `"clip"`. This entry tells the validator everything it needs to know: the number of arguments, their expected types, and the type of the value it returns.
+Find the `FUNCTION_SIGNATURES` dictionary and add an entry for `"clip"`. This entry tells the validator everything it needs to know: its arguments, their types, its return type, and crucially, when it should be executed.
 
 ```python
 # In compiler/vsc/config.py, inside FUNCTION_SIGNATURES
 
 FUNCTION_SIGNATURES = {
     # ... other functions
-    "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar"},
+    "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar", "execution_phase": "per_trial"},
 
     # Add our new signature here (alphabetically)
-    "clip": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar"},
+    "clip": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar", "execution_phase": "per_trial"},
 
-    "compound_series": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "vector"},
+    "compound_series": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "vector", "execution_phase": "per_trial"},
     # ... other functions
 }
 ```
-
-- `"variadic": False`: `clip` takes a fixed number of arguments.
-- `"arg_types": ["scalar", "scalar", "scalar"]`: It requires three arguments, all of which must be scalars. The compiler will now enforce this.
-- `"return_type": "scalar"`: The result of `clip` is a single number, so its type is `scalar`. This is crucial for type inference in larger expressions.
+- **`"execution_phase": "per_trial"`**: This is critical. We tag `clip` as a `per_trial` function because its logic needs to be executed inside every simulation loop. For data loading functions like `read_csv_vector`, this would be `"pre_trial"`. The compiler automatically handles partitioning the steps based on this tag.
 
 ---
 
 #### Stage 3: Add Comprehensive Tests
 
-The final and most critical stage is to add tests that verify both the C++ logic and the Python validation rules.
+The final stage is to add tests that verify both the C++ logic and the Python validation rules.
 
-**3.1. Add C++ Unit Tests (GoogleTest)**
+-   **C++ Unit Tests (`engine/test/engine_tests.cpp`):** Add a test case to the `DeterministicEngineTest` suite to verify that `clip` returns the correct values for inputs that are below, within, and above the specified range.
+-   **Python Compiler Tests (`compiler/tests/test_compiler.py`):**
+    -   Add a "happy path" test to `test_valid_scripts_compile_successfully` to ensure `let x = clip(100, 0, 50)` compiles.
+    -   Add "sad path" tests to `test_semantic_and_type_errors` to ensure the compiler rejects invalid calls, like `clip([1,2], 0, 10)` (passing a vector where a scalar is expected).
 
-We'll add tests to verify the core logic: that `clip` correctly constrains values.
-
-Open the C++ test file:
-**File:** `engine/test/engine_tests.cpp`
-
-Find the `MathOperationTests` test suite and add a few test cases for `clip`. We'll add them to the `INSTANTIATE_TEST_SUITE_P` block.
-
-```cpp
-// In engine/test/engine_tests.cpp
-
-INSTANTIATE_TEST_SUITE_P(
-    MathOperationTests,
-    DeterministicEngineTest,
-    ::testing::Values(
-        // ... all the existing math tests
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"B","execution_steps":[{"type":"literal_assignment","result":"A","value":0},{"type":"execution_assignment","result":"B","function":"tan","args":["A"]}]})", TrialValue(std::tan(0.0)), false),
-
-        // Add our new test cases for clip()
-        // Case 1: Value is below the minimum, should be clipped up
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"clip","args":[5, 10, 20]}]})", TrialValue(10.0), false),
-        // Case 2: Value is within the range, should be unchanged
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"clip","args":[15, 10, 20]}]})", TrialValue(15.0), false),
-        // Case 3: Value is above the maximum, should be clipped down
-        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"X","execution_steps":[{"type":"execution_assignment","result":"X","function":"clip","args":[25, 10, 20]}]})", TrialValue(20.0), false)
-    ));
-```
-
-**3.2. Add Python Compiler Tests (Pytest)**
-
-Now, we test the compiler's validation rules.
-
-Open the Python test file:
-**File:** `compiler/tests/test_compiler.py`
-
-- **Add a "happy path" test** to ensure a valid call compiles successfully.
-
-```python
-# In test_compiler.py, inside test_valid_scripts_compile_successfully()
-
-def test_valid_scripts_compile_successfully():
-    # ... other valid scripts
-    compile_and_validate("@iterations=1\n@output=x\nlet x = sum_series(grow_series(1, 1, 1))")
-    # Add a test for our new clip function
-    compile_and_validate("@iterations=1\n@output=x\nlet x = clip(100, 0, 50)")
-```
-
-- **Add a "sad path" test** for a type error. The arity (argument count) tests will be handled automatically by the existing `get_arity_test_cases` fixture, but we should add a specific test for passing a wrong type, like a vector.
-
-```python
-# In test_compiler.py, add a new entry to the test_semantic_and_type_errors parameters
-
-@pytest.mark.parametrize(
-    "description, script_body, expected_error",
-    [
-        # ... other error cases
-        ("Wrong @output_file type", "@iterations=1\n@output=x\nlet x=1\n@output_file=123", "must be a string literal"),
-        # Add our new type error test case
-        ("Wrong type for clip", "let result=clip([1,2], 0, 10)", "expects a 'scalar', but got a 'vector'"),
-    ],
-)
-def test_semantic_and_type_errors(base_script, description, script_body, expected_error):
-    # ... test body remains the same
-```
-
----
-
-#### Final Step: Build and Test
-
-You are now done! To confirm everything works:
-
-1.  Navigate to the project root.
-2.  Re-build the C++ engine: `cmake --build build`
-3.  Run the C++ tests: `./build/bin/run_tests`
-4.  Run the Python tests: `cd compiler && pytest`
-
-Both test suites should pass, confirming your new `clip` function is correctly implemented, integrated, and validated. You have successfully extended the ValuaScript language.
+After adding these tests and confirming they all pass, your new function is fully and robustly integrated into the language.
 
 ## 🗺️ Roadmap
 
@@ -443,35 +434,15 @@ The project is actively developed. Our current roadmap prioritizes practical uti
 
 - **V1.0:** Core C++ Engine & ValuaScript Compiler.
 - **V1.1:** Compiler with full type inference & robust error reporting.
-- **V1.2:**
-  - Streamlined `--run` flag.
-  - Data export via `@output_file` and CSV writing.
-  - Instant visualization via `--plot` flag.
-- **V1.3 (Current):** Major architectural refactor into modular `compiler` and `engine` directories.
+- **V1.2:** Streamlined `--run` flag, data export via `@output_file`, and instant visualization via `--plot` flag.
+- **V1.3:** Major architectural refactor into modular `compiler` and `engine` directories.
+- **V1.4 (Current):**
+  - **External Data Integration:** Added `read_csv_scalar` and `read_csv_vector` functions.
+  - **Architectural Enhancement:** Refactored the engine's execution flow into distinct **pre-trial** (for data loading) and **per-trial** (for simulation) phases. This makes the system more scalable and performant.
 
 ---
 
 ### 🔜 Tier 1: Next Immediate Feature
-
-- [ ] **External Data Integration (CSV Reading)**
-  - **Why:** To enable models to use real-world data (e.g., historical financials, assumption sets) from external files. This is a critical feature for any serious modeling tool, moving beyond hardcoded assumptions.
-  - **How:** To ensure clarity and simple, robust validation, we will implement two distinct functions:
-    - `read_csv_vector(file_path, column_name)` -> **vector**: Reads an entire column from a CSV file and returns it as a vector. Used for importing time series data.
-    - `read_csv_scalar(file_path, column_name, row_index)` -> **scalar**: Reads a single cell from a CSV at a specific column and row, returning it as a scalar. Used for importing individual configuration parameters.
-  - **Implementation Steps:**
-    1.  **Engine:** Add a robust C++ CSV parsing library. Implement two new classes, `ReadCsvVectorOperation` and `ReadCsvScalarOperation`, inheriting from `IExecutable`. The engine should intelligently cache opened CSV files to avoid redundant disk I/O. Register these in the `SimulationEngine` factory.
-    2.  **Compiler:** Add two new, distinct signatures to `FUNCTION_SIGNATURES`:
-        - `"read_csv_vector": {"variadic": False, "arg_types": ["string", "string"], "return_type": "vector"}`
-        - `"read_csv_scalar": {"variadic": False, "arg_types": ["string", "string", "scalar"], "return_type": "scalar"}`
-
-### ⏩ Tier 2: Improving the User Experience
-
-- [ ] **VS Code Extension**
-
-  - **Why:** To transform the model-writing process from editing plain text to working in a smart environment. This dramatically lowers the barrier to entry and improves productivity.
-  - **How:**
-    1.  **Phase 1 (Easy):** Implement syntax highlighting for `.vs` files and snippets for common functions.
-    2.  **Phase 2 (Advanced):** Develop a Language Server that uses the `vsc` compiler package to provide real-time error checking (linting) and diagnostics directly in the editor.
 
 - [ ] **Empirical Distribution Sampler (`create_sampler_from_data`)**
 
@@ -491,14 +462,14 @@ The project is actively developed. Our current roadmap prioritizes practical uti
     let future_oil_price = oil_price_sampler()
     ```
 
-  - **How It Works (Implementation):**
-    1.  **`create_sampler_from_data` Function:** This new function would take a `vector` as input. Instead of returning a `scalar` or `vector`, it would return a new, special type we could call a **`sampler`**. This `sampler` is essentially a handle or an ID that refers to the created distribution.
-    2.  **Engine Implementation:** When `create_sampler_from_data` is executed, the C++ engine would analyze the input vector and store its statistical properties. The simplest and most common method for this is to create a **Kernel Density Estimate (KDE)** or simply store the empirical data points for resampling (a method called **bootstrapping**).
-    3.  **Using the Sampler:** When the user calls `oil_price_sampler()`, the engine recognizes the variable is of type `sampler`. Instead of treating it as a value, it executes the sampling logic associated with that handle, drawing a random value from the stored empirical distribution.
-    4.  **Compiler Support:** This is a significant language extension. The compiler would need to:
-        - Recognize the new `sampler` type.
-        - Add a new syntax for "calling" a sampler variable (e.g., `variable_name()`).
-        - Update the type inference engine to handle this new type and its usage.
+### ⏩ Tier 2: Improving the User Experience
+
+- [ ] **VS Code Extension**
+
+  - **Why:** To transform the model-writing process from editing plain text to working in a smart environment. This dramatically lowers the barrier to entry and improves productivity.
+  - **How:**
+    1.  **Phase 1 (Easy):** Implement syntax highlighting for `.vs` files and snippets for common functions.
+    2.  **Phase 2 (Advanced):** Develop a Language Server that uses the `vsc` compiler package to provide real-time error checking (linting) and diagnostics directly in the editor.
 
 ### 🚀 Tier 3: Advanced Language Features
 

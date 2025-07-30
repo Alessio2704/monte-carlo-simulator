@@ -8,7 +8,7 @@
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
-using TrialValue = std::variant<double, std::vector<double>>;
+using TrialValue = std::variant<double, std::vector<double>, std::string>;
 
 enum class OpCode
 {
@@ -57,6 +57,7 @@ struct SimulationRecipe
 {
     int num_trials = 1000;
     std::string output_variable;
-    std::vector<ExecutionStepDef> execution_steps; // The unified list of all steps
+    std::vector<ExecutionStepDef> pre_trial_steps;   // Steps to run once before simulation.
+    std::vector<ExecutionStepDef> per_trial_steps;   // Steps to run for each trial.
     std::string output_file_path;
 };

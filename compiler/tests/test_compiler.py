@@ -1,12 +1,13 @@
 import pytest
 import sys
 import os
+import json
 from lark import Lark
 from lark.exceptions import UnexpectedInput
 
 # Allow the test file to import from the 'vsc' package
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from vsc.compiler import ValuaScriptTransformer, validate_recipe
+from vsc.compiler import ValuaScriptTransformer, validate_recipe, _StringLiteral
 from vsc.exceptions import ValuaScriptError
 from vsc.config import FUNCTION_SIGNATURES
 
@@ -50,6 +51,8 @@ def test_valid_scripts_compile_successfully():
     )
     # Test a complex nested script
     compile_and_validate("@iterations=1\n@output=x\nlet x = sum_series(grow_series(1, 1, 1))")
+    # Test pre-trial function call with string literal
+    compile_and_validate('@iterations=1\n@output=x\nlet x = read_csv_scalar("f.csv","c",0)')
 
 
 def test_compiler_resilience_to_formatting():
@@ -124,6 +127,11 @@ def test_structural_integrity_errors(description, script_body, expected_error):
         ("Vector expected, scalar var", "let s=1\nlet result=sum_series(s)", "expects a 'vector', but got a 'scalar'"),
         ("Variadic type error", "let v=[1]\nlet result=compose_vector(1,v)", "expects a 'scalar', but got a 'vector'"),
         ("Wrong @output_file type", "@iterations=1\n@output=x\nlet x=1\n@output_file=123", "must be a string literal"),
+        # --- NEW CSV-related tests ---
+        ("Wrong type for read_csv_scalar file_path", 'let result=read_csv_scalar(123,"col",0)', "expects a 'string', but got a 'scalar'"),
+        ("Wrong type for read_csv_scalar column_name", 'let result=read_csv_scalar("f.csv",123,0)', "expects a 'string', but got a 'scalar'"),
+        ("Wrong type for read_csv_scalar row_index", 'let result=read_csv_scalar("f.csv","c",[0])', "expects a 'scalar', but got a 'vector'"),
+        ("Wrong type for read_csv_vector column_name", 'let result=read_csv_vector("f.csv",123)', "expects a 'string', but got a 'scalar'"),
     ],
 )
 def test_semantic_and_type_errors(base_script, description, script_body, expected_error):
@@ -151,6 +159,43 @@ def test_all_function_arities(base_script, func, provided_argc):
     expected_error = f"Function '{func}' expects {expected_argc} argument"
     with pytest.raises(ValuaScriptError, match=expected_error):
         compile_and_validate(script)
+
+
+def test_pre_trial_partitioning():
+    """Ensures the compiler correctly partitions steps and formats string literals."""
+    script = """
+    @iterations = 1
+    @output = z
+    let data = read_csv_vector("my_data.csv", "value")
+    let x = 10
+    let y = 20
+    let z = x + y
+    """
+    raw_recipe = ValuaScriptTransformer().transform(lark_parser.parse(script))
+    final_recipe = validate_recipe(raw_recipe)
+
+    # Check that the pre-trial step is correctly placed
+    assert len(final_recipe["pre_trial_steps"]) == 1
+    pre_trial_step = final_recipe["pre_trial_steps"][0]
+    assert pre_trial_step["result"] == "data"
+    assert pre_trial_step["function"] == "read_csv_vector"
+
+    # Check that the string literal argument is correctly formatted
+    string_arg = pre_trial_step["args"][0]
+    assert isinstance(string_arg, dict)
+    assert string_arg["type"] == "string_literal"
+    assert string_arg["value"] == "my_data.csv"
+
+    # Corrected assertion for the second argument
+    string_arg_2 = pre_trial_step["args"][1]
+    assert isinstance(string_arg_2, dict)
+    assert string_arg_2["type"] == "string_literal"
+    assert string_arg_2["value"] == "value"
+
+    # Check that per-trial steps are correctly placed
+    assert len(final_recipe["per_trial_steps"]) == 3
+    per_trial_results = [s["result"] for s in final_recipe["per_trial_steps"]]
+    assert per_trial_results == ["x", "y", "z"]
 
 
 def test_unused_variable_warning(capsys):

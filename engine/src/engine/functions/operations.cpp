@@ -4,6 +4,8 @@
 #include <numeric>
 #include <variant>
 #include <vector>
+#include <memory>
+#include "csv.hpp"
 
 // Helper to perform a variadic operation on a list of scalars
 inline double perform_variadic_op(OpCode code, const std::vector<double> &values)
@@ -47,39 +49,38 @@ struct ElementWiseVisitor
 {
     OpCode code;
 
-    // Case 1: scalar op scalar
+    // --- Valid Numeric Operations ---
+
     TrialValue operator()(double left, double right) const
     {
         return perform_variadic_op(code, {left, right});
     }
 
-    // Case 2: vector op scalar
+    // Case: vector op scalar
     TrialValue operator()(const std::vector<double> &vec, double scalar) const
     {
         std::vector<double> result;
         result.reserve(vec.size());
         for (double val : vec)
         {
-            // CORRECTED: Removed the erroneous std::get<double>() wrapper
             result.push_back(perform_variadic_op(code, {val, scalar}));
         }
         return result;
     }
 
-    // Case 3: scalar op vector
+    // Case: scalar op vector
     TrialValue operator()(double scalar, const std::vector<double> &vec) const
     {
         std::vector<double> result;
         result.reserve(vec.size());
         for (double val : vec)
         {
-            // CORRECTED: Removed the erroneous std::get<double>() wrapper
             result.push_back(perform_variadic_op(code, {scalar, val}));
         }
         return result;
     }
 
-    // Case 4: vector op vector
+    // Case: vector op vector
     TrialValue operator()(const std::vector<double> &vec_left, const std::vector<double> &vec_right) const
     {
         if (vec_left.size() != vec_right.size())
@@ -88,13 +89,27 @@ struct ElementWiseVisitor
         result.reserve(vec_left.size());
         for (size_t i = 0; i < vec_left.size(); ++i)
         {
-            // CORRECTED: Removed the erroneous std::get<double>() wrapper
             result.push_back(perform_variadic_op(code, {vec_left[i], vec_right[i]}));
         }
         return result;
     }
-};
 
+    // --- Invalid Operations Involving Strings ---
+    template <typename T>
+    TrialValue operator()(const std::string &, T) const
+    {
+        throw std::logic_error("Mathematical operations on strings are not supported.");
+    }
+    template <typename T>
+    TrialValue operator()(T, const std::string &) const
+    {
+        throw std::logic_error("Mathematical operations on strings are not supported.");
+    }
+    TrialValue operator()(const std::string &, const std::string &) const
+    {
+        throw std::logic_error("Mathematical operations on strings are not supported.");
+    }
+};
 // --- IExecutable Implementations ---
 
 VariadicBaseOperation::VariadicBaseOperation(OpCode code) : m_code(code) {}
@@ -358,4 +373,137 @@ TrialValue CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &ar
     }
 
     return std::vector<double>{research_asset, amortization_this_year};
+}
+
+// This struct will hold the fully parsed CSV data in a standard, random-access format.
+// We are storing the data itself, not the library's proxy objects.
+struct CachedCsv
+{
+    std::vector<std::string> header;
+    // Each row is a map from column name (string) to cell value (string).
+    std::vector<std::unordered_map<std::string, std::string>> data;
+};
+
+// The cache maps a file path to a shared pointer to our fully parsed data structure.
+static std::unordered_map<std::string, std::shared_ptr<CachedCsv>> g_csv_cache;
+
+// Helper function to get the parsed CSV data, using the cache.
+// This function reads the file only ONCE and stores it in our random-access-friendly format.
+static std::shared_ptr<CachedCsv> get_cached_csv(const std::string &file_path)
+{
+    // If it's already in the cache, return the cached data immediately.
+    if (g_csv_cache.count(file_path))
+    {
+        return g_csv_cache.at(file_path);
+    }
+
+    // If not in the cache, read and parse the file.
+    try
+    {
+        csv::CSVReader reader(file_path);
+        auto cached_data = std::make_shared<CachedCsv>();
+        cached_data->header = reader.get_col_names();
+
+        // Iterate through the reader to populate our own data structure.
+        for (const auto &row : reader)
+        {
+            std::unordered_map<std::string, std::string> current_row_data;
+            for (const auto &col_name : cached_data->header)
+            {
+                // Convert the cell's value to a std::string for permanent storage.
+                current_row_data[col_name] = row[col_name].get<>();
+            }
+            cached_data->data.push_back(current_row_data);
+        }
+
+        // Store the newly parsed data in the cache and return it.
+        g_csv_cache[file_path] = cached_data;
+        return cached_data;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to read or parse CSV file '" + file_path + "'. Error: " + e.what());
+    }
+}
+
+TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) const
+{
+    if (args.size() != 2)
+        throw std::runtime_error("ReadCsvVectorOperation requires 2 arguments: file_path (string), column_name (string).");
+
+    const std::string &file_path = std::get<std::string>(args[0]);
+    const std::string &column_name = std::get<std::string>(args[1]);
+
+    auto cached_data = get_cached_csv(file_path);
+
+    // Check if the column name exists for a clear error message.
+    bool column_exists = false;
+    for (const auto &h : cached_data->header)
+    {
+        if (h == column_name)
+        {
+            column_exists = true;
+            break;
+        }
+    }
+    if (!column_exists)
+    {
+        throw std::runtime_error("Column '" + column_name + "' not found in file '" + file_path + "'.");
+    }
+
+    std::vector<double> column_vector;
+    column_vector.reserve(cached_data->data.size());
+    try
+    {
+        for (const auto &row_map : cached_data->data)
+        {
+            // Convert the stored string value to a double.
+            column_vector.push_back(std::stod(row_map.at(column_name)));
+        }
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Error converting data to number in column '" + column_name + "' from file '" + file_path + "'. Please check for non-numeric values. Error: " + e.what());
+    }
+    return column_vector;
+}
+
+TrialValue ReadCsvScalarOperation::execute(const std::vector<TrialValue> &args) const
+{
+    if (args.size() != 3)
+        throw std::runtime_error("ReadCsvScalarOperation requires 3 arguments: file_path (string), column_name (string), row_index (scalar).");
+
+    const std::string &file_path = std::get<std::string>(args[0]);
+    const std::string &column_name = std::get<std::string>(args[1]);
+    int row_index = static_cast<int>(std::get<double>(args[2]));
+
+    auto cached_data = get_cached_csv(file_path);
+    double cell_value;
+
+    // Perform bounds checking first.
+    if (static_cast<size_t>(row_index) >= cached_data->data.size())
+    {
+        throw std::runtime_error("Row index " + std::to_string(row_index) + " is out of bounds for file '" + file_path + "' (File has " + std::to_string(cached_data->data.size()) + " data rows).");
+    }
+
+    // Now safely access the row by index.
+    const auto &row_map = cached_data->data[row_index];
+
+    try
+    {
+        // Check if the column exists in this row's map.
+        const auto &cell_it = row_map.find(column_name);
+        if (cell_it == row_map.end())
+        {
+            throw std::runtime_error("Column '" + column_name + "' not found in file '" + file_path + "'.");
+        }
+        // Convert the stored string value to a double.
+        cell_value = std::stod(cell_it->second);
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Error converting data to number at row " + std::to_string(row_index) + ", column '" + column_name + "' in file '" + file_path + "'. Error: " + e.what());
+    }
+
+    return cell_value;
 }

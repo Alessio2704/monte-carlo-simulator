@@ -16,7 +16,8 @@ SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
 {
     build_executable_factory();
     parse_recipe(json_recipe_path);
-    build_execution_steps();
+    run_pre_trial_phase();
+    build_per_trial_steps();
 }
 
 void SimulationEngine::build_executable_factory()
@@ -67,6 +68,14 @@ void SimulationEngine::build_executable_factory()
     m_executable_factory["capitalize_expense"] = []
     { return std::make_unique<CapitalizeExpenseOperation>(); };
 
+    m_executable_factory["read_csv_scalar"] = []
+    { return std::make_unique<ReadCsvScalarOperation>(); };
+    m_executable_factory["read_csv_vector"] = []
+    { return std::make_unique<ReadCsvVectorOperation>(); };
+
+    m_executable_factory["series_delta"] = []
+    { return std::make_unique<SeriesDeltaOperation>(); };
+
     // Distribution Samplers
     m_executable_factory["Normal"] = []
     { return std::make_unique<NormalSampler>(); };
@@ -111,7 +120,8 @@ void SimulationEngine::parse_recipe(const std::string &path)
         }
     }
 
-    for (const auto &step_json : recipe_json["execution_steps"])
+    // Helper lambda to parse a step_def from json
+    auto parse_step = [](const json &step_json) -> ExecutionStepDef
     {
         std::string type = step_json["type"];
         if (type == "literal_assignment")
@@ -131,7 +141,7 @@ void SimulationEngine::parse_recipe(const std::string &path)
             {
                 throw std::runtime_error("Invalid 'value' type for literal_assignment.");
             }
-            m_recipe.execution_steps.push_back(def);
+            return def;
         }
         else if (type == "execution_assignment")
         {
@@ -139,25 +149,71 @@ void SimulationEngine::parse_recipe(const std::string &path)
             def.result_name = step_json["result"];
             def.function_name = step_json["function"];
             def.args = step_json["args"];
-            m_recipe.execution_steps.push_back(def);
+            return def;
         }
         else
         {
             throw std::runtime_error("Unknown execution step type in JSON recipe: " + type);
         }
+    };
+
+    if (recipe_json.contains("pre_trial_steps"))
+    {
+        for (const auto &step_json : recipe_json["pre_trial_steps"])
+        {
+            m_recipe.pre_trial_steps.push_back(parse_step(step_json));
+        }
+    }
+
+    if (recipe_json.contains("per_trial_steps"))
+    {
+        for (const auto &step_json : recipe_json["per_trial_steps"])
+        {
+            m_recipe.per_trial_steps.push_back(parse_step(step_json));
+        }
     }
 }
 
-void SimulationEngine::build_execution_steps()
+void SimulationEngine::run_pre_trial_phase()
 {
-    for (const auto &step_def_variant : m_recipe.execution_steps)
+    std::cout << "\n--- Running Pre-Trial Phase ---" << std::endl;
+    // This method builds and executes pre-trial steps immediately.
+    for (const auto &step_def_variant : m_recipe.pre_trial_steps)
+    {
+        std::visit([this](auto &&step_def)
+                   {
+            using T = std::decay_t<decltype(step_def)>;
+            std::unique_ptr<IExecutionStep> step_to_execute;
+
+            if constexpr (std::is_same_v<T, LiteralAssignmentDef>) {
+                step_to_execute = std::make_unique<LiteralAssignmentStep>(step_def.result_name, step_def.value);
+            } else if constexpr (std::is_same_v<T, ExecutionAssignmentDef>) {
+                auto it = m_executable_factory.find(step_def.function_name);
+                if (it == m_executable_factory.end()) {
+                    throw std::runtime_error("Unknown function in pre-trial recipe: " + step_def.function_name);
+                }
+                auto executable_logic = it->second();
+                step_to_execute = std::make_unique<ExecutionAssignmentStep>(
+                    step_def.result_name, std::move(executable_logic), step_def.args, m_executable_factory
+                );
+            }
+            // Execute the step and store the result in the preloaded context.
+            step_to_execute->execute(m_preloaded_context); },
+                   step_def_variant);
+    }
+    std::cout << "Pre-trial phase complete. " << m_preloaded_context.size() << " variable(s) loaded." << std::endl;
+}
+
+void SimulationEngine::build_per_trial_steps()
+{
+    for (const auto &step_def_variant : m_recipe.per_trial_steps)
     {
         std::visit([this](auto &&step_def)
                    {
             using T = std::decay_t<decltype(step_def)>;
 
             if constexpr (std::is_same_v<T, LiteralAssignmentDef>) {
-                m_execution_steps.push_back(
+                m_per_trial_steps.push_back(
                     std::make_unique<LiteralAssignmentStep>(step_def.result_name, step_def.value)
                 );
             } else if constexpr (std::is_same_v<T, ExecutionAssignmentDef>) {
@@ -168,7 +224,7 @@ void SimulationEngine::build_execution_steps()
                 
                 auto executable_logic = it->second(); 
                 
-                m_execution_steps.push_back(
+                m_per_trial_steps.push_back(
                     std::make_unique<ExecutionAssignmentStep>(
                         step_def.result_name,
                         std::move(executable_logic),
@@ -187,8 +243,10 @@ void SimulationEngine::run_batch(int num_trials, std::vector<TrialValue> &result
         results.reserve(num_trials);
         for (int i = 0; i < num_trials; ++i)
         {
-            TrialContext trial_context;
-            for (const auto &step : m_execution_steps)
+            // Each trial starts with a copy of the pre-loaded context.
+            TrialContext trial_context = m_preloaded_context;
+
+            for (const auto &step : m_per_trial_steps)
             {
                 step->execute(trial_context);
             }

@@ -135,3 +135,15 @@ class CapitalizeExpenseOperation : public IExecutable
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override;
 };
+
+class ReadCsvVectorOperation : public IExecutable
+{
+public:
+    TrialValue execute(const std::vector<TrialValue> &args) const override;
+};
+
+class ReadCsvScalarOperation : public IExecutable
+{
+public:
+    TrialValue execute(const std::vector<TrialValue> &args) const override;
+};

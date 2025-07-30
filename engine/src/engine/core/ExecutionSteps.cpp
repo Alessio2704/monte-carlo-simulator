@@ -61,6 +61,13 @@ TrialValue ExecutionAssignmentStep::resolve_value_recursively(const json &arg, c
 
     if (arg.is_object())
     {
+        // Handle string literals, which are passed as objects.
+        if (arg.contains("type") && arg.at("type") == "string_literal")
+        {
+            return arg.at("value").get<std::string>();
+        }
+
+        // Handle nested function calls.
         std::string func_name = arg.at("function");
         auto it = m_factory_ref.find(func_name);
         if (it == m_factory_ref.end())

@@ -1,8 +1,3 @@
-"""
-Core compilation logic for ValuaScript.
-Includes the Lark Transformer, validation, and type inference.
-"""
-
 from lark import Transformer
 from lark.lexer import Token
 
@@ -11,9 +6,19 @@ from .utils import TerminalColors
 from .config import DIRECTIVE_CONFIG, FUNCTION_SIGNATURES, OPERATOR_MAP
 
 
+class _StringLiteral:
+    """A wrapper to distinguish string literals from variable names during compilation."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return f'StringLiteral("{self.value}")'
+
+
 class ValuaScriptTransformer(Transformer):
-    def STRING(self, s: Token) -> str:
-        return s.value[1:-1]
+    def STRING(self, s: Token) -> _StringLiteral:
+        return _StringLiteral(s.value[1:-1])
 
     def infix_expression(self, items):
         if len(items) == 1:
@@ -69,10 +74,12 @@ class ValuaScriptTransformer(Transformer):
     def assignment(self, items):
         var_token, expression = items
         base_step = {"result": str(var_token), "line": var_token.line}
+        # This is the original, correct logic.
+        # It correctly identifies `let x = y` as an identity function call.
         if isinstance(expression, dict):
             base_step.update({"type": "execution_assignment", **expression})
         elif isinstance(expression, Token):
-            base_step.update({"type": "execution_assignment", "function": "identity", "args": [str(expression)]})
+            base_step.update({"type": "execution_assignment", "function": "identity", "args": [expression]})
         else:
             base_step.update({"type": "literal_assignment", "value": expression})
         return base_step
@@ -106,15 +113,25 @@ def validate_recipe(recipe: dict):
         if config["required"] and name not in directives:
             raise ValuaScriptError(config["error_missing"])
         if name in directives:
-            value = directives[name]["value"]
-            if not isinstance(value, config["type"]):
-                raise ValuaScriptError(f"L{directives[name]['line']}: {config['error_type']}")
+            d = directives[name]
+            raw_value = d["value"]
+
+            value_for_validation = raw_value
+            if isinstance(raw_value, _StringLiteral):
+                value_for_validation = raw_value.value
+            elif isinstance(raw_value, Token):
+                value_for_validation = str(raw_value)
+
+            if not isinstance(value_for_validation, config["type"]):
+                raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
+
             if name == "iterations":
-                sim_config["num_trials"] = value
+                sim_config["num_trials"] = value_for_validation
             elif name == "output":
-                output_var = str(value)
+                output_var = value_for_validation
             elif name == "output_file":
-                sim_config["output_file"] = value
+                sim_config["output_file"] = value_for_validation
+
     if not output_var:
         raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
 
@@ -123,8 +140,6 @@ def validate_recipe(recipe: dict):
         line, result_var = step["line"], step["result"]
         if result_var in defined_vars:
             raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once.")
-        if "args" in step:
-            step["args"] = [str(arg) if isinstance(arg, Token) else arg for arg in step.get("args", [])]
         rhs_type = infer_expression_type(step, defined_vars, used_vars, line, result_var)
         defined_vars[result_var] = {"type": rhs_type, "line": line}
 
@@ -143,13 +158,52 @@ def validate_recipe(recipe: dict):
             print(f"{TerminalColors.YELLOW}Warning: Variable '{var}' was defined on line {line_num} but was never used.{TerminalColors.RESET}")
 
     print(f"{TerminalColors.GREEN}--- Validation Successful ---{TerminalColors.RESET}")
+
+    # --- Clean up step values for JSON output ---
+    def _process_arg_for_json(arg):
+        if isinstance(arg, _StringLiteral):
+            return {"type": "string_literal", "value": arg.value}
+        if isinstance(arg, Token):
+            return str(arg)
+        if isinstance(arg, dict) and "args" in arg:
+            arg["args"] = [_process_arg_for_json(a) for a in arg["args"]]
+        return arg
+
     for step in recipe["execution_steps"]:
-        if "value" in step and isinstance(step, Token):
-            step["value"] = str(step["value"])
+        if "value" in step:
+            if isinstance(step.get("value"), Token):
+                step["value"] = str(step["value"])
+            elif isinstance(step.get("value"), _StringLiteral):
+                # This handles `let x = "string"`
+                step["value"] = step["value"].value
+        if "args" in step:
+            step["args"] = [_process_arg_for_json(a) for a in step["args"]]
+
+    # --- Partition steps into pre-trial and per-trial phases ---
+    pre_trial_steps = []
+    per_trial_steps = []
+    for step in recipe["execution_steps"]:
+        if step.get("type") == "literal_assignment":
+            per_trial_steps.append(step)
+            continue
+
+        func_name = step.get("function")
+        if func_name and FUNCTION_SIGNATURES[func_name]["execution_phase"] == "pre_trial":
+            pre_trial_steps.append(step)
+        else:
+            per_trial_steps.append(step)
+
+    # Clean the line numbers from the final output
+    for step in pre_trial_steps + per_trial_steps:
         if "line" in step:
             del step["line"]
 
-    return {"simulation_config": sim_config, "execution_steps": recipe["execution_steps"], "output_variable": output_var}
+    return {
+        "simulation_config": sim_config,
+        "output_variable": output_var,
+        "pre_trial_steps": pre_trial_steps,
+        "per_trial_steps": per_trial_steps,
+    }
 
 
 def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, current_result_var):
@@ -160,12 +214,14 @@ def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, cu
             return "scalar"
         if isinstance(value, list):
             return "vector"
-        if isinstance(value, str):
+        if isinstance(value, _StringLiteral):
             return "string"
         raise ValuaScriptError(f"L{line_num}: Invalid or missing value assigned to '{current_result_var}'.")
+
     if expr_type == "execution_assignment":
         func_name = expression_dict["function"]
         args = expression_dict.get("args", [])
+
         if func_name not in FUNCTION_SIGNATURES:
             raise ValuaScriptError(f"L{line_num}: Unknown function '{func_name}'.")
 
@@ -175,14 +231,18 @@ def infer_expression_type(expression_dict, defined_vars, used_vars, line_num, cu
 
         inferred_arg_types = []
         for arg in args:
-            if isinstance(arg, str):
-                used_vars.add(arg)
-                arg_type = defined_vars.get(arg, {}).get("type")
+            arg_type = None
+            if isinstance(arg, Token):
+                var_name = str(arg)
+                used_vars.add(var_name)
+                if var_name not in defined_vars:
+                    raise ValuaScriptError(f"L{line_num}: Variable '{var_name}' used in function '{func_name}' is not defined.")
+                arg_type = defined_vars[var_name]["type"]
+            elif isinstance(arg, _StringLiteral):
+                arg_type = "string"
             else:
                 temp_dict = {"type": "execution_assignment", **arg} if isinstance(arg, dict) else {"type": "literal_assignment", "value": arg}
                 arg_type = infer_expression_type(temp_dict, defined_vars, used_vars, line_num, current_result_var)
-            if arg_type is None:
-                raise ValuaScriptError(f"L{line_num}: Variable '{arg}' used in function '{func_name}' is not defined.")
             inferred_arg_types.append(arg_type)
 
         if signature.get("variadic"):

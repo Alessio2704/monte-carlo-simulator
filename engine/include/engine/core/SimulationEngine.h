@@ -22,12 +22,14 @@ public:
 
 private:
     void parse_recipe(const std::string &path);
-    void build_execution_steps();
+    void run_pre_trial_phase();
+    void build_per_trial_steps();
     void run_batch(int num_trials, std::vector<TrialValue> &results, std::exception_ptr &out_exception);
 
     void build_executable_factory();
     std::unordered_map<std::string, std::function<std::unique_ptr<IExecutable>()>> m_executable_factory;
 
     SimulationRecipe m_recipe;
-    std::vector<std::unique_ptr<IExecutionStep>> m_execution_steps;
+    TrialContext m_preloaded_context;
+    std::vector<std::unique_ptr<IExecutionStep>> m_per_trial_steps;
 };
