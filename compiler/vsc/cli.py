@@ -1,27 +1,17 @@
-# compiler/vsc/cli.py
-
-"""
-Command-line interface for the ValuaScript compiler.
-Parses arguments, orchestrates the compilation and execution process.
-"""
-
 import json
 import argparse
 import sys
 import os
 import subprocess
-from lark import Lark
-from lark.exceptions import UnexpectedInput, UnexpectedCharacters
+from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
 
-# --- NEW: Use modern library for package data access ---
 try:
     import importlib.resources as pkg_resources
 except ImportError:
-    # Fallback for Python < 3.7
     import importlib_resources as pkg_resources
 
-
-from .compiler import ValuaScriptTransformer, validate_recipe, lint_script
+# Import the single validation function
+from .compiler import validate_valuascript
 from .exceptions import ValuaScriptError
 from .utils import TerminalColors, format_lark_error, find_engine_executable, generate_and_show_plot
 
@@ -39,27 +29,13 @@ def main():
     script_path = args.input_file
     print(f"--- Compiling {script_path} -> {output_file_path} ---")
 
-    try:
-        # --- ROBUST WAY TO GET GRAMMAR ---
-        # This will work whether running from source or as an installed package.
-        with pkg_resources.path("vsc", "..") as p:
-            grammar_path = os.path.join(p, "valuascript.lark")
-            with open(grammar_path, "r") as f:
-                valuasc_grammar = f.read()
-
-    except Exception as e:
-        print(f"{TerminalColors.RED}FATAL ERROR: Could not load internal grammar file 'valuascript.lark': {e}{TerminalColors.RESET}", file=sys.stderr)
-        sys.exit(1)
-
-    lark_parser = Lark(valuasc_grammar, start="start", parser="earley")
     script_content = ""
     try:
         with open(script_path, "r") as f:
             script_content = f.read()
-        lint_script(script_content)
-        parse_tree = lark_parser.parse(script_content)
-        raw_recipe = ValuaScriptTransformer().transform(parse_tree)
-        final_recipe = validate_recipe(raw_recipe)
+
+        # A single call to the unified validation function
+        final_recipe = validate_valuascript(script_content)
 
         with open(output_file_path, "w") as f:
             f.write(json.dumps(final_recipe, indent=2))
@@ -82,20 +58,20 @@ def main():
                     print("\n--- Generating Plot ---")
                     output_file_from_recipe = final_recipe.get("simulation_config", {}).get("output_file")
                     if not output_file_from_recipe:
-                        print(f"{TerminalColors.YELLOW}Warning: Cannot plot. The --plot flag requires the @output_file directive in your .vs file.{TerminalColors.RESET}", file=sys.stderr)
+                        print(f"{TerminalColors.YELLOW}Warning: Cannot plot...", file=sys.stderr)
                     elif not os.path.exists(output_file_from_recipe):
-                        print(f"{TerminalColors.YELLOW}Warning: Cannot plot. Output file '{output_file_from_recipe}' was not found.{TerminalColors.RESET}", file=sys.stderr)
+                        print(f"{TerminalColors.YELLOW}Warning: Cannot plot...", file=sys.stderr)
                     else:
                         generate_and_show_plot(output_file_from_recipe)
             else:
-                print(f"{TerminalColors.RED}--- Simulation Failed (Exit Code: {result.returncode}) ---{TerminalColors.RESET}", file=sys.stderr)
+                print(f"{TerminalColors.RED}--- Simulation Failed... ---{TerminalColors.RESET}", file=sys.stderr)
                 sys.exit(result.returncode)
 
-    except (UnexpectedInput, UnexpectedCharacters) as e:
+    except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
         print(format_lark_error(e, script_content), file=sys.stderr)
         sys.exit(1)
     except ValuaScriptError as e:
-        print(f"\n{TerminalColors.RED}--- SEMANTIC ERROR ---\n{e}{TerminalColors.RESET}", file=sys.stderr)
+        print(f"\n{TerminalColors.RED}--- COMPILATION ERROR ---\n{e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
     except FileNotFoundError:
         print(f"{TerminalColors.RED}ERROR: Script file '{script_path}' not found.{TerminalColors.RESET}", file=sys.stderr)

@@ -7,6 +7,8 @@
 
 # Ignore Gemini-generated files
 /gemini/
+examples/*.json
+examples/*.csv
 
 # Safety net for in-source builds (in case CMake is run from the wrong directory).
 CMakeCache.txt
@@ -62,7 +64,6 @@ htmlcov/
 # =============================================================================
 # Ignore intermediate JSON recipes and simulation output files.
 # These are generated artifacts and should not be tracked in version control.
-*.csv
 
 node_modules
 

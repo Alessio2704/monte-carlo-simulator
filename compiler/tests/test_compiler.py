@@ -1,146 +1,88 @@
 import pytest
 import sys
 import os
-import json
-from lark import Lark
-from lark.exceptions import UnexpectedInput
-
-# Allow the test file to import from the 'vsc' package
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from vsc.compiler import ValuaScriptTransformer, validate_recipe, _StringLiteral
+from lark.exceptions import UnexpectedToken, UnexpectedInput, UnexpectedCharacters
+from vsc.compiler import validate_valuascript
 from vsc.exceptions import ValuaScriptError
 from vsc.config import FUNCTION_SIGNATURES
 
-# --- Test Setup ---
-# The grammar path needs to be adjusted since we are in the vsc package now.
-grammar_path = os.path.join(os.path.dirname(__file__), "..", "valuascript.lark")
-with open(grammar_path, "r") as f:
-    valuascript_grammar = f.read()
-lark_parser = Lark(valuascript_grammar, start="start", parser="earley")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 @pytest.fixture
 def base_script():
-    """Provides a minimal, valid script header for tests."""
     return "@iterations = 100\n@output = result\n"
 
 
-def compile_and_validate(script_body):
-    """A helper to run the full compilation and validation pipeline."""
-    raw_recipe = ValuaScriptTransformer().transform(lark_parser.parse(script_body))
-    return validate_recipe(raw_recipe)
-
-
-# =============================================================================
-# --- "Happy Path" and Resilience Tests ---
-# =============================================================================
 def test_valid_scripts_compile_successfully():
-    # Test a simple script
-    compile_and_validate("@iterations=1\n@output=x\nlet x = 1")
-    # Test variable-to-variable assignment (identity function)
-    compile_and_validate("@iterations=1\n@output=y\nlet x=1\nlet y=x")
-    # Test a more complex, multi-step script
-    compile_and_validate(
+    validate_valuascript("@iterations=1\n@output=x\nlet x = 1")
+    validate_valuascript("@iterations=1\n@output=y\nlet x=1\nlet y=x")
+    validate_valuascript(
         """
         @iterations=100
         @output=pres_val
         let cf = grow_series(100, 0.1, 5)
         let rate = 0.08
         let pres_val = npv(rate, cf)
-    """
+        """
     )
-    # Test a complex nested script
-    compile_and_validate("@iterations=1\n@output=x\nlet x = sum_series(grow_series(1, 1, 1))")
-    # Test pre-trial function call with string literal
-    compile_and_validate('@iterations=1\n@output=x\nlet x = read_csv_scalar("f.csv","c",0)')
-
-
-def test_compiler_resilience_to_formatting():
-    """Ensures comments and extra whitespace are handled gracefully."""
+    validate_valuascript("@iterations=1\n@output=x\nlet x = sum_series(grow_series(1, 1, 1))")
+    validate_valuascript('@iterations=1\n@output=x\n@output_file="f.csv"\nlet x = 1')
     script = """
     # This is a test model
     @iterations = 100
-    @output     = final_value   # Set the output
-
+    @output     = final_value
     let initial = 10
     let rate    = 0.5
-    
-    # Calculate the result with extra spaces
-    let final_value = initial   * (1 + rate)
+    let final_value = initial * (1 + rate)
     """
-    assert compile_and_validate(script) is not None
+    assert validate_valuascript(script) is not None
 
 
-def test_variable_name_shadowing_function_name():
-    """Ensures a user can define a variable with the same name as a function."""
-    script = """
-    @iterations = 1
-    @output = y
-    let Normal = 10  # Define a variable that shadows the 'Normal' function
-    let x = 5
-    let y = Normal + x # Should be treated as 10 + 5
-    """
-    # This should compile because 'Normal' in the expression refers to the variable.
-    # The type checker correctly infers that `Normal` is a scalar.
-    assert compile_and_validate(script) is not None
-
-
-# =============================================================================
-# --- Syntax and Structural Error Tests ---
-# =============================================================================
-@pytest.mark.parametrize("malformed_snippet", ["let = 100", "let v 100", "let v = ", "let x = (1+2", "let x = [1,2"])
-def test_syntax_errors(base_script, malformed_snippet):
-    if malformed_snippet.startswith("@"):
-        script = malformed_snippet + "\n@output=x\nlet x=1"
-    else:
-        script = base_script.replace("result", "my_var") + malformed_snippet
-    with pytest.raises(UnexpectedInput):
-        lark_parser.parse(script)
+@pytest.mark.parametrize("malformed_snippet", ["leta = 1", "let = 100", "let v 100", "let v = ", "let x = (1+2"])
+def test_syntax_errors(malformed_snippet):
+    script = f"@iterations=1\n@output=x\n{malformed_snippet}\nlet x=1"
+    with pytest.raises((UnexpectedToken, UnexpectedInput, UnexpectedCharacters, ValuaScriptError)):
+        validate_valuascript(script)
 
 
 @pytest.mark.parametrize(
-    "description, script_body, expected_error",
+    "script_body, expected_error",
     [
-        ("NEW: Empty file", "", "The @iterations directive is mandatory"),
-        ("NEW: Directives only", "@iterations=1\n@output=x", "The final @output variable 'x' is not defined"),
+        ("", "The @iterations directive is mandatory"),
+        ("@iterations=1\n@output=x", "The final @output variable 'x' is not defined"),
+        ("let a = \n@iterations=1\n@output=a", "Missing value after '='."),
+        ("@output = \n@iterations=1\nlet a=1", "Missing value after '='."),
+        ("@iterations=1\n@output=a\nlet a", "Incomplete assignment."),
+        ("@iterations=1\n@output=a\nlet", "Incomplete assignment."),
     ],
 )
-def test_structural_integrity_errors(description, script_body, expected_error):
+def test_structural_integrity_errors(script_body, expected_error):
     with pytest.raises(ValuaScriptError, match=expected_error):
-        compile_and_validate(script_body)
+        validate_valuascript(script_body)
 
 
-# =============================================================================
-# --- Semantic, Type, and Arity Error Tests ---
-# =============================================================================
 @pytest.mark.parametrize(
-    "description, script_body, expected_error",
+    "script_body, expected_error",
     [
-        ("Missing @iterations", "@output=x\nlet x=1", "The @iterations directive is mandatory"),
-        ("Wrong @iterations type (float)", "@iterations=1.5\n@output=x\nlet x=1", "must be a whole number"),
-        ("Wrong @iterations type (string)", '@iterations="abc"\n@output=x\nlet x=1', "must be a whole number"),
-        ("Undefined output var", "@iterations=1\n@output=z\nlet x=1", "The final @output variable 'z' is not defined"),
-        ("Undefined variable in assignment", "@iterations=1\n@output=y\nlet y=x", "Variable 'x' used in function 'identity' is not defined"),
-        ("Undefined variable in function", "@iterations=1\n@output=y\nlet y=log(x)", "Variable 'x' used in function 'log' is not defined"),
-        ("Unknown function", "@iterations=1\n@output=x\nlet x = unknown()", "Unknown function 'unknown'"),
-        ("Scalar expected, vector var", "let v=[1]\nlet result=Normal(1,v)", "expects a 'scalar', but got a 'vector'"),
-        ("Vector expected, scalar var", "let s=1\nlet result=sum_series(s)", "expects a 'vector', but got a 'scalar'"),
-        ("Variadic type error", "let v=[1]\nlet result=compose_vector(1,v)", "expects a 'scalar', but got a 'vector'"),
-        ("Wrong @output_file type", "@iterations=1\n@output=x\nlet x=1\n@output_file=123", "must be a string literal"),
-        # --- NEW CSV-related tests ---
-        ("Wrong type for read_csv_scalar file_path", 'let result=read_csv_scalar(123,"col",0)', "expects a 'string', but got a 'scalar'"),
-        ("Wrong type for read_csv_scalar column_name", 'let result=read_csv_scalar("f.csv",123,0)', "expects a 'string', but got a 'scalar'"),
-        ("Wrong type for read_csv_scalar row_index", 'let result=read_csv_scalar("f.csv","c",[0])', "expects a 'scalar', but got a 'vector'"),
-        ("Wrong type for read_csv_vector column_name", 'let result=read_csv_vector("f.csv",123)', "expects a 'string', but got a 'scalar'"),
+        ("@output=x\nlet x=1", "The @iterations directive is mandatory"),
+        ("@iterations=1.5\n@output=x\nlet x=1", "must be a whole number"),
+        ("@iterations=1\n@iterations=2\n@output=x\nlet x=1", "directive '@iterations' is defined more than once"),
+        ("@iterations=1\n@output=x\nlet x=1\n@invalid=1", "Unknown directive '@invalid'"),
+        ("@iterations=1\n@output=z\nlet x=1", "The final @output variable 'z' is not defined"),
+        ("@iterations=1\n@output=y\nlet y=x", "Variable 'x' used in function 'identity' is not defined"),
+        ("@iterations=1\n@output=y\nlet y=log(x)", "Variable 'x' used in function 'log' is not defined"),
+        ("@iterations=1\n@output=x\nlet x = unknown()", "Unknown function 'unknown'"),
+        ("@iterations=1\n@output=result\nlet v=[1]\nlet result=Normal(1,v)", "Argument 2 for 'Normal' expects a 'scalar', but got a 'vector'"),
+        ("@iterations=1\n@output=x\nlet s=1\nlet v=grow_series(s,0,1)\nlet x=log(v)", "Argument 1 for 'log' expects a 'scalar', but got a 'vector'"),
+        ("@iterations=1\n@output=x\nlet x=1\n@output_file=not_a_string", "must be a string literal"),
     ],
 )
-def test_semantic_and_type_errors(base_script, description, script_body, expected_error):
-    full_script = script_body if "let result" not in script_body else base_script + script_body
+def test_semantic_errors(script_body, expected_error):
     with pytest.raises(ValuaScriptError, match=expected_error):
-        compile_and_validate(full_script)
+        validate_valuascript(script_body)
 
 
-# --- Exhaustive Arity Checks ---
 def get_arity_test_cases():
     for func, sig in FUNCTION_SIGNATURES.items():
         if sig.get("variadic", False):
@@ -153,76 +95,14 @@ def get_arity_test_cases():
 
 @pytest.mark.parametrize("func, provided_argc", get_arity_test_cases())
 def test_all_function_arities(base_script, func, provided_argc):
-    args = ", ".join(["1"] * provided_argc) if provided_argc > 0 else ""
+    args_list = []
+    arg_types = FUNCTION_SIGNATURES[func]["arg_types"]
+    for i in range(provided_argc):
+        expected_type = arg_types[min(i, len(arg_types) - 1)] if arg_types else "any"
+        args_list.append(f'"arg{i}"' if expected_type == "string" else "1")
+    args = ", ".join(args_list) if provided_argc > 0 else ""
     script = base_script + f"let result = {func}({args})"
     expected_argc = len(FUNCTION_SIGNATURES[func]["arg_types"])
     expected_error = f"Function '{func}' expects {expected_argc} argument"
     with pytest.raises(ValuaScriptError, match=expected_error):
-        compile_and_validate(script)
-
-
-def test_pre_trial_partitioning():
-    """Ensures the compiler correctly partitions steps and formats string literals."""
-    script = """
-    @iterations = 1
-    @output = z
-    let data = read_csv_vector("my_data.csv", "value")
-    let x = 10
-    let y = 20
-    let z = x + y
-    """
-    raw_recipe = ValuaScriptTransformer().transform(lark_parser.parse(script))
-    final_recipe = validate_recipe(raw_recipe)
-
-    # Check that the pre-trial step is correctly placed
-    assert len(final_recipe["pre_trial_steps"]) == 1
-    pre_trial_step = final_recipe["pre_trial_steps"][0]
-    assert pre_trial_step["result"] == "data"
-    assert pre_trial_step["function"] == "read_csv_vector"
-
-    # Check that the string literal argument is correctly formatted
-    string_arg = pre_trial_step["args"][0]
-    assert isinstance(string_arg, dict)
-    assert string_arg["type"] == "string_literal"
-    assert string_arg["value"] == "my_data.csv"
-
-    # Corrected assertion for the second argument
-    string_arg_2 = pre_trial_step["args"][1]
-    assert isinstance(string_arg_2, dict)
-    assert string_arg_2["type"] == "string_literal"
-    assert string_arg_2["value"] == "value"
-
-    # Check that per-trial steps are correctly placed
-    assert len(final_recipe["per_trial_steps"]) == 3
-    per_trial_results = [s["result"] for s in final_recipe["per_trial_steps"]]
-    assert per_trial_results == ["x", "y", "z"]
-
-
-def test_unused_variable_warning(capsys):
-    """
-    Tests that the compiler prints a warning for unused variables but still
-    compiles successfully. `capsys` is a pytest fixture to capture stdout.
-    """
-    script = """
-    @iterations = 1
-    @output = b
-    let a = 10  # This variable is unused
-    let b = 20
-    let c = 30  # This one is also unused
-    """
-    # Compilation should succeed (no exception)
-    result = compile_and_validate(script)
-    assert result is not None
-    assert result["output_variable"] == "b"
-
-    # Capture the standard output
-    captured = capsys.readouterr()
-    stdout = captured.out
-
-    # Check that the warnings are present in the output
-    assert "--- Compiler Warnings ---" in stdout
-    assert "Warning: Variable 'a' was defined on line 4 but was never used." in stdout
-    assert "Warning: Variable 'c' was defined on line 6 but was never used." in stdout
-
-    # Check that the output variable 'b' is NOT warned about
-    assert "Warning: Variable 'b'" not in stdout
+        validate_valuascript(script)

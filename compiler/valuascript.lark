@@ -1,23 +1,17 @@
-// --- Grammar for ValuaScript (V2.2 - String Literals) ---
-
 // A script is a sequence of directives and assignments in any order.
 start: (directive | assignment)*
 
-// A generic directive like @name = value
 directive: "@" CNAME "=" expression -> directive_setting
-
-// The let assignment remains the same
-assignment: "let" CNAME "=" expression -> assignment
+assignment: LET CNAME "=" expression -> assignment
 
 // --- HIERARCHY FOR MATHEMATICAL EXPRESSIONS ---
 ?expression: term ((ADD|SUB) term)*         -> infix_expression
 ?term:       factor ((MUL|DIV) factor)*       -> infix_expression
 ?factor:     power
 ?power:      atom (POW atom)*            -> infix_expression
-
 ?atom: SIGNED_NUMBER
      | CNAME
-     | STRING // Add string literals as a possible value
+     | STRING
      | function_call
      | vector
      | "(" expression ")"
@@ -28,13 +22,12 @@ function_call: CNAME "(" [arg ("," arg)*] ")"
 ?arg: expression
 
 // --- Terminal Definitions ---
+LET: "let" /\b/
 ADD: "+"
 SUB: "-"
 MUL: "*"
 DIV: "/"
 POW: "^"
-
-// A terminal for double-quoted strings
 STRING: /"[^"]*"/
 
 %import common.CNAME

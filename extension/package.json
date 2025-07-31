@@ -10,14 +10,16 @@
     "Programming Languages",
     "Snippets"
   ],
+  "activationEvents": [
+    "onLanguage:valuascript"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "languages": [
       {
         "id": "valuascript",
         "aliases": [
-          "ValuaScript",
-          "valuascript"
+          "ValuaScript"
         ],
         "extensions": [
           ".vs"
@@ -29,7 +31,7 @@
       {
         "language": "valuascript",
         "scopeName": "source.valuascript",
-        "path": "./syntaxes/valuascript.tmLanguage.template.json"
+        "path": "./syntaxes/valuascript.tmLanguage.json"
       }
     ],
     "snippets": [
@@ -40,9 +42,10 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "node ./scripts/build-grammar.js && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
-    "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
+    "vscode:prepublish": "npm run package",
+    "compile": "node ./scripts/build-grammar.js && node ./esbuild.js",
+    "watch": "node ./esbuild.js --watch",
+    "package": "npm run compile",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
     "test": "vscode-test"
@@ -57,6 +60,8 @@
     "typescript": "^5.5.2",
     "@vscode/test-cli": "^0.0.9",
     "@vscode/test-electron": "^2.4.0",
-    "esbuild": "^0.23.0"
+    "esbuild": "^0.23.0",
+    "get-port": "^7.1.0",
+    "vscode-languageclient": "^9.0.1"
   }
 }
