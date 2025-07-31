@@ -13,12 +13,14 @@ assignment: LET CNAME "=" expression -> assignment
      | CNAME
      | STRING
      | function_call
+     | element_access
      | vector
      | "(" expression ")"
 
 // --- Reusable Rule Definitions ---
 vector: "[" [arg ("," arg)*] "]"
 function_call: CNAME "(" [arg ("," arg)*] ")"
+element_access: CNAME "[" expression "]"
 ?arg: expression
 
 // --- Terminal Definitions ---

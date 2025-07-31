@@ -80,6 +80,10 @@ class ValuaScriptTransformer(Transformer):
     def vector(self, items):
         return [item for item in items if item is not None]
 
+    def element_access(self, items):
+        var_token, index_expression = items
+        return {"function": "get_element", "args": [var_token, index_expression]}
+
     def directive_setting(self, items):
         return {"name": str(items[0]), "value": items[1], "line": items[0].line}
 
@@ -108,6 +112,8 @@ def validate_valuascript(script_content: str, context="cli"):
             continue
         if clean_line.count("(") != clean_line.count(")"):
             raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening parenthesis.")
+        if clean_line.count("[") != clean_line.count("]"):
+            raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening bracket.")
         if (clean_line.startswith("let") or clean_line.startswith("@")) and clean_line.endswith("="):
             raise ValuaScriptError(f"L{i+1}: Syntax Error: Missing value after '='.")
         if clean_line.startswith("let") and "=" not in clean_line:
