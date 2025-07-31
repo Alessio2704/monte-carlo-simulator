@@ -1,28 +1,15 @@
-import logging
 import re
 import os
 import sys
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
-
-# --- Robust Path Setup ---
-try:
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    vsc_package_dir = os.path.dirname(current_dir)
-    if vsc_package_dir not in sys.path:
-        sys.path.insert(0, vsc_package_dir)
-    from vsc.compiler import validate_valuascript
-    from vsc.exceptions import ValuaScriptError
-    from vsc.utils import format_lark_error
-except ImportError as e:
-    # Basic logging if imports fail, helpful for debugging setup
-    log_file_path = os.path.join(os.path.expanduser("~"), "vsc_server_startup_error.log")
-    with open(log_file_path, "w") as f:
-        f.write(f"Failed to import VSC components. sys.path: {sys.path}\n")
-        f.write(f"ImportError: {e}\n")
-    sys.exit(1)
-
 from pygls.server import LanguageServer
 from lsprotocol.types import Diagnostic, Position, Range, DiagnosticSeverity
+
+# Ensure the server can find its own modules when packaged
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from vsc.compiler import validate_valuascript
+from vsc.exceptions import ValuaScriptError
+from vsc.utils import format_lark_error
 
 server = LanguageServer("valuascript-server", "v1")
 
@@ -38,7 +25,7 @@ def _validate(ls, params):
         return ansi_escape.sub("", text)
 
     try:
-        # Single call to the unified validation function
+        # Single call to the unified validation function with the LSP context
         validate_valuascript(source, context="lsp")
     except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
         line, col = e.line - 1, e.column - 1
@@ -66,5 +53,9 @@ def did_change(ls, params):
     _validate(ls, params)
 
 
-if __name__ == "__main__":
+def start_server():
     server.start_io()
+
+
+if __name__ == "__main__":
+    start_server()

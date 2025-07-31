@@ -6,35 +6,45 @@ import subprocess
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
 
 try:
-    import importlib.resources as pkg_resources
+    # This must be the first import to set up the path correctly
+    from .compiler import validate_valuascript
+    from .exceptions import ValuaScriptError
+    from .utils import TerminalColors, format_lark_error, find_engine_executable, generate_and_show_plot
 except ImportError:
-    import importlib_resources as pkg_resources
-
-# Import the single validation function
-from .compiler import validate_valuascript
-from .exceptions import ValuaScriptError
-from .utils import TerminalColors, format_lark_error, find_engine_executable, generate_and_show_plot
+    # If run directly, this might fail, so we add the parent dir to the path
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from vsc.compiler import validate_valuascript
+    from vsc.exceptions import ValuaScriptError
+    from vsc.utils import TerminalColors, format_lark_error, find_engine_executable, generate_and_show_plot
 
 
 def main():
     parser = argparse.ArgumentParser(description="Compile a .vs file into a .json recipe.")
-    parser.add_argument("input_file", help="The path to the input .vs file.")
+    parser.add_argument("input_file", nargs="?", default=None, help="The path to the input .vs file.")
     parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file.")
     parser.add_argument("--run", action="store_true", help="Execute the simulation engine after a successful compilation.")
-    parser.add_argument("--plot", action="store_true", help="Generate and display a histogram of the simulation results. Requires --run and an @output_file directive.")
+    parser.add_argument("--plot", action="store_true", help="Generate and display a histogram of the simulation results.")
     parser.add_argument("--engine-path", help="Explicit path to the 'monte-carlo-simulator' executable.")
+    parser.add_argument("--lsp", action="store_true", help="Run the language server.")
     args = parser.parse_args()
+
+    if args.lsp:
+        from vsc.server import start_server
+
+        start_server()
+        return
+
+    if not args.input_file:
+        parser.error("the following arguments are required: input_file")
 
     output_file_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json"
     script_path = args.input_file
-    print(f"--- Compiling {script_path} -> {output_file_path} ---")
 
-    script_content = ""
     try:
         with open(script_path, "r") as f:
             script_content = f.read()
 
-        # A single call to the unified validation function
+        print(f"--- Compiling {script_path} -> {output_file_path} ---")
         final_recipe = validate_valuascript(script_content)
 
         with open(output_file_path, "w") as f:
@@ -46,28 +56,20 @@ def main():
         if args.run:
             engine_executable = find_engine_executable(args.engine_path)
             if not engine_executable:
-                print(f"\n{TerminalColors.RED}--- Execution Failed ---\nCould not find 'monte-carlo-simulator'.{TerminalColors.RESET}", file=sys.stderr)
+                print(f"\n{TerminalColors.RED}--- Execution Failed...", file=sys.stderr)
                 sys.exit(1)
 
             print(f"\n--- Running Simulation ---")
-            result = subprocess.run([engine_executable, output_file_path], capture_output=False, text=True)
+            subprocess.run([engine_executable, output_file_path], check=True)
+            print(f"{TerminalColors.GREEN}--- Simulation Finished Successfully ---{TerminalColors.RESET}")
 
-            if result.returncode == 0:
-                print(f"{TerminalColors.GREEN}--- Simulation Finished Successfully ---{TerminalColors.RESET}")
-                if args.plot:
-                    print("\n--- Generating Plot ---")
-                    output_file_from_recipe = final_recipe.get("simulation_config", {}).get("output_file")
-                    if not output_file_from_recipe:
-                        print(f"{TerminalColors.YELLOW}Warning: Cannot plot...", file=sys.stderr)
-                    elif not os.path.exists(output_file_from_recipe):
-                        print(f"{TerminalColors.YELLOW}Warning: Cannot plot...", file=sys.stderr)
-                    else:
-                        generate_and_show_plot(output_file_from_recipe)
-            else:
-                print(f"{TerminalColors.RED}--- Simulation Failed... ---{TerminalColors.RESET}", file=sys.stderr)
-                sys.exit(result.returncode)
+            if args.plot:
+                output_file_from_recipe = final_recipe.get("simulation_config", {}).get("output_file")
+                if output_file_from_recipe and os.path.exists(output_file_from_recipe):
+                    generate_and_show_plot(output_file_from_recipe)
 
     except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
+        script_content = script_content or ""
         print(format_lark_error(e, script_content), file=sys.stderr)
         sys.exit(1)
     except ValuaScriptError as e:
@@ -77,5 +79,5 @@ def main():
         print(f"{TerminalColors.RED}ERROR: Script file '{script_path}' not found.{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"\n{TerminalColors.RED}--- UNEXPECTED COMPILER ERROR ---\n{type(e).__name__}: {e}{TerminalColors.RESET}", file=sys.stderr)
+        print(f"\n{TerminalColors.RED}--- UNEXPECTED ERROR ---\n{type(e).__name__}: {e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)

@@ -11,12 +11,11 @@ LARK_PARSER = None
 try:
     from importlib.resources import files as pkg_files
 
-    grammar_path = pkg_files("vsc") / ".." / "valuascript.lark"
-    with open(grammar_path, "r") as f:
-        valuasc_grammar = f.read()
+    valuasc_grammar = (pkg_files("vsc") / "valuascript.lark").read_text()
     LARK_PARSER = Lark(valuasc_grammar, start="start", parser="earley")
 except Exception:
-    grammar_path = os.path.join(os.path.dirname(__file__), "..", "valuascript.lark")
+    # Fallback for older python or different dev environments
+    grammar_path = os.path.join(os.path.dirname(__file__), "valuascript.lark")
     with open(grammar_path, "r") as f:
         valuasc_grammar = f.read()
     LARK_PARSER = Lark(valuasc_grammar, start="start", parser="earley")
