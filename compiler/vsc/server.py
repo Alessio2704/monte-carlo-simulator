@@ -24,9 +24,16 @@ def _validate(ls, params):
     def strip_ansi(text):
         return ansi_escape.sub("", text)
 
+    original_stdout = sys.stdout
     try:
+        # --- THE FIX ---
+        # Redirect stdout to a null device to suppress any print() statements
+        # from the validation function, which would corrupt the LSP stream.
+        sys.stdout = open(os.devnull, "w")
+
         # Single call to the unified validation function with the LSP context
         validate_valuascript(source, context="lsp")
+
     except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
         line, col = e.line - 1, e.column - 1
         msg = strip_ansi(format_lark_error(e, source).splitlines()[-1])
@@ -39,6 +46,11 @@ def _validate(ls, params):
             line = int(match.group(1)) - 1
             msg = msg[len(match.group(0)) :].strip()
         diagnostics.append(Diagnostic(range=Range(start=Position(line, 0), end=Position(line, 100)), message=msg, severity=DiagnosticSeverity.Error))
+    finally:
+        # --- THE FIX ---
+        # Always restore stdout, even if an error occurred.
+        sys.stdout.close()
+        sys.stdout = original_stdout
 
     ls.publish_diagnostics(params.text_document.uri, diagnostics)
 

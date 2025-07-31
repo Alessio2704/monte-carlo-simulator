@@ -1,6 +1,3 @@
-// In file: extension/src/extension.ts
-
-// REPLACE THE ENTIRE FILE with this final, production-ready version:
 import { ExtensionContext } from "vscode";
 import {
   LanguageClient,
@@ -13,7 +10,6 @@ let client: LanguageClient;
 export function activate(context: ExtensionContext) {
   console.log("--- ValuaScript Extension Activation ---");
 
-  // The command is now our globally installed tool.
   const command = "vsc";
   const serverArgs = ["--lsp"]; // The argument to run in Language Server mode.
 
