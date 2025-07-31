@@ -287,8 +287,7 @@ TrialValue SeriesDeltaOperation::execute(const std::vector<TrialValue> &args) co
     if (series.empty())
         return std::vector<double>{};
     std::vector<double> delta_series;
-    delta_series.reserve(series.size());
-    delta_series.push_back(0.0);
+    delta_series.reserve(series.size() - 1);
     for (size_t i = 1; i < series.size(); ++i)
     {
         delta_series.push_back(series[i] - series[i - 1]);
