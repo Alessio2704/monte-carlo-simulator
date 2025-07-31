@@ -59,6 +59,8 @@ void SimulationEngine::build_executable_factory()
     { return std::make_unique<SumSeriesOperation>(); };
     m_executable_factory["get_element"] = []
     { return std::make_unique<GetElementOperation>(); };
+    m_executable_factory["delete_element"] = []
+    { return std::make_unique<DeleteElementOperation>(); };
     m_executable_factory["series_delta"] = []
     { return std::make_unique<SeriesDeltaOperation>(); };
     m_executable_factory["compose_vector"] = []

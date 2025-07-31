@@ -21,6 +21,7 @@
     "npv",
     "compound_series",
     "get_element",
+    "delete_element",
     "Normal",
     "Lognormal",
     "Beta",

@@ -42,6 +42,7 @@ FUNCTION_SIGNATURES = {
     "npv": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "scalar", "execution_phase": "per_trial"},
     "compound_series": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "vector", "execution_phase": "per_trial"},
     "get_element": {"variadic": False, "arg_types": ["vector", "scalar"], "return_type": "scalar", "execution_phase": "per_trial"},
+    "delete_element": {"variadic": False, "arg_types": ["vector", "scalar"], "return_type": "vector", "execution_phase": "per_trial"},
     "Normal": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar", "execution_phase": "per_trial"},
     "Lognormal": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar", "execution_phase": "per_trial"},
     "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar", "execution_phase": "per_trial"},

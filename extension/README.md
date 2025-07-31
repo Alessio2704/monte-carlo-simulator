@@ -68,12 +68,7 @@ The compiler transforms a `.vs` script into a JSON recipe that the C++ engine ca
       "type": "execution_assignment",
       "result": "random_growth",
       "function": "Normal",
-      "args": [ 0.1, 0.02 ]
-    },
-    {
-      "type": "literal_assignment",
-      "result": "final_value",
-      "value": 100
+      "args": [0.1, 0.02]
     }
   ]
 }
@@ -81,122 +76,153 @@ The compiler transforms a `.vs` script into a JSON recipe that the C++ engine ca
 
 ## 🚀 Getting Started
 
-There are two paths for using this project: as an **End-User** (recommended for most) or as a **Developer**.
+This guide provides two paths for getting started: as an **End-User** who wants to use the tools, and as a **Developer** who wants to build the project from source.
 
-### For End-Users
+### For End-Users (Recommended)
 
-1.  **Download the `vsc` Compiler:**
-    Go to the [**latest GitHub Release**](https://github.com/Alessio2704/monte-carlo-simulator/releases) and download the `vsc` executable for your operating system. Place it in a convenient location.
+The easiest way to get started is to download the pre-compiled tools from the latest GitHub release. This allows you to use ValuaScript without needing to install any development tools.
 
-2.  **Build the C++ Engine:**
-    You only need to do this once. First, ensure you have [Git](https://git-scm.com/), [CMake](https://cmake.org/), and a C++17 compiler installed.
+1.  **Download the Tools:** Go to the [**latest GitHub Release**](https://github.com/Alessio2704/monte-carlo-simulator/releases).
 
-    ```bash
-    # Clone the repository
-    git clone https://github.com/Alessio2704/monte-carlo-simulator.git
-    cd monte-carlo-simulator
+    - Download the `vsc` compiler executable for your operating system.
+    - Download the `monte-carlo-simulator` engine executable for your operating system.
+    - Download the `valuascript-x.x.x.vsix` VS Code extension file.
 
-    # Configure and build the project from the root directory
-    cmake -B build
-    cmake --build build
-    ```
+2.  **Install the VS Code Extension:**
 
-    This creates the `monte-carlo-simulator` executable inside the top-level `build/bin/` directory.
+    - Open VS Code, go to the Extensions view, click the `...` menu, and select **"Install from VSIX..."**.
+    - Select the `.vsix` file you downloaded.
 
-3.  **Configure the `--run` Flag (One-Time Setup):**
-    To use the streamlined workflow, you need to tell the `vsc` compiler where to find the C++ engine you just built. Follow the platform-specific instructions in the **"Configuring the `--run` Flag"** section below.
+3.  **Make the Tools Available:**
+    - Place the `vsc` and `monte-carlo-simulator` executables in a single, convenient directory (e.g., `~/valuascript-tools/`).
+    - Follow the instructions in the **"⚙️ Configuration"** section below to add this directory to your system's PATH. This is a one-time setup that makes the tools available from any terminal.
 
-### Full Workflow Example
+### For Developers (Building from Source)
 
-Once set up, you can compile, run, and visualize a simulation with a single command:
+This path is for users who want to contribute to the project or build everything from the source code.
 
-1.  **Write a model** in a file named `my_model.vs`. Make sure it includes an `@output_file` directive.
-2.  **Compile, run, and plot it:**
-    ```bash
-    # This will compile my_model.vs to my_model.json,
-    # execute the simulation, save results to the specified CSV,
-    # and finally display a histogram of the results.
-    /path/to/downloaded/vsc my_model.vs --run --plot
-    ```
+#### 1. Install Prerequisites
 
----
-
-## ⚙️ Configuring the `--run` Flag
-
-To make `vsc my_model.vs --run` work seamlessly, you need to tell the `vsc` compiler where to find the `monte-carlo-simulator` executable. The recommended method is to set an environment variable. This is a one-time setup.
-
-First, get the **absolute path** to your C++ engine executable. After building, you can find this by navigating to the `build/bin` directory and running `pwd` (on macOS/Linux) or copying the path from File Explorer (on Windows).
-
-- Example path on macOS/Linux: `/Users/yourname/monte-carlo-simulator/build/bin/monte-carlo-simulator`
-- Example path on Windows: `C:\Users\yourname\monte-carlo-simulator\build\bin\monte-carlo-simulator.exe`
+First, ensure you have the necessary build tools for your operating system.
 
 <details>
-<summary><b>Click for macOS & Linux Instructions (Zsh/Bash)</b></summary>
+<summary><b>macOS Prerequisites</b></summary>
 
-1.  **Open your shell configuration file.** This is typically `~/.zshrc` for Zsh (default on modern macOS) or `~/.bash_profile` or `~/.bashrc` for Bash.
+1.  **Install Command Line Tools:** This provides the C++ compiler (Clang).
     ```bash
-    # For Zsh
-    open ~/.zshrc
+    xcode-select --install
     ```
-2.  **Add the `export` command.** Go to the very bottom of the file and add the following line, replacing the example path with your own.
-
+2.  **Install Homebrew:** Follow the instructions at [brew.sh](https://brew.sh/).
+3.  **Install Git and CMake:**
     ```bash
-    # Set the path for the ValuaScript Simulation Engine
-    export VSC_ENGINE_PATH="/Users/yourname/monte-carlo-simulator/build/bin/monte-carlo-simulator"
+    brew install git cmake
     ```
-
-3.  **Save the file and apply the changes** by running `source ~/.zshrc` or by opening a new terminal window.
+4.  **Install Python:** A recent version of Python 3 is required. You can install it via Homebrew (`brew install python`) or from [python.org](https://www.python.org/).
 
 </details>
 
 <details>
-<summary><b>Click for Windows Instructions</b></summary>
+<summary><b>Linux (Debian/Ubuntu) Prerequisites</b></summary>
+
+1.  **Install Build Tools:** This provides Git, the C++ compiler (GCC), and CMake.
+    ```bash
+    sudo apt update
+    sudo apt install build-essential cmake git python3-pip python3-venv
+    ```
+
+</details>
+
+<details>
+<summary><b>Windows Prerequisites</b></summary>
+
+1.  **Install Visual Studio 2019 or newer:** Download the free "Community" edition from the [Visual Studio website](https://visualstudio.microsoft.com/downloads/). During installation, you **must** select the **"Desktop development with C++"** workload.
+2.  **Install Git:** Download and install [Git for Windows](https://git-scm.com/download/win).
+3.  **Install CMake:** Download and run the installer from the [CMake website](https://cmake.org/download/). **Important:** During installation, select the option **"Add CMake to the system PATH for all users"** or "...for the current user".
+4.  **Install Python:** Download and install a recent version of Python 3 from the [Microsoft Store](https://www.microsoft.com/p/python-310/9pjpw5ldxlz5) or [python.org](https://www.python.org/downloads/windows/). Ensure the option to "Add Python to PATH" is selected during installation.
+
+</details>
+
+#### 2. Clone and Build the Project
+
+Once the prerequisites are installed, the build process is the same for all platforms.
+
+```bash
+# Clone the repository
+git clone https://github.com/Alessio2704/monte-carlo-simulator.git
+cd monte-carlo-simulator
+
+# Configure and build the C++ engine from the root directory
+cmake -B build
+cmake --build build
+```
+
+This creates the `monte-carlo-simulator` executable inside the `build/bin/` directory.
+
+#### 3. Install the Python Compiler
+
+Follow the developer instructions to set up the Python environment and install the `vsc` compiler in editable mode.
+
+---
+
+## ⚙️ Configuration (One-Time Setup)
+
+To use the tools seamlessly from any terminal, you need to tell your system where to find them.
+
+### Method 1: Setting the `VSC_ENGINE_PATH` (Recommended)
+
+This method is best if you only want to use the `--run` flag with the globally installed `vsc` compiler.
+
+First, get the **absolute path** to your `monte-carlo-simulator` executable.
+
+- **If you built from source:** The path will be something like `/path/to/monte-carlo-simulator/build/bin/monte-carlo-simulator`.
+- **If you downloaded from a release:** It's the path to wherever you saved the executable.
+
+<details>
+<summary><b>macOS & Linux Instructions (Zsh/Bash)</b></summary>
+
+1.  **Open your shell configuration file.** This is typically `~/.zshrc` for Zsh (default on modern macOS) or `~/.bashrc` for Bash.
+    ```bash
+    # For Zsh
+    open ~/.zshrc
+    ```
+2.  **Add the `export` command.** Go to the very bottom of the file and add the following line, replacing the example path with your own absolute path.
+    ```bash
+    # Set the path for the ValuaScript Simulation Engine
+    export VSC_ENGINE_PATH="/path/to/your/monte-carlo-simulator"
+    ```
+3.  **Save the file and apply the changes** by opening a **new terminal window** or by running `source ~/.zshrc`.
+
+</details>
+
+<details>
+<summary><b>Windows Instructions</b></summary>
 
 1.  **Open Environment Variables:** Open the Start Menu, type "env", and select "Edit the system environment variables".
 2.  **Edit User Variables:** In the window that appears, click the "Environment Variables..." button. In the top section ("User variables for yourname"), click "New...".
 3.  **Create the Variable:**
     - **Variable name:** `VSC_ENGINE_PATH`
-    - **Variable value:** `C:\Users\yourname\monte-carlo-simulator\build\bin\monte-carlo-simulator.exe` (replace with your actual path)
-4.  **Confirm:** Click OK on all the windows to close them. You must **open a new Command Prompt or PowerShell terminal** for the changes to take effect.
+    - **Variable value:** `C:\path\to\your\monte-carlo-simulator.exe` (replace with your actual absolute path)
+4.  **Confirm:** Click OK on all the windows to close them. You **must open a new Command Prompt or PowerShell terminal** for the changes to take effect.
 
 </details>
 
-<details>
-<summary><b>Alternative Methods (for advanced users)</b></summary>
+### Method 2: Adding Tools to the System PATH
 
-The `vsc` compiler searches for the engine in this order:
-
-1.  A path specified with the `--engine-path` flag (e.g., `vsc model.vs --run --engine-path /path/to/engine`).
-2.  The `VSC_ENGINE_PATH` environment variable (recommended setup).
-3.  A known relative path (`../../build/bin/monte-carlo-simulator` from `compiler/vsc/`), which works out-of-the-box for developers running `vsc` from within the Python package source.
-4.  The system's `PATH` variable.
-
-</details>
-
----
-
-### For Developers (Building Everything from Source)
+This method is best if you downloaded the release binaries or want to run both `vsc` and `monte-carlo-simulator` as global commands.
 
 <details>
-<summary>Click to expand developer instructions</summary>
+<summary><b>Click for instructions on adding to PATH</b></summary>
 
-First, build the C++ engine using the end-user instructions. The developer workflow assumes the engine has been built and its artifacts are in the top-level `/build` directory.
+Follow the same steps as above, but instead of creating `VSC_ENGINE_PATH`, you will **edit the `Path` variable**.
 
-Then, set up the Python environment for the compiler:
+- **On macOS/Linux:** Add this line to your `~/.zshrc` or `~/.bashrc`, replacing the path with the directory containing your executables:
+  ```bash
+  # Add ValuaScript tools to the system PATH
+  export PATH="$PATH:/path/to/your/tools_directory"
+  ```
+- **On Windows:** In the Environment Variables window, find and select the `Path` variable in the "User variables" list and click "Edit...". Click "New" and paste in the path to the directory containing your executables (e.g., `C:\Users\yourname\valuascript-tools`).
 
-```bash
-# Navigate to the compiler's directory
-cd compiler
-
-# Create and activate a virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install the vsc package in editable mode and its dependencies
-pip install -e .
-```
-
-The `vsc` command is now available in your shell. For developers, the `--run` flag will work automatically without any extra configuration, as the compiler will find the engine at the known relative path from the `compiler/` directory to the `build/` directory.
+Remember to open a **new terminal** for the changes to take effect.
 
 </details>
 
@@ -276,12 +302,15 @@ Reads a single cell from a CSV file and returns it as a `scalar`. This is useful
 
 **Example:**
 Assume you have a file `assumptions.csv`:
+
 ```csv
 Parameter,Value
 BaseSales,5000
 GrowthRate,0.08
 ```
+
 You can use it in your model like this:
+
 ```valuascript
 let sales = read_csv_scalar("assumptions.csv", "Value", 0)
 let growth = read_csv_scalar("assumptions.csv", "Value", 1)
@@ -350,7 +379,9 @@ public:
     TrialValue execute(const std::vector<TrialValue> &args) const override;
 };
 ```
+
 And in `engine/src/engine/functions/operations.cpp`:
+
 ```cpp
 // Add this to the end of engine/src/engine/functions/operations.cpp
 
@@ -411,6 +442,7 @@ FUNCTION_SIGNATURES = {
     # ... other functions
 }
 ```
+
 - **`"execution_phase": "per_trial"`**: This is critical. We tag `clip` as a `per_trial` function because its logic needs to be executed inside every simulation loop. For data loading functions like `read_csv_vector`, this would be `"pre_trial"`. The compiler automatically handles partitioning the steps based on this tag.
 
 ---
@@ -419,10 +451,10 @@ FUNCTION_SIGNATURES = {
 
 The final stage is to add tests that verify both the C++ logic and the Python validation rules.
 
--   **C++ Unit Tests (`engine/test/engine_tests.cpp`):** Add a test case to the `DeterministicEngineTest` suite to verify that `clip` returns the correct values for inputs that are below, within, and above the specified range.
--   **Python Compiler Tests (`compiler/tests/test_compiler.py`):**
-    -   Add a "happy path" test to `test_valid_scripts_compile_successfully` to ensure `let x = clip(100, 0, 50)` compiles.
-    -   Add "sad path" tests to `test_semantic_and_type_errors` to ensure the compiler rejects invalid calls, like `clip([1,2], 0, 10)` (passing a vector where a scalar is expected).
+- **C++ Unit Tests (`engine/test/engine_tests.cpp`):** Add a test case to the `DeterministicEngineTest` suite to verify that `clip` returns the correct values for inputs that are below, within, and above the specified range.
+- **Python Compiler Tests (`compiler/tests/test_compiler.py`):**
+  - Add a "happy path" test to `test_valid_scripts_compile_successfully` to ensure `let x = clip(100, 0, 50)` compiles.
+  - Add "sad path" tests to `test_semantic_errors` to ensure the compiler rejects invalid calls, like `clip([1,2], 0, 10)` (passing a vector where a scalar is expected).
 
 After adding these tests and confirming they all pass, your new function is fully and robustly integrated into the language.
 
@@ -436,9 +468,15 @@ The project is actively developed. Our current roadmap prioritizes practical uti
 - **V1.1:** Compiler with full type inference & robust error reporting.
 - **V1.2:** Streamlined `--run` flag, data export via `@output_file`, and instant visualization via `--plot` flag.
 - **V1.3:** Major architectural refactor into modular `compiler` and `engine` directories.
-- **V1.4 (Current):**
+- **V1.4:**
   - **External Data Integration:** Added `read_csv_scalar` and `read_csv_vector` functions.
-  - **Architectural Enhancement:** Refactored the engine's execution flow into distinct **pre-trial** (for data loading) and **per-trial** (for simulation) phases. This makes the system more scalable and performant.
+  - **Architectural Enhancement:** Refactored the engine's execution flow into distinct **pre-trial** (for data loading) and **per-trial** (for simulation) phases.
+- **V1.5 (Current):**
+  - **VS Code Extension:** A full-featured extension providing:
+    - Dynamic, maintainable syntax highlighting.
+    - A comprehensive set of code snippets.
+    - A Python-based Language Server for real-time, as-you-type error diagnostics.
+  - **Compiler Unification:** The compiler logic was refactored into a single, unified validation function used by the CLI, Language Server, and test suite, ensuring consistent behavior.
 
 ---
 
@@ -457,31 +495,18 @@ The project is actively developed. Our current roadmap prioritizes practical uti
     let oil_price_sampler = create_sampler_from_data(oil_price_history)
 
     # 3. Use the sampler like any other distribution (e.g., Normal, Pert).
-    # Each time this line is executed in a trial, it will draw a new value
-    # from the custom distribution.
     let future_oil_price = oil_price_sampler()
     ```
 
-### ⏩ Tier 2: Improving the User Experience
-
-- [ ] **VS Code Extension**
-
-  - **Why:** To transform the model-writing process from editing plain text to working in a smart environment. This dramatically lowers the barrier to entry and improves productivity.
-  - **How:**
-    1.  **Phase 1 (Easy):** Implement syntax highlighting for `.vs` files and snippets for common functions.
-    2.  **Phase 2 (Advanced):** Develop a Language Server that uses the `vsc` compiler package to provide real-time error checking (linting) and diagnostics directly in the editor.
-
-### 🚀 Tier 3: Advanced Language Features
+### 🚀 Tier 2: Advanced Language Features
 
 - [ ] **Modularization (`@import` / `@export`)**
   - **Why:** To allow users to create reusable, importable modules (e.g., a standard WACC calculation). This promotes cleaner, more abstract, and more scalable models, avoiding code duplication.
-  - **How:** This is a major architectural evolution for the compiler. It will require implementing a dependency graph, handling namespaces (to prevent variable collisions), and defining a clear contract for how modules pass arguments and return values.
 
 ### 🌌 V-Next: The "Blue Sky" Goal (JIT Compilation)
 
 - [ ] **Native Code Generation (JIT Compiler)**
-  - **Why:** The ultimate performance goal. While the current C++ engine is extremely fast, it still operates by interpreting the JSON recipe for each of the millions of trials. A Just-In-Time (JIT) compiler would represent the final evolution of the engine. It would take the JSON recipe, and at the start of the simulation, compile it _in memory_ into a highly optimized, native machine code function tailored to execute that specific model. This would eliminate all interpretation overhead, pushing the execution speed to the theoretical maximum—as if the model had been written directly in optimized C++.
-  - **How:** This is a major undertaking, suitable for a future V2.0 or V3.0 release, once the current feature set is complete and stable. It would involve integrating a code generation library (like `asmjit` or even `LLVM`) into the C++ engine. The engine would transition from being an _interpreter_ of the JSON recipe to a _compiler_ that consumes the recipe and emits executable code. The choice of JSON as a clean, structured Intermediate Representation (IR) was a crucial first step that makes this future evolution possible.
+  - **Why:** The ultimate performance goal. A Just-In-Time (JIT) compiler would represent the final evolution of the engine. It would take the JSON recipe and, at the start of the simulation, compile it _in memory_ into highly optimized, native machine code tailored to execute that specific model. This would eliminate all interpretation overhead, pushing the execution speed to the theoretical maximum.
 
 ## 📄 License
 

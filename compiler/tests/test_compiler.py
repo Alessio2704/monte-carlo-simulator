@@ -28,6 +28,7 @@ def test_valid_scripts_compile_successfully():
     )
     validate_valuascript("@iterations=1\n@output=x\nlet x = sum_series(grow_series(1, 1, 1))")
     validate_valuascript('@iterations=1\n@output=x\n@output_file="f.csv"\nlet x = 1')
+    validate_valuascript("@iterations=1\n@output=v\nlet my_vec = [1,2,3]\nlet v = delete_element(my_vec, 1)")
     script = """
     # This is a test model
     @iterations = 100
@@ -76,6 +77,8 @@ def test_structural_integrity_errors(script_body, expected_error):
         ("@iterations=1\n@output=result\nlet v=[1]\nlet result=Normal(1,v)", "Argument 2 for 'Normal' expects a 'scalar', but got a 'vector'"),
         ("@iterations=1\n@output=x\nlet s=1\nlet v=grow_series(s,0,1)\nlet x=log(v)", "Argument 1 for 'log' expects a 'scalar', but got a 'vector'"),
         ("@iterations=1\n@output=x\nlet x=1\n@output_file=not_a_string", "must be a string literal"),
+        ("@iterations=1\n@output=v\nlet s=1\nlet v=delete_element(s, 0)", "Argument 1 for 'delete_element' expects a 'vector', but got a 'scalar'"),
+        ("@iterations=1\n@output=v\nlet my_vec=[1]\nlet v=delete_element(my_vec, [0])", "Argument 2 for 'delete_element' expects a 'scalar', but got a 'vector'"),
     ],
 )
 def test_semantic_errors(script_body, expected_error):

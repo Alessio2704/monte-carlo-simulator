@@ -279,6 +279,39 @@ TrialValue GetElementOperation::execute(const std::vector<TrialValue> &args) con
     return series[static_cast<size_t>(index)];
 }
 
+TrialValue DeleteElementOperation::execute(const std::vector<TrialValue> &args) const
+{
+    if (args.size() != 2)
+        throw std::runtime_error("DeleteElementOperation requires 2 arguments: vector, index (scalar).");
+
+    const auto &input_vector = std::get<std::vector<double>>(args[0]);
+    int index_to_delete = static_cast<int>(std::get<double>(args[1]));
+
+    if (input_vector.empty())
+        throw std::runtime_error("Cannot delete element from an empty vector.");
+
+    // Handle negative indices (Python-like behavior: -1 is last, -2 is second to last)
+    if (index_to_delete < 0)
+    {
+        index_to_delete = static_cast<int>(input_vector.size()) + index_to_delete;
+    }
+
+    if (index_to_delete < 0 || static_cast<size_t>(index_to_delete) >= input_vector.size())
+        throw std::runtime_error("Index out of bounds for delete_element operation.");
+
+    std::vector<double> result_vector;
+    result_vector.reserve(input_vector.size() - 1); // Optimistic reserve
+
+    for (size_t i = 0; i < input_vector.size(); ++i)
+    {
+        if (static_cast<int>(i) != index_to_delete)
+        {
+            result_vector.push_back(input_vector[i]);
+        }
+    }
+    return result_vector;
+}
+
 TrialValue SeriesDeltaOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)

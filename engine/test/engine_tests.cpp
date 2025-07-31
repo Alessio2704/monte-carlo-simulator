@@ -188,6 +188,42 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","per_trial_steps":[{"type":"literal_assignment","result":"A","value":10},{"type":"literal_assignment","result":"B","value":20},{"type":"literal_assignment","result":"C_in","value":30},{"type":"execution_assignment","result":"C","function":"compose_vector","args":["A","B","C_in"]}]})", TrialValue(std::vector<double>{10.0, 20.0, 30.0}), true),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"C","per_trial_steps":[{"type":"literal_assignment","result":"current_rd","value":100.0},{"type":"literal_assignment","result":"past_rd","value":[90.0,80.0,70.0]},{"type":"literal_assignment","result":"period","value":3.0},{"type":"execution_assignment","result":"C","function":"capitalize_expense","args":["current_rd","past_rd","period"]}]})", TrialValue(std::vector<double>{186.66666666666666, 80.0}), true)));
 
+TEST_F(EngineErrorTests, ThrowsOnDeleteElementIndexOutOfBounds)
+{
+    create_test_recipe("err.json", R"({
+        "simulation_config": {"num_trials":1}, "output_variable":"A",
+        "per_trial_steps": [
+            {"type":"literal_assignment","result":"my_vec","value":[10.0, 20.0, 30.0]},
+            {"type":"execution_assignment","result":"A","function":"delete_element","args":["my_vec", 5.0]}
+        ]
+    })");
+    SimulationEngine engine("err.json");
+    ASSERT_THROW(engine.run(), std::runtime_error);
+}
+
+TEST_F(EngineErrorTests, ThrowsOnDeleteElementEmptyVector)
+{
+    create_test_recipe("err.json", R"({
+        "simulation_config": {"num_trials":1}, "output_variable":"A",
+        "per_trial_steps": [
+            {"type":"literal_assignment","result":"empty_vec","value":[]},
+            {"type":"execution_assignment","result":"A","function":"delete_element","args":["empty_vec", 0.0]}
+        ]
+    })");
+    SimulationEngine engine("err.json");
+    ASSERT_THROW(engine.run(), std::runtime_error);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    DeleteElementOperationTests,
+    DeterministicEngineTest,
+    ::testing::Values(
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"A","per_trial_steps":[{"type":"literal_assignment","result":"my_vec","value":[1.0,2.0,3.0]},{"type":"execution_assignment","result":"A","function":"delete_element","args":["my_vec",1]}]})", TrialValue(std::vector<double>{1.0, 3.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"A","per_trial_steps":[{"type":"literal_assignment","result":"my_vec","value":[1.0,2.0,3.0]},{"type":"execution_assignment","result":"A","function":"delete_element","args":["my_vec",0]}]})", TrialValue(std::vector<double>{2.0, 3.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"A","per_trial_steps":[{"type":"literal_assignment","result":"my_vec","value":[1.0,2.0,3.0]},{"type":"execution_assignment","result":"A","function":"delete_element","args":["my_vec",2]}]})", TrialValue(std::vector<double>{1.0, 2.0}), true),
+        std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable":"A","per_trial_steps":[{"type":"literal_assignment","result":"my_vec","value":[1.0,2.0,3.0]},{"type":"execution_assignment","result":"A","function":"delete_element","args":["my_vec",-1]}]})", TrialValue(std::vector<double>{1.0, 2.0}), true) // Test negative index
+        ));
+
 // --- Nested Expression Test ---
 INSTANTIATE_TEST_SUITE_P(
     NestedExpressionTest,

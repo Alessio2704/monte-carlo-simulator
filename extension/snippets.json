@@ -91,6 +91,11 @@
     "body": ["get_element(${1:vector}, ${2:index})"],
     "description": "get_element(vector, index)"
   },
+  "delete_element": {
+    "prefix": "delete_element",
+    "body": ["delete_element(${1:vector}, ${2:index})"],
+    "description": "delete_element(vector, index)"
+  },
   "compose_vector": {
     "prefix": "compose_vector",
     "body": ["compose_vector(${1:value1}, ${2:value2})"],

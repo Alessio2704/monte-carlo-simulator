@@ -112,6 +112,12 @@ public:
     TrialValue execute(const std::vector<TrialValue> &args) const override;
 };
 
+class DeleteElementOperation : public IExecutable
+{
+public:
+    TrialValue execute(const std::vector<TrialValue> &args) const override;
+};
+
 class SeriesDeltaOperation : public IExecutable
 {
 public:

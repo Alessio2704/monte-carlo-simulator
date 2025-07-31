@@ -49,7 +49,7 @@
       "patterns": [
         {
           "name": "support.function.valuascript",
-          "match": "\\b(interpolate_series|capitalize_expense|compound_series|read_csv_scalar|read_csv_vector|compose_vector|series_delta|get_element|grow_series|sum_series|Triangular|Bernoulli|Lognormal|subtract|multiply|identity|Uniform|divide|Normal|power|log10|Beta|Pert|add|log|exp|sin|cos|tan|npv)\\b(?=\\s*\\()"
+          "match": "\\b(interpolate_series|capitalize_expense|compound_series|read_csv_scalar|read_csv_vector|compose_vector|delete_element|series_delta|get_element|grow_series|sum_series|Triangular|Bernoulli|Lognormal|subtract|multiply|identity|Uniform|divide|Normal|power|log10|Beta|Pert|add|log|exp|sin|cos|tan|npv)\\b(?=\\s*\\()"
         }
       ]
     },
