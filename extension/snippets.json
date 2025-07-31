@@ -1,0 +1,148 @@
+{
+  "let statement": {
+    "prefix": "let",
+    "body": ["let ${1:variable_name} = ${2:value}"],
+    "description": "Declare a new variable"
+  },
+  "@iterations directive": {
+    "prefix": "@iterations",
+    "body": ["@iterations = ${1:10000}"],
+    "description": "Set the number of simulation trials"
+  },
+  "@output directive": {
+    "prefix": "@output",
+    "body": ["@output = ${1:result_variable}"],
+    "description": "Set the final output variable"
+  },
+  "@output_file directive": {
+    "prefix": "@output_file",
+    "body": ["@output_file = \"${1:results.csv}\""],
+    "description": "Set the path for the CSV output file"
+  },
+  "Normal Distribution": {
+    "prefix": "normal",
+    "body": ["Normal(${1:mean}, ${2:std_dev})"],
+    "description": "Normal(mean, std_dev)"
+  },
+  "Pert Distribution": {
+    "prefix": "pert",
+    "body": ["Pert(${1:min}, ${2:most_likely}, ${3:max})"],
+    "description": "Pert(min, most_likely, max)"
+  },
+  "Lognormal Distribution": {
+    "prefix": "lognormal",
+    "body": ["Lognormal(${1:log_mean}, ${2:log_std_dev})"],
+    "description": "Lognormal(log_mean, log_std_dev)"
+  },
+  "Uniform Distribution": {
+    "prefix": "uniform",
+    "body": ["Uniform(${1:min}, ${2:max})"],
+    "description": "Uniform(min, max)"
+  },
+  "Triangular Distribution": {
+    "prefix": "triangular",
+    "body": ["Triangular(${1:min}, ${2:most_likely}, ${3:max})"],
+    "description": "Triangular(min, most_likely, max)"
+  },
+  "Beta Distribution": {
+    "prefix": "beta",
+    "body": ["Beta(${1:alpha}, ${2:beta})"],
+    "description": "Beta(alpha, beta)"
+  },
+  "Bernoulli Distribution": {
+    "prefix": "bernoulli",
+    "body": ["Bernoulli(${1:p})"],
+    "description": "Bernoulli(p)"
+  },
+  "grow_series": {
+    "prefix": "grow_series",
+    "body": ["grow_series(${1:base_value}, ${2:growth_rate}, ${3:periods})"],
+    "description": "grow_series(base_value, growth_rate, periods)"
+  },
+  "compound_series": {
+    "prefix": "compound_series",
+    "body": ["compound_series(${1:base_value}, ${2:rates_vector})"],
+    "description": "compound_series(base_value, rates_vector)"
+  },
+  "interpolate_series": {
+    "prefix": "interpolate_series",
+    "body": [
+      "interpolate_series(${1:start_value}, ${2:end_value}, ${3:periods})"
+    ],
+    "description": "interpolate_series(start_value, end_value, periods)"
+  },
+  "sum_series": {
+    "prefix": "sum_series",
+    "body": ["sum_series(${1:vector})"],
+    "description": "sum_series(vector)"
+  },
+  "series_delta": {
+    "prefix": "series_delta",
+    "body": ["series_delta(${1:vector})"],
+    "description": "series_delta(vector)"
+  },
+  "npv": {
+    "prefix": "npv",
+    "body": ["npv(${1:rate}, ${2:cashflows_vector})"],
+    "description": "npv(rate, cashflows_vector)"
+  },
+  "get_element": {
+    "prefix": "get_element",
+    "body": ["get_element(${1:vector}, ${2:index})"],
+    "description": "get_element(vector, index)"
+  },
+  "compose_vector": {
+    "prefix": "compose_vector",
+    "body": ["compose_vector(${1:value1}, ${2:value2})"],
+    "description": "compose_vector(value1, value2, ...)"
+  },
+  "capitalize_expense": {
+    "prefix": "capitalize_expense",
+    "body": [
+      "capitalize_expense(${1:current_expense}, ${2:past_expenses_vector}, ${3:amortization_period})"
+    ],
+    "description": "capitalize_expense(current_expense, past_expenses_vector, amortization_period)"
+  },
+  "log": {
+    "prefix": "log",
+    "body": ["log(${1:value})"],
+    "description": "log(value)"
+  },
+  "log10": {
+    "prefix": "log10",
+    "body": ["log10(${1:value})"],
+    "description": "log10(value)"
+  },
+  "exp": {
+    "prefix": "exp",
+    "body": ["exp(${1:value})"],
+    "description": "exp(value)"
+  },
+  "sin": {
+    "prefix": "sin",
+    "body": ["sin(${1:value})"],
+    "description": "sin(value)"
+  },
+  "cos": {
+    "prefix": "cos",
+    "body": ["cos(${1:value})"],
+    "description": "cos(value)"
+  },
+  "tan": {
+    "prefix": "tan",
+    "body": ["tan(${1:value})"],
+    "description": "tan(value)"
+  },
+  "read_csv_vector": {
+    "prefix": "read_csv_vector",
+    "body": ["read_csv_vector(\"${1:file.csv}\", \"${2:column_name}\")"],
+    "description": "read_csv_vector(\"file.csv\", \"column_name\")"
+  },
+  "read_csv_scalar": {
+    "prefix": "read_csv_scalar",
+    "body": [
+      "read_csv_scalar(\"${1:file.csv}\", \"${2:column_name}\", ${3:row_index})"
+    ],
+    "description": "read_csv_scalar(\"file.csv\", \"column_name\", row_index)"
+  }
+}

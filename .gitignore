@@ -62,15 +62,20 @@ htmlcov/
 # =============================================================================
 # Ignore intermediate JSON recipes and simulation output files.
 # These are generated artifacts and should not be tracked in version control.
-*.json
 *.csv
 
+node_modules
 
 # =============================================================================
 # >> IDE & EDITOR CONFIGURATION
 # =============================================================================
 # Visual Studio Code
 .vscode/
+*.vsix
+.vscode-test/
+extension/.vscode/
+extension/node_modules/
+extension/dist/
 
 # CLion
 .idea/
