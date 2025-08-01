@@ -388,7 +388,7 @@ TrialValue CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &ar
 
     for (size_t i = 0; i < past_expenses.size(); ++i)
     {
-        int year_ago = i + 1;
+        int year_ago = static_cast<int>(i) + 1;
         if (year_ago < period)
         {
             research_asset += past_expenses[i] * (static_cast<double>(period - year_ago) / period);
@@ -397,7 +397,7 @@ TrialValue CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &ar
 
     for (size_t i = 0; i < past_expenses.size(); ++i)
     {
-        int year_ago = i + 1;
+        int year_ago = static_cast<int>(i) + 1;
         if (year_ago <= period)
         {
             amortization_this_year += past_expenses[i] / period;
