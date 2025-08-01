@@ -28,7 +28,7 @@ jobs:
             vsc_name: vsc
           - os: windows-latest
             asset_name_suffix: windows-x64
-            vse_path_in_build: build/bin/Release/vse.exe
+            vse_path_in_build: build/bin/vse.exe
             vse_name: vse.exe
             vsc_name: vsc.exe
 
@@ -56,13 +56,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y g++ cmake zip
 
-      - name: Configure CMake (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: cmake -B build
-
       - name: Install Build Tools (Windows)
         if: runner.os == 'Windows'
         run: choco install ninja zip
+
+      - name: Configure CMake (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: cmake -B build
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
@@ -78,7 +78,7 @@ jobs:
 
       - name: Run Engine Tests (Windows)
         if: runner.os == 'Windows'
-        run: ./build/bin/run_tests.exe
+        run: .\build\bin\run_tests.exe
 
       # --- Install Python dependencies and Run Compiler Tests ---
       - name: Install Python Dependencies & Run Tests
@@ -166,4 +166,4 @@ jobs:
             - `vsc`: The ValuaScript compiler.
             - `vse`: The ValuaScript simulation engine.
             - `valuascript-*.vsix`: The VS Code extension.
-            - `README.md`: A quick setup guide.```
+            - `README.md`: A quick setup guide.
