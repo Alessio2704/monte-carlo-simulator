@@ -1,8 +1,23 @@
 {
-  "name": "valuascript",
+  "name": "valuascript-language",
   "displayName": "ValuaScript",
-  "description": "Language support for the ValuaScript financial modeling language.",
-  "version": "0.0.1",
+  "publisher": "AlessioMarcuzzi",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alessio2704/monte-carlo-simulator.git"
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "sync:files": "cp ../README.md ./README.md && cp ../LICENSE ./LICENSE",
+    "compile": "npm run sync:files && node ./scripts/build-grammar.js && node ./esbuild.js",
+    "watch": "node ./esbuild.js --watch",
+    "package": "npm run compile",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test"
+  },
   "engines": {
     "vscode": "^1.92.0"
   },
@@ -45,16 +60,6 @@
       }
     ]
   },
-  "scripts": {
-    "vscode:prepublish": "npm run package",
-    "sync:readme": "cp ../README.md ./README.md",
-    "compile": "npm run sync:readme && node ./scripts/build-grammar.js && node ./esbuild.js",
-    "watch": "node ./esbuild.js --watch",
-    "package": "npm run compile",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "vscode-test"
-  },
   "devDependencies": {
     "@types/vscode": "^1.92.0",
     "@types/mocha": "^10.0.7",
@@ -64,6 +69,7 @@
     "eslint": "^8.57.0",
     "typescript": "^5.5.2",
     "@vscode/test-cli": "^0.0.9",
+    "@vscode/vsce": "^2.29.0",
     "@vscode/test-electron": "^2.4.0",
     "esbuild": "^0.23.0",
     "get-port": "^7.1.0",

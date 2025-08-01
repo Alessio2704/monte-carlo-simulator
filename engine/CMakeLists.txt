@@ -6,7 +6,15 @@ project(MonteCarloEngine)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-Werror=switch")
+# --- Set Compiler-Specific Warning Flags ---
+if(MSVC)
+    # Microsoft Visual C++ Compiler
+    # /W4 sets a high warning level, /WX treats warnings as errors.
+    add_compile_options("/W4" "/WX")
+else()
+    # GCC and Clang
+    add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-Werror=switch")
+endif()
 
 # --- Fetch Dependencies ---
 include(FetchContent)
@@ -23,7 +31,6 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/vincentlaucsb/csv-parser.git
   GIT_TAG "2.3.0"
 )
-
 FetchContent_MakeAvailable(csv)
 
 # --- Define our Core Library ---
@@ -35,7 +42,6 @@ add_library(engine_core STATIC
     src/engine/core/ExecutionSteps.cpp
 )
 
-
 target_include_directories(engine_core PUBLIC
     # For builds, add the 'include' directory from this subdirectory.
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -46,7 +52,6 @@ target_include_directories(engine_core PUBLIC
 # Link the engine library against the JSON library.
 target_link_libraries(engine_core PUBLIC nlohmann_json::nlohmann_json csv)
 
-
 # --- Define our Main Executable ---
 add_executable(vse
     src/main.cpp
@@ -55,9 +60,15 @@ add_executable(vse
 # Link the main executable against our core library.
 target_link_libraries(vse PRIVATE engine_core)
 
-
 # --- Testing Configuration ---
 enable_testing()
+
+# This is CRITICAL for Windows builds. It forces gtest to be built with the
+# same dynamic runtime library (/MD or /MDd) as our main project, which prevents
+# linker errors. This must be set BEFORE FetchContent_MakeAvailable.
+if(MSVC)
+  set(gtest_force_shared_crt ON CACHE BOOL "Force shared CRT for gtest on Windows")
+endif()
 
 FetchContent_Declare(
   googletest
@@ -71,9 +82,8 @@ add_executable(run_tests
     test/engine_tests.cpp
 )
 
-# Link the test executable against our core library and GoogleTest.
-# Because engine_core's include directories are PUBLIC, run_tests automatically
-# knows where to find the engine headers.
+# Link the test executable against our core library, GoogleTest, and GoogleMock.
+# Linking gmock is necessary to use matchers like HasSubstr.
 target_link_libraries(run_tests PRIVATE
     engine_core
     gtest_main

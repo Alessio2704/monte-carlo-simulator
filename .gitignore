@@ -9,6 +9,7 @@
 /gemini/
 examples/*.json
 examples/*.csv
+.act-event.json
 
 # Safety net for in-source builds (in case CMake is run from the wrong directory).
 CMakeCache.txt

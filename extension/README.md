@@ -85,7 +85,7 @@ The easiest way to get started is to download the pre-compiled tools from the la
 1.  **Download the Tools:** Go to the [**latest GitHub Release**](https://github.com/Alessio2704/monte-carlo-simulator/releases).
 
     - Download the `vsc` compiler executable for your operating system.
-    - Download the `monte-carlo-simulator` engine executable for your operating system.
+    - Download the `vse` engine executable for your operating system.
     - Download the `valuascript-x.x.x.vsix` VS Code extension file.
 
 2.  **Install the VS Code Extension:**
@@ -94,7 +94,7 @@ The easiest way to get started is to download the pre-compiled tools from the la
     - Select the `.vsix` file you downloaded.
 
 3.  **Make the Tools Available:**
-    - Place the `vsc` and `monte-carlo-simulator` executables in a single, convenient directory (e.g., `~/valuascript-tools/`).
+    - Place the `vsc` and `vse` executables in a single, convenient directory (e.g., `~/valuascript-tools/`).
     - Follow the instructions in the **"⚙️ Configuration"** section below to add this directory to your system's PATH. This is a one-time setup that makes the tools available from any terminal.
 
 ### For Developers (Building from Source)
@@ -156,7 +156,7 @@ cmake -B build
 cmake --build build
 ```
 
-This creates the `monte-carlo-simulator` executable inside the `build/bin/` directory.
+This creates the `vse` executable inside the `build/bin/` directory.
 
 #### 3. Install the Python Compiler
 
@@ -172,7 +172,7 @@ To use the tools seamlessly from any terminal, you need to tell your system wher
 
 This method is best if you only want to use the `--run` flag with the globally installed `vsc` compiler.
 
-First, get the **absolute path** to your `monte-carlo-simulator` executable.
+First, get the **absolute path** to your `vse` executable.
 
 - **If you built from source:** The path will be something like `/path/to/monte-carlo-simulator/build/bin/monte-carlo-simulator`.
 - **If you downloaded from a release:** It's the path to wherever you saved the executable.
@@ -188,7 +188,7 @@ First, get the **absolute path** to your `monte-carlo-simulator` executable.
 2.  **Add the `export` command.** Go to the very bottom of the file and add the following line, replacing the example path with your own absolute path.
     ```bash
     # Set the path for the ValuaScript Simulation Engine
-    export VSC_ENGINE_PATH="/path/to/your/monte-carlo-simulator"
+    export VSC_ENGINE_PATH="/path/to/your/vse"
     ```
 3.  **Save the file and apply the changes** by opening a **new terminal window** or by running `source ~/.zshrc`.
 
@@ -201,14 +201,14 @@ First, get the **absolute path** to your `monte-carlo-simulator` executable.
 2.  **Edit User Variables:** In the window that appears, click the "Environment Variables..." button. In the top section ("User variables for yourname"), click "New...".
 3.  **Create the Variable:**
     - **Variable name:** `VSC_ENGINE_PATH`
-    - **Variable value:** `C:\path\to\your\monte-carlo-simulator.exe` (replace with your actual absolute path)
+    - **Variable value:** `C:\path\to\your\vse.exe` (replace with your actual absolute path)
 4.  **Confirm:** Click OK on all the windows to close them. You **must open a new Command Prompt or PowerShell terminal** for the changes to take effect.
 
 </details>
 
 ### Method 2: Adding Tools to the System PATH
 
-This method is best if you downloaded the release binaries or want to run both `vsc` and `monte-carlo-simulator` as global commands.
+This method is best if you downloaded the release binaries or want to run both `vsc` and `vse` as global commands.
 
 <details>
 <summary><b>Click for instructions on adding to PATH</b></summary>
