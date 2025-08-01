@@ -7,13 +7,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Set Compiler-Specific Warning Flags ---
+set(PROJECT_COMPILE_OPTIONS)
 if(MSVC)
     # Microsoft Visual C++ Compiler
-    # /W4 sets a high warning level, /WX treats warnings as errors.
-    add_compile_options("/W4" "/WX")
+    list(APPEND PROJECT_COMPILE_OPTIONS "/W4" "/WX")
 else()
     # GCC and Clang
-    add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-Werror=switch")
+    list(APPEND PROJECT_COMPILE_OPTIONS "-Wall" "-Wextra" "-Wpedantic" "-Werror=switch")
 endif()
 
 # --- Fetch Dependencies ---
@@ -22,7 +22,7 @@ include(FetchContent)
 FetchContent_Declare(
   json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
-  GIT_TAG "v3.12.0" 
+  GIT_TAG "v3.12.0"
 )
 FetchContent_MakeAvailable(json)
 
@@ -31,18 +31,19 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/vincentlaucsb/csv-parser.git
   GIT_TAG "2.3.0"
 )
-
 FetchContent_MakeAvailable(csv)
 
 # --- Define our Core Library ---
 add_library(engine_core STATIC
-    src/engine/core/SimulationEngine.cpp 
+    src/engine/core/SimulationEngine.cpp
     src/engine/io/io.cpp
     src/engine/functions/operations.cpp
     src/engine/functions/samplers.cpp
     src/engine/core/ExecutionSteps.cpp
 )
 
+# Apply our strict compile options ONLY to our own target
+target_compile_options(engine_core PRIVATE ${PROJECT_COMPILE_OPTIONS})
 
 target_include_directories(engine_core PUBLIC
     # For builds, add the 'include' directory from this subdirectory.
@@ -51,9 +52,17 @@ target_include_directories(engine_core PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-# Link the engine library against the JSON library.
+# Link the engine library against its dependencies
+# Using PUBLIC here propagates the include directories, which is what we want.
 target_link_libraries(engine_core PUBLIC nlohmann_json::nlohmann_json csv)
 
+# Mark the include directories from dependencies as SYSTEM directories.
+# This tells the compiler to suppress warnings from their headers.
+target_include_directories(engine_core SYSTEM
+    PUBLIC
+        ${json_INCLUDE_DIR}
+        ${csv_INCLUDE_DIR}
+)
 
 # --- Define our Main Executable ---
 add_executable(vse
