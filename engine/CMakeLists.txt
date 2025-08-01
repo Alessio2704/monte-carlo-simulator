@@ -77,6 +77,7 @@ add_executable(run_tests
 target_link_libraries(run_tests PRIVATE
     engine_core
     gtest_main
+    gmock
 )
 
 include(GoogleTest)

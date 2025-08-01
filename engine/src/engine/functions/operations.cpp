@@ -282,7 +282,7 @@ TrialValue GetElementOperation::execute(const std::vector<TrialValue> &args) con
 TrialValue DeleteElementOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("Function 'delete_element' requires 2 arguments: vector, index (scalar).");
+        throw std::runtime_error("Function 'delete_element' requires 2 arguments.");
 
     const auto &input_vector = std::get<std::vector<double>>(args[0]);
     int index_to_delete = static_cast<int>(std::get<double>(args[1]));
@@ -369,7 +369,7 @@ TrialValue CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &ar
 {
     if (args.size() != 3)
     {
-        throw std::runtime_error("Function 'capitalize_expense' requires 3 arguments: current_expense (scalar), past_expenses (vector), and amortization_period (scalar).");
+        throw std::runtime_error("Function 'capitalize_expense' requires 3 arguments.");
     }
 
     double current_expense = std::get<double>(args[0]);
@@ -461,7 +461,7 @@ static std::shared_ptr<CachedCsv> get_cached_csv(const std::string &file_path)
 TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("Function 'read_csv_vector' requires 2 arguments: file_path (string), column_name (string).");
+        throw std::runtime_error("Function 'read_csv_vector' requires 2 arguments.");
 
     const std::string &file_path = std::get<std::string>(args[0]);
     const std::string &column_name = std::get<std::string>(args[1]);
@@ -503,7 +503,7 @@ TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) 
 TrialValue ReadCsvScalarOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
-        throw std::runtime_error("Function 'read_csv_scalar' requires 3 arguments: file_path (string), column_name (string), row_index (scalar).");
+        throw std::runtime_error("Function 'read_csv_scalar' requires 3 arguments.");
 
     const std::string &file_path = std::get<std::string>(args[0]);
     const std::string &column_name = std::get<std::string>(args[1]);
