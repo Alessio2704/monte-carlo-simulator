@@ -81,7 +81,7 @@ jobs:
 
       - name: Run Engine Tests (Windows)
         if: runner.os == 'Windows'
-        run: ./build/bin/Release/run_tests.exe
+        run: '& .\\build\\bin\\Release\\run_tests.exe'
 
       # --- Install Python dependencies and Run Compiler Tests ---
       - name: Install Python Dependencies & Run Tests
