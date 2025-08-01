@@ -6,7 +6,15 @@ project(MonteCarloEngine)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-Werror=switch")
+# --- Set Compiler-Specific Warning Flags ---
+if(MSVC)
+    # Microsoft Visual C++ Compiler
+    # /W4 sets a high warning level, /WX treats warnings as errors.
+    add_compile_options("/W4" "/WX")
+else()
+    # GCC and Clang
+    add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-Werror=switch")
+endif()
 
 # --- Fetch Dependencies ---
 include(FetchContent)
