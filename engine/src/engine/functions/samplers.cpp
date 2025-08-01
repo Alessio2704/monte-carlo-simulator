@@ -14,7 +14,7 @@ inline std::mt19937 &get_thread_local_generator()
 TrialValue NormalSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("NormalSampler requires 2 arguments: mean, stddev.");
+        throw std::runtime_error("Function 'Normal' requires 2 arguments: mean, stddev.");
     double mean = std::get<double>(args[0]);
     double stddev = std::get<double>(args[1]);
     std::normal_distribution<> dist(mean, stddev);
@@ -24,7 +24,7 @@ TrialValue NormalSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue UniformSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("UniformSampler requires 2 arguments: min, max.");
+        throw std::runtime_error("Function 'Uniform' requires 2 arguments: min, max.");
     double min = std::get<double>(args[0]);
     double max = std::get<double>(args[1]);
     std::uniform_real_distribution<> dist(min, max);
@@ -34,7 +34,7 @@ TrialValue UniformSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue BernoulliSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("BernoulliSampler requires 1 argument: p.");
+        throw std::runtime_error("Function 'Bernoulli' requires 1 argument: p.");
     double p = std::get<double>(args[0]);
     std::bernoulli_distribution dist(p);
     return static_cast<double>(dist(get_thread_local_generator()));
@@ -43,7 +43,7 @@ TrialValue BernoulliSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue LognormalSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("LognormalSampler requires 2 arguments: log_mean, log_stddev.");
+        throw std::runtime_error("Function 'Lognormal' requires 2 arguments: log_mean, log_stddev.");
     double log_mean = std::get<double>(args[0]);
     double log_stddev = std::get<double>(args[1]);
     std::lognormal_distribution<> dist(log_mean, log_stddev);
@@ -53,7 +53,7 @@ TrialValue LognormalSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue BetaSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("BetaSampler requires 2 arguments: alpha, beta.");
+        throw std::runtime_error("Function 'Beta' requires 2 arguments: alpha, beta.");
     double alpha = std::get<double>(args[0]);
     double beta = std::get<double>(args[1]);
     if (alpha <= 0 || beta <= 0)
@@ -73,7 +73,7 @@ TrialValue BetaSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue PertSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
-        throw std::runtime_error("PertSampler requires 3 arguments: min, mostLikely, max.");
+        throw std::runtime_error("Function 'Pert' requires 3 arguments: min, mostLikely, max.");
     double min = std::get<double>(args[0]);
     double mostLikely = std::get<double>(args[1]);
     double max = std::get<double>(args[2]);
@@ -99,7 +99,7 @@ TrialValue PertSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue TriangularSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
-        throw std::runtime_error("TriangularSampler requires 3 arguments: min, mostLikely, max.");
+        throw std::runtime_error("Function 'Triangular' requires 3 arguments: min, mostLikely, max.");
     double min = std::get<double>(args[0]);
     double mostLikely = std::get<double>(args[1]);
     double max = std::get<double>(args[2]);

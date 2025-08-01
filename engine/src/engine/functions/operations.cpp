@@ -84,7 +84,7 @@ struct ElementWiseVisitor
     TrialValue operator()(const std::vector<double> &vec_left, const std::vector<double> &vec_right) const
     {
         if (vec_left.size() != vec_right.size())
-            throw std::runtime_error("Vector size mismatch for element-wise operation.");
+            throw std::runtime_error("Vector size mismatch: element-wise operation requires vectors of the same length, but got sizes " + std::to_string(vec_left.size()) + " and " + std::to_string(vec_right.size()) + ".");
         std::vector<double> result;
         result.reserve(vec_left.size());
         for (size_t i = 0; i < vec_left.size(); ++i)
@@ -159,56 +159,56 @@ PowerOperation::PowerOperation() : VariadicBaseOperation(OpCode::POWER) {}
 TrialValue LogOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("LogOperation requires 1 argument.");
+        throw std::runtime_error("Function 'log' requires 1 argument.");
     return std::log(std::get<double>(args[0]));
 }
 
 TrialValue Log10Operation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("Log10Operation requires 1 argument.");
+        throw std::runtime_error("Function 'log10' requires 1 argument.");
     return std::log10(std::get<double>(args[0]));
 }
 
 TrialValue ExpOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("ExpOperation requires 1 argument.");
+        throw std::runtime_error("Function 'exp' requires 1 argument.");
     return std::exp(std::get<double>(args[0]));
 }
 
 TrialValue SinOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("SinOperation requires 1 argument.");
+        throw std::runtime_error("Function 'sin' requires 1 argument.");
     return std::sin(std::get<double>(args[0]));
 }
 
 TrialValue CosOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("CosOperation requires 1 argument.");
+        throw std::runtime_error("Function 'cos' requires 1 argument.");
     return std::cos(std::get<double>(args[0]));
 }
 
 TrialValue TanOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("TanOperation requires 1 argument.");
+        throw std::runtime_error("Function 'tan' requires 1 argument.");
     return std::tan(std::get<double>(args[0]));
 }
 
 TrialValue IdentityOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("IdentityOperation requires exactly one argument.");
+        throw std::runtime_error("Function 'identity' requires exactly 1 argument.");
     return args[0];
 }
 
 TrialValue GrowSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
-        throw std::runtime_error("GrowSeriesOperation requires 3 arguments.");
+        throw std::runtime_error("Function 'grow_series' requires 3 arguments.");
     double base_val = std::get<double>(args[0]);
     double growth_rate = std::get<double>(args[1]);
     int num_years = static_cast<int>(std::get<double>(args[2]));
@@ -227,7 +227,7 @@ TrialValue GrowSeriesOperation::execute(const std::vector<TrialValue> &args) con
 TrialValue CompoundSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("CompoundSeriesOperation requires 2 arguments.");
+        throw std::runtime_error("Function 'compound_series' requires 2 arguments.");
     double base_val = std::get<double>(args[0]);
     const auto &growth_rates = std::get<std::vector<double>>(args[1]);
 
@@ -245,7 +245,7 @@ TrialValue CompoundSeriesOperation::execute(const std::vector<TrialValue> &args)
 TrialValue NpvOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("NpvOperation requires 2 arguments.");
+        throw std::runtime_error("Function 'npv' requires 2 arguments.");
     double rate = std::get<double>(args[0]);
     const auto &cashflows = std::get<std::vector<double>>(args[1]);
     double npv = 0.0;
@@ -259,7 +259,7 @@ TrialValue NpvOperation::execute(const std::vector<TrialValue> &args) const
 TrialValue SumSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("SumSeriesOperation requires 1 argument.");
+        throw std::runtime_error("Function 'sum_series' requires 1 argument.");
     const auto &series = std::get<std::vector<double>>(args[0]);
     return std::accumulate(series.begin(), series.end(), 0.0);
 }
@@ -267,7 +267,7 @@ TrialValue SumSeriesOperation::execute(const std::vector<TrialValue> &args) cons
 TrialValue GetElementOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("GetElementOperation requires 2 arguments.");
+        throw std::runtime_error("Function 'get_element' requires 2 arguments.");
     const auto &series = std::get<std::vector<double>>(args[0]);
     int index = static_cast<int>(std::get<double>(args[1]));
     if (series.empty())
@@ -282,7 +282,7 @@ TrialValue GetElementOperation::execute(const std::vector<TrialValue> &args) con
 TrialValue DeleteElementOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("DeleteElementOperation requires 2 arguments: vector, index (scalar).");
+        throw std::runtime_error("Function 'delete_element' requires 2 arguments: vector, index (scalar).");
 
     const auto &input_vector = std::get<std::vector<double>>(args[0]);
     int index_to_delete = static_cast<int>(std::get<double>(args[1]));
@@ -315,7 +315,7 @@ TrialValue DeleteElementOperation::execute(const std::vector<TrialValue> &args) 
 TrialValue SeriesDeltaOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("SeriesDeltaOperation requires 1 argument.");
+        throw std::runtime_error("Function 'series_delta' requires 1 argument.");
     const auto &series = std::get<std::vector<double>>(args[0]);
     if (series.empty())
         return std::vector<double>{};
@@ -342,7 +342,7 @@ TrialValue ComposeVectorOperation::execute(const std::vector<TrialValue> &args) 
 TrialValue InterpolateSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
-        throw std::runtime_error("InterpolateSeriesOperation requires 3 arguments.");
+        throw std::runtime_error("Function 'interpolate_series' requires 3 arguments.");
 
     double start_value = std::get<double>(args[0]);
     double end_value = std::get<double>(args[1]);
@@ -369,7 +369,7 @@ TrialValue CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &ar
 {
     if (args.size() != 3)
     {
-        throw std::runtime_error("CapitalizeExpenseOperation requires 3 arguments: current_expense (scalar), past_expenses (vector), and amortization_period (scalar).");
+        throw std::runtime_error("Function 'capitalize_expense' requires 3 arguments: current_expense (scalar), past_expenses (vector), and amortization_period (scalar).");
     }
 
     double current_expense = std::get<double>(args[0]);
@@ -461,7 +461,7 @@ static std::shared_ptr<CachedCsv> get_cached_csv(const std::string &file_path)
 TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("ReadCsvVectorOperation requires 2 arguments: file_path (string), column_name (string).");
+        throw std::runtime_error("Function 'read_csv_vector' requires 2 arguments: file_path (string), column_name (string).");
 
     const std::string &file_path = std::get<std::string>(args[0]);
     const std::string &column_name = std::get<std::string>(args[1]);
@@ -503,7 +503,7 @@ TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) 
 TrialValue ReadCsvScalarOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
-        throw std::runtime_error("ReadCsvScalarOperation requires 3 arguments: file_path (string), column_name (string), row_index (scalar).");
+        throw std::runtime_error("Function 'read_csv_scalar' requires 3 arguments: file_path (string), column_name (string), row_index (scalar).");
 
     const std::string &file_path = std::get<std::string>(args[0]);
     const std::string &column_name = std::get<std::string>(args[1]);
