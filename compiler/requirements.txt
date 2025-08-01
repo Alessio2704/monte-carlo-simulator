@@ -1,0 +1,6 @@
+lark
+pandas
+matplotlib
+pygls>=1.0.0
+importlib-resources; python_version < "3.9"
+pyinstaller

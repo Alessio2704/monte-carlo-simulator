@@ -1,0 +1,165 @@
+name: Create ValuaScript Release
+
+on:
+  push:
+    tags:
+      - "v*" # Trigger this workflow when a tag like v1.0.0 is pushed
+
+permissions:
+  contents: write # Give the workflow permission to create releases and upload assets
+
+jobs:
+  build-and-package:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            asset_name_suffix: linux-x64
+            vse_path_in_build: build/bin/vse
+            vse_name: vse
+            vsc_name: vsc
+          - os: macos-latest
+            asset_name_suffix: macos-arm64
+            vse_path_in_build: build/bin/vse
+            vse_name: vse
+            vsc_name: vsc
+          - os: windows-latest
+            asset_name_suffix: windows-x64
+            vse_path_in_build: build/bin/Release/vse.exe
+            vse_name: vse.exe
+            vsc_name: vsc.exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Get version from Git tag
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      # --- Build C++ Engine (vse) ---
+      - name: Install C++ Build Tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ cmake zip
+
+      - name: Configure CMake (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: cmake -B build
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build CMake Project
+        run: cmake --build build --config Release
+
+      # --- Run C++ Engine Tests ---
+      - name: Run Engine Tests (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: ./build/bin/run_tests
+
+      - name: Run Engine Tests (Windows)
+        if: runner.os == 'Windows'
+        run: ./build/bin/Release/run_tests.exe
+
+      # --- Install Python dependencies and Run Compiler Tests ---
+      - name: Install Python Dependencies & Run Tests
+        shell: bash
+        run: |
+          pip install pytest
+          pip install -r compiler/requirements.txt
+          export PYTHONPATH=$PYTHONPATH:./compiler
+          pytest compiler/tests/
+
+      # --- Build Python Compiler (vsc) ---
+      - name: Build vsc with PyInstaller
+        shell: bash
+        run: |
+          cd compiler
+          pyinstaller --name vsc --onefile --add-data "vsc/valuascript.lark:vsc" vsc/cli.py
+
+      # --- Package VS Code Extension (.vsix) ---
+      - name: Package extension with vsce
+        shell: bash
+        run: |
+          cd extension
+          npm install
+          npm install -g @vscode/vsce
+          vsce package -o ../valuascript-${{ env.RELEASE_VERSION }}.vsix
+
+      # --- Bundle all assets into a Zip file ---
+      - name: Create release directory
+        run: mkdir release_assets
+
+      - name: Copy assets to release directory
+        shell: bash
+        run: |
+          # Copy the executables and the vsix
+          mv ${{ matrix.vse_path_in_build }} release_assets/${{ matrix.vse_name }}
+          mv compiler/dist/${{ matrix.vsc_name }} release_assets/
+          mv valuascript-${{ env.RELEASE_VERSION }}.vsix release_assets/
+
+          # Copy the template README and replace the version placeholder
+          sed "s/{VERSION}/${{ env.RELEASE_VERSION }}/g" .github/workflows/README_RELEASE.md > release_assets/README.md
+
+      - name: Create Zip archive
+        shell: bash
+        run: |
+          cd release_assets
+          zip -r ../ValuaScript-v${{ env.RELEASE_VERSION }}-${{ matrix.asset_name_suffix }}.zip .
+          cd ..
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: valuascript-release-${{ matrix.asset_name_suffix }}
+          path: ValuaScript-v*.zip
+
+  create-github-release:
+    name: Create GitHub Release
+    needs: build-and-package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get version from Git tag
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_artifacts
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.RELEASE_VERSION }}
+          name: ValuaScript v${{ env.RELEASE_VERSION }}
+          files: release_artifacts/**/*.zip
+          body: |
+            ## ValuaScript v${{ env.RELEASE_VERSION }}
+
+            This is the official release of the ValuaScript toolchain.
+
+            **Assets:**
+            - `ValuaScript-v${{ env.RELEASE_VERSION }}-linux-x64.zip`
+            - `ValuaScript-v${{ env.RELEASE_VERSION }}-macos-arm64.zip`
+            - `ValuaScript-v${{ env.RELEASE_VERSION }}-windows-x64.zip`
+
+            Each zip file contains:
+            - `vsc`: The ValuaScript compiler.
+            - `vse`: The ValuaScript simulation engine.
+            - `valuascript-*.vsix`: The VS Code extension.
+            - `README.md`: A quick setup guide.```
