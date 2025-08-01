@@ -14,6 +14,7 @@ assignment: LET CNAME "=" expression -> assignment
      | STRING
      | function_call
      | element_access
+     | delete_element_vector
      | vector
      | "(" expression ")"
 
@@ -21,6 +22,7 @@ assignment: LET CNAME "=" expression -> assignment
 vector: "[" [arg ("," arg)*] "]"
 function_call: CNAME "(" [arg ("," arg)*] ")"
 element_access: CNAME "[" expression "]"
+delete_element_vector: CNAME "[" ":" expression "]"
 ?arg: expression
 
 // --- Terminal Definitions ---
