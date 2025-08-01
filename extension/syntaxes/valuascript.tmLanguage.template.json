@@ -57,7 +57,7 @@
       "patterns": [
         {
           "name": "constant.numeric.valuascript",
-          "match": "\\b-?[0-9]+(\\.[0-9]+)?\\b"
+          "match": "\\b-?\\d+(_\\d+)*(\\.\\d+(_\\d+)*)?(?<!_)\\b"
         }
       ]
     },

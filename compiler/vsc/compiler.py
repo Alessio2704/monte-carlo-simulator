@@ -66,7 +66,7 @@ class ValuaScriptTransformer(Transformer):
         return i[0]
 
     def SIGNED_NUMBER(self, n):
-        val = n.value
+        val = n.value.replace("_", "")
         return float(val) if "." in val or "e" in val.lower() else int(val)
 
     def CNAME(self, c):
@@ -236,6 +236,10 @@ def _infer_expression_type(expression_dict, defined_vars, used_vars, line_num, c
         if isinstance(value, (int, float)):
             return "scalar"
         if isinstance(value, list):
+            for item in value:
+                if not isinstance(item, (int, float)):
+                    error_val = f'"{item.value}"' if isinstance(item, _StringLiteral) else str(item)
+                    raise ValuaScriptError(f"L{line_num}: Invalid item {error_val} in vector literal for '{current_result_var}'. Only literal numbers are allowed in vectors.")
             return "vector"
         if isinstance(value, _StringLiteral):
             return "string"

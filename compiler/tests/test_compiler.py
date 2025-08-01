@@ -33,6 +33,9 @@ def test_valid_scripts_compile_successfully():
     validate_valuascript("@iterations=1\n@output=x\nlet my_vec=[100,200]\nlet i=1\nlet x = my_vec[i]")
     validate_valuascript("@iterations=1\n@output=x\nlet my_vec=[100,200]\nlet x = my_vec[1-1]")
     validate_valuascript("@iterations=1\n@output=x\nlet my_vec=[1,2,3]\nlet x = my_vec[:-1]")
+    validate_valuascript("@iterations=1\n@output=x\nlet x = 1_000_000")
+    validate_valuascript("@iterations=1\n@output=x\nlet x = 1_234.567_8")
+    validate_valuascript("@iterations=1\n@output=x\nlet x = -5_000")
 
     script = """
     # This is a test model
@@ -45,10 +48,25 @@ def test_valid_scripts_compile_successfully():
     assert validate_valuascript(script) is not None
 
 
-@pytest.mark.parametrize("malformed_snippet", ["leta = 1", "let = 100", "let v 100", "let v = ", "let x = (1+2", "let v = my_vec[0"])
+@pytest.mark.parametrize(
+    "malformed_snippet",
+    [
+        "leta = 1",
+        "let = 100",
+        "let v 100",
+        "let v = ",
+        "let x = (1+2",
+        "let v = my_vec[0",
+        "let x = 1__000",
+        "let x = 100_",
+        "let x = _100",
+        "let x = 1._5",
+        "let x = [1, 2, __3]",
+    ],
+)
 def test_syntax_errors(malformed_snippet):
-    script = f"@iterations=1\n@output=x\n{malformed_snippet}\nlet x=1"
-    # The ValuaScriptError is for our custom pre-parsing checks. The others are from Lark.
+    # Test the snippet in isolation to ensure it fails on its own.
+    script = f"@iterations=1\n@output=x\n{malformed_snippet}"
     with pytest.raises((UnexpectedToken, UnexpectedInput, UnexpectedCharacters, ValuaScriptError)):
         validate_valuascript(script)
 
@@ -88,6 +106,9 @@ def test_structural_integrity_errors(script_body, expected_error):
         ("@iterations=1\n@output=v\nlet s=1\nlet v=s[0]", "Argument 1 for 'get_element' expects a 'vector', but got a 'scalar'"),
         ("@iterations=1\n@output=v\nlet v=[1]\nlet i=[0]\nlet x=v[i]", "Argument 2 for 'get_element' expects a 'scalar', but got a 'vector'"),
         ("@iterations=1\n@output=x\nlet s=1\nlet x=s[:-1]", "Argument 1 for 'delete_element' expects a 'vector', but got a 'scalar'"),
+        ("@iterations=1\n@output=x\nlet q=2\nlet x=[1,q]", "Invalid item q in vector literal for 'x'"),
+        ('@iterations=1\n@output=x\nlet x=[1,"hello"]', "Invalid item \"hello\" in vector literal for 'x'"),
+        ("@iterations=1\n@output=x\nlet x=[1, _3]", "Invalid item _3 in vector literal for 'x'"),
     ],
 )
 def test_semantic_errors(script_body, expected_error):

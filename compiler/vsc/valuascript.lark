@@ -34,8 +34,17 @@ DIV: "/"
 POW: "^"
 STRING: /"[^"]*"/
 
+// --- Custom Number Terminal to support separators ---
+// We define our own SIGNED_NUMBER using Lark's EBNF-style terminals for clarity and robustness.
+// This correctly rejects invalid forms like _100, 100_, 1__000.
+SIGNED_NUMBER: ["+"|"-"]? (FLOAT | INT)
+FLOAT: INT "." INT
+// An INT is a sequence of digits, optionally followed by groups of `_` and more digits.
+// This structure makes `1__0` and `1_` impossible.
+INT: DIGIT+ ("_" DIGIT+)*
+
 %import common.CNAME
-%import common.SIGNED_NUMBER
+%import common.DIGIT
 %ignore COMMENT
 COMMENT: /#.*/
 %import common.WS
