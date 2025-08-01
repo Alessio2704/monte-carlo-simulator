@@ -24,7 +24,11 @@
         "extensions": [
           ".vs"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/valuascript.svg",
+          "dark": "./icons/valuascript.svg"
+        }
       }
     ],
     "grammars": [
@@ -38,13 +42,6 @@
       {
         "language": "valuascript",
         "path": "./snippets.json"
-      }
-    ],
-    "iconThemes": [
-      {
-        "id": "valuascript-icons",
-        "label": "ValuaScript Icons",
-        "path": "./icons/valuascript-icon-theme.json"
       }
     ]
   },
