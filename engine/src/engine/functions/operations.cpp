@@ -5,7 +5,20 @@
 #include <variant>
 #include <vector>
 #include <memory>
+
+// The csv.hpp header from the csv-parser library generates some warnings on MSVC
+// with high warning levels. We will temporarily disable the specific warning (C4127)
+// just for the inclusion of this header.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4127) // C4127: conditional expression is constant
+#endif
+
 #include "csv.hpp"
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 // Helper to perform a variadic operation on a list of scalars
 inline double perform_variadic_op(OpCode code, const std::vector<double> &values)
