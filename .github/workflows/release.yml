@@ -78,12 +78,12 @@ jobs:
 
       # --- Install Python dependencies and Run Compiler Tests ---
       - name: Install Python Dependencies & Run Tests
-        shell: bash
         run: |
           pip install pytest
           pip install -r compiler/requirements.txt
-          export PYTHONPATH=$PYTHONPATH:./compiler
           pytest compiler/tests/
+        env:
+          PYTHONPATH: ${{ github.workspace }}/compiler
 
       # --- Build Python Compiler (vsc) ---
       - name: Build vsc with PyInstaller
