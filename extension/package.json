@@ -39,6 +39,13 @@
         "language": "valuascript",
         "path": "./snippets.json"
       }
+    ],
+    "iconThemes": [
+      {
+        "id": "valuascript-icons",
+        "label": "ValuaScript Icons",
+        "path": "./icons/valuascript-icon-theme.json"
+      }
     ]
   },
   "scripts": {

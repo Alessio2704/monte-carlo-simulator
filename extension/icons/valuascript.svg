@@ -1,0 +1,9 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .curve { stroke: #4285F4; } /* A professional, Google-like blue */
+        @media (prefers-color-scheme: dark) {
+            .curve { stroke: #73A9FF; } /* A lighter blue for dark themes */
+        }
+    </style>
+    <path class="curve" d="M15 80 C 35 80, 35 20, 50 20 C 65 20, 65 80, 85 80" stroke-width="12" stroke-linecap="round"/>
+</svg>
