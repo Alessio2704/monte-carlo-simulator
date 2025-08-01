@@ -4,6 +4,15 @@ import sys
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
 from pygls.server import LanguageServer
 from lsprotocol.types import Diagnostic, Position, Range, DiagnosticSeverity
+from lsprotocol.types import (
+    TEXT_DOCUMENT_HOVER,
+    Hover,
+    MarkupContent,
+    MarkupKind,
+    Position,
+)
+from pygls.workspace import Document
+from vsc.config import FUNCTION_SIGNATURES
 
 # Ensure the server can find its own modules when packaged
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -26,7 +35,6 @@ def _validate(ls, params):
 
     original_stdout = sys.stdout
     try:
-        # --- THE FIX ---
         # Redirect stdout to a null device to suppress any print() statements
         # from the validation function, which would corrupt the LSP stream.
         sys.stdout = open(os.devnull, "w")
@@ -47,7 +55,6 @@ def _validate(ls, params):
             msg = msg[len(match.group(0)) :].strip()
         diagnostics.append(Diagnostic(range=Range(start=Position(line, 0), end=Position(line, 100)), message=msg, severity=DiagnosticSeverity.Error))
     finally:
-        # --- THE FIX ---
         # Always restore stdout, even if an error occurred.
         sys.stdout.close()
         sys.stdout = original_stdout
@@ -63,6 +70,54 @@ async def did_open(ls, params):
 @server.feature("textDocument/didChange")
 def did_change(ls, params):
     _validate(ls, params)
+
+
+def _get_word_at_position(document: Document, position: Position) -> str:
+    """Helper to get the word under the cursor."""
+    line = document.lines[position.line]
+    start, end = position.character, position.character
+    while start > 0 and line[start - 1].isidentifier():
+        start -= 1
+    while end < len(line) and line[end].isidentifier():
+        end += 1
+    return line[start:end]
+
+
+@server.feature(TEXT_DOCUMENT_HOVER)
+def hover(params):
+    """Handler for the hover feature."""
+    document = server.workspace.get_document(params.text_document.uri)
+    word = _get_word_at_position(document, params.position)
+
+    if word in FUNCTION_SIGNATURES:
+        sig = FUNCTION_SIGNATURES[word]
+        doc = sig.get("doc")
+        if not doc:
+            return None
+
+        # Build the function signature string
+        param_names = [p["name"] for p in doc.get("params", [])]
+        signature_str = f"{word}({', '.join(param_names)})"
+
+        # Build the documentation content in Markdown
+        contents = [
+            f"```valuascript\n(function) {signature_str}\n```",
+            "---",
+            f"**{doc.get('summary', '')}**",
+        ]
+
+        if "params" in doc and doc["params"]:
+            param_docs = ["\n#### Parameters:"]
+            for p in doc["params"]:
+                param_docs.append(f"- `{p.get('name', '')}`: {p.get('desc', '')}")
+            contents.append("\n".join(param_docs))
+
+        if "returns" in doc:
+            contents.append(f"\n**Returns**: `{sig.get('return_type', 'any')}` — {doc.get('returns', '')}")
+
+        return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
+
+    return None
 
 
 def start_server():
