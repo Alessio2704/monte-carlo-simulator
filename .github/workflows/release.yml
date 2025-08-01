@@ -71,9 +71,6 @@ jobs:
       - name: Build CMake Project
         run: cmake --build build --config Release
 
-      - name: Build CMake Project
-        run: cmake --build build --config Release
-
       # --- Run C++ Engine Tests ---
       - name: Run Engine Tests (Linux/macOS)
         if: runner.os != 'Windows'
