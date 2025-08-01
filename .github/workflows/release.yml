@@ -102,7 +102,7 @@ jobs:
         run: |
           cd extension
           npm install
-          vsce package -o ../valuascript-${{ env.RELEASE_VERSION }}.vsix
+          npx vsce package -o ../valuascript-${{ env.RELEASE_VERSION }}.vsix
 
       # --- Bundle all assets into a Zip file ---
       - name: Create release directory
