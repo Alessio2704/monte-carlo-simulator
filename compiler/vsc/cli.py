@@ -24,7 +24,7 @@ def main():
     parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file.")
     parser.add_argument("--run", action="store_true", help="Execute the simulation engine after a successful compilation.")
     parser.add_argument("--plot", action="store_true", help="Generate and display a histogram of the simulation results.")
-    parser.add_argument("--engine-path", help="Explicit path to the 'monte-carlo-simulator' executable.")
+    parser.add_argument("--engine-path", help="Explicit path to the 'vse' executable.")
     parser.add_argument("--lsp", action="store_true", help="Run the language server.")
     args = parser.parse_args()
 
@@ -56,7 +56,7 @@ def main():
         if args.run:
             engine_executable = find_engine_executable(args.engine_path)
             if not engine_executable:
-                print(f"\n{TerminalColors.RED}--- Execution Failed...", file=sys.stderr)
+                print(f"\n{TerminalColors.RED}--- Execution Failed: Could not find the simulation engine. ---{TerminalColors.RESET}", file=sys.stderr)
                 sys.exit(1)
 
             print(f"\n--- Running Simulation ---")

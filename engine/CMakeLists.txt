@@ -48,12 +48,12 @@ target_link_libraries(engine_core PUBLIC nlohmann_json::nlohmann_json csv)
 
 
 # --- Define our Main Executable ---
-add_executable(monte-carlo-simulator
+add_executable(vse
     src/main.cpp
 )
 
 # Link the main executable against our core library.
-target_link_libraries(monte-carlo-simulator PRIVATE engine_core)
+target_link_libraries(vse PRIVATE engine_core)
 
 
 # --- Testing Configuration ---
