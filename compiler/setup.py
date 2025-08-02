@@ -1,4 +1,3 @@
-# compiler/setup.py
 from setuptools import setup, find_packages
 import os
 
@@ -10,6 +9,9 @@ except FileNotFoundError:
     long_description = "A compiler for the ValuaScript financial modeling language."
 
 setup(
+    use_scm_version=True,
+    setup_requires=["setuptools_scm"],
+    name="valuascript-compiler",
     author="Alessio Marcuzzi",
     author_email="alemarcuzzi03@gmail.com",
     description="A compiler for the ValuaScript financial modeling language.",
