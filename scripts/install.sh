@@ -58,13 +58,16 @@ fi
 chmod +x "$APP_INSTALL_DIR/vse"
 
 # --- Create Symbolic Links ---
-echo "Creating command-line shortcuts in $BIN_INSTALL_DIR..."
-if [ -w "$BIN_INSTALL_DIR" ]; then
-    ln -sf "$APP_INSTALL_DIR/vse" "$BIN_INSTALL_DIR/vse"
-else
-    echo "Sudo privileges are required to create a shortcut in $BIN_INSTALL_DIR."
-    sudo ln -sf "$APP_INSTALL_DIR/vse" "$BIN_INSTALL_DIR/vse"
+echo "Ensuring command-line shortcut directory exists..."
+
+if [ ! -d "$BIN_INSTALL_DIR" ]; then
+    echo "Directory $BIN_INSTALL_DIR not found. Creating it now (requires sudo)..."
+    sudo mkdir -p "$BIN_INSTALL_DIR"
 fi
+
+echo "Creating command-line shortcut in $BIN_INSTALL_DIR (requires sudo)..."
+sudo ln -sf "$APP_INSTALL_DIR/vse" "$BIN_INSTALL_DIR/vse"
+
 
 # --- Install vsc from PyPI ---
 echo "Installing the vsc compiler from PyPI..."
@@ -74,30 +77,28 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# On macOS, Homebrew is the preferred method for installing pipx.
 if [ "$OS_TYPE" = "Darwin" ]; then
-
     if ! command -v brew &> /dev/null; then
-        echo "Error: Homebrew not found. Please install it to proceed."
-        exit 1
+        echo "Warning: Homebrew not found. Falling back to installing pipx with pip." >&2
+        python3 -m pip install --user --upgrade pipx
+    else
+        echo "Using Homebrew to install/upgrade pipx..."
+        brew install pipx
     fi
-    echo "Using Homebrew to install/upgrade pipx..."
-    brew install pipx
-    pipx ensurepath
+    python3 -m pipx ensurepath
 
-# On Linux, try common package managers first.
 elif [ "$OS_TYPE" = "Linux" ]; then
-    if command -v apt-get &> /dev/null; then
-        echo "Attempting to install pipx via apt..."
-        sudo apt-get update && sudo apt-get install -y pipx
-    elif command -v dnf &> /dev/null; then
-        echo "Attempting to install pipx via dnf..."
-        sudo dnf install -y pipx
-    elif command -v pacman &> /dev/null; then
-        echo "Attempting to install pipx via pacman..."
-        sudo pacman -S --noconfirm python-pipx
+
+    if ! command -v pipx &> /dev/null; then
+        echo "Attempting to install pipx using common package managers or pip..."
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y pipx
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y pipx
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm python-pipx
+        fi
     fi
-    # As a fallback, or if pipx is still not found, use pip.
     if ! command -v pipx &> /dev/null; then
         echo "pipx not found via package manager, falling back to pip..."
         python3 -m pip install --user --upgrade pipx
@@ -108,27 +109,9 @@ fi
 echo "Installing ValuaScript Compiler with pipx..."
 pipx install valuascript-compiler
 
-# --- Install VS Code Extension ---
-echo "Attempting to install VS Code extension..."
-if command -v code &> /dev/null; then
-    # Find the .vsix file in the installation directory
-    VSIX_FILE=$(find "$APP_INSTALL_DIR" -name "*.vsix" -print -quit)
-    if [ -f "$VSIX_FILE" ]; then
-        echo "Found VS Code. Installing extension..."
-        code --install-extension "$VSIX_FILE" || echo "Extension installation failed, but core tools are installed. Please install manually."
-    else
-        echo "Warning: .vsix file not found in downloaded package."
-    fi
-else
-    VSIX_FILE_NAME=$(basename $(find "$APP_INSTALL_DIR" -name "*.vsix" -print -quit))
-    echo "Warning: VS Code command-line tool ('code') not found in PATH."
-    echo "To install the extension, open VS Code, go to the Extensions view, click the '...' menu,"
-    echo "select 'Install from VSIX...', and choose the file: $APP_INSTALL_DIR/$VSIX_FILE_NAME"
-fi
-
 # --- Cleanup ---
 rm "$TMP_FILE"
 
 echo ""
 echo "✅ ValuaScript has been installed successfully!"
-echo "Please restart your terminal session to start using 'vsc' and 'vse'."
+echo "Please open a new terminal session to start using 'vsc' and 'vse'."
