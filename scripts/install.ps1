@@ -35,13 +35,27 @@ if (($CurrentUserPath -split ';') -notcontains $InstallDir) {
 }
 
 # --- Install vsc from PyPI ---
-Write-Host "Installing Python dependencies and vsc compiler..."
+Write-Host "Installing the vsc compiler from PyPI..."
 try {
-    pip install pipx
-    pipx ensurepath
+    # Ensure Python is available
+    Get-Command python | Out-Null
+    
+    Write-Host "Installing/upgrading pipx..."
+    # Use 'python -m pip' for robustness and '--user' to avoid permission issues
+    python -m pip install --user -q --upgrade pipx
+    
+    Write-Host "Ensuring pipx is in the PATH..."
+    python -m pipx ensurepath
+    
+    Write-Host "Installing valuascript-compiler with pipx..."
+    # The 'pipx' command should now be available
     pipx install valuascript-compiler
+
 } catch {
-    Write-Error "Failed to install vsc. Please ensure Python and pip are installed and in your PATH."
+    Write-Host ""
+    Write-Host "❌ Error: Failed to install the 'vsc' compiler."
+    Write-Host "Please ensure Python 3 is installed and that its 'Scripts' directory is in your PATH."
+    # The script will continue so 'vse' is still installed.
 }
 
 # --- Cleanup ---
