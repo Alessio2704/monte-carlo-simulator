@@ -3,7 +3,10 @@ name: Create ValuaScript Release
 on:
   push:
     tags:
-      - "v*" # Trigger this workflow when a tag like v1.0.0 is pushed
+      - "v*"
+  pull_request: # Also trigger on Pull Requests
+    branches:
+      - main # Only run for PRs targeting the main branch
 
 permissions:
   contents: write # Give the workflow permission to create releases and upload assets
