@@ -5,7 +5,20 @@
 #include <variant>
 #include <vector>
 #include <memory>
+
+// The csv.hpp header from the csv-parser library generates some warnings on MSVC
+// with high warning levels. We will temporarily disable the specific warning (C4127)
+// just for the inclusion of this header.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4127) // C4127: conditional expression is constant
+#endif
+
 #include "csv.hpp"
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 // Helper to perform a variadic operation on a list of scalars
 inline double perform_variadic_op(OpCode code, const std::vector<double> &values)
@@ -388,7 +401,7 @@ TrialValue CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &ar
 
     for (size_t i = 0; i < past_expenses.size(); ++i)
     {
-        int year_ago = i + 1;
+        int year_ago = static_cast<int>(i) + 1;
         if (year_ago < period)
         {
             research_asset += past_expenses[i] * (static_cast<double>(period - year_ago) / period);
@@ -397,7 +410,7 @@ TrialValue CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &ar
 
     for (size_t i = 0; i < past_expenses.size(); ++i)
     {
-        int year_ago = i + 1;
+        int year_ago = static_cast<int>(i) + 1;
         if (year_ago <= period)
         {
             amortization_this_year += past_expenses[i] / period;
