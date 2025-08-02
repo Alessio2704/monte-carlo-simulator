@@ -1,12 +1,13 @@
 import pytest
 import sys
 import os
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from lark.exceptions import UnexpectedToken, UnexpectedInput, UnexpectedCharacters
 from vsc.compiler import validate_valuascript
 from vsc.exceptions import ValuaScriptError
 from vsc.config import FUNCTION_SIGNATURES
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 @pytest.fixture
