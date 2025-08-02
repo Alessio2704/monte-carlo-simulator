@@ -29,12 +29,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
+
       - name: Setup Node.js
-        if: runner.os == 'Linux' # Only needed once for the .vsix
+        if: runner.os == 'Linux'
         uses: actions/setup-node@v4
         with:
           node-version: "20.x"
@@ -43,6 +47,7 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
       # --- Build C++ Engine (vse) ---
+
       - name: Install C++ Build Tools (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -68,7 +73,7 @@ jobs:
       - name: Build CMake Project
         run: cmake --build build --config Release
 
-      # --- Package the C++ Engine for this OS ---
+      # --- Package the C++ Engine ---
       - name: Create Engine Release Directory
         run: mkdir release_assets
 
@@ -82,21 +87,22 @@ jobs:
           cd release_assets
           zip -r ../ValuaScript-Engine-v${{ env.RELEASE_VERSION }}-${{ matrix.asset_name_suffix }}.zip .
 
-      # --- Package Python & VSCode Ext (ONCE, on the Linux runner) ---
+      # --- Package Python & VSCode Ext (ONCE, on Linux runner) ---
       - name: Build Python sdist and wheel for PyPI
         if: runner.os == 'Linux'
         run: |
-          pip install build
+          pip install build setuptools_scm
           python -m build compiler
 
       - name: Package extension with vsce
         if: runner.os == 'Linux'
         run: |
           cd extension
+          npm version ${{ env.RELEASE_VERSION }} --no-git-tag-version
           npm install
           npx vsce package -o ../valuascript-${{ env.RELEASE_VERSION }}.vsix
 
-      # --- Upload all assets as artifacts for the next job ---
+      # --- Upload all assets as artifacts ---
       - name: Upload Python Package Artifact
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
@@ -124,8 +130,8 @@ jobs:
     steps:
       - name: Get version from Git tag
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
-
-      - name: Download all artifacts from build job
+        
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts

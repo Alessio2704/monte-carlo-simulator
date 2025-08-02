@@ -13,6 +13,8 @@ if sys.version_info < (3, 9):
     install_requires.append("importlib_resources")
 
 setup(
+    use_scm_version=True,
+    setup_requires=["setuptools_scm"],
     name="valuascript-compiler",
     version="1.0.0",
     author="Alessio Marcuzzi",
