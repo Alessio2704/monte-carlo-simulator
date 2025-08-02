@@ -108,6 +108,24 @@ fi
 echo "Installing ValuaScript Compiler with pipx..."
 pipx install valuascript-compiler
 
+# --- Install VS Code Extension ---
+echo "Attempting to install VS Code extension..."
+if command -v code &> /dev/null; then
+    # Find the .vsix file in the installation directory
+    VSIX_FILE=$(find "$APP_INSTALL_DIR" -name "*.vsix" -print -quit)
+    if [ -f "$VSIX_FILE" ]; then
+        echo "Found VS Code. Installing extension..."
+        code --install-extension "$VSIX_FILE" || echo "Extension installation failed, but core tools are installed. Please install manually."
+    else
+        echo "Warning: .vsix file not found in downloaded package."
+    fi
+else
+    VSIX_FILE_NAME=$(basename $(find "$APP_INSTALL_DIR" -name "*.vsix" -print -quit))
+    echo "Warning: VS Code command-line tool ('code') not found in PATH."
+    echo "To install the extension, open VS Code, go to the Extensions view, click the '...' menu,"
+    echo "select 'Install from VSIX...', and choose the file: $APP_INSTALL_DIR/$VSIX_FILE_NAME"
+fi
+
 # --- Cleanup ---
 rm "$TMP_FILE"
 

@@ -58,6 +58,25 @@ try {
     # The script will continue so 'vse' is still installed.
 }
 
+# ---  Install VS Code Extension ---
+Write-Host "Attempting to install VS Code extension..."
+try {
+    $VsixFile = (Get-ChildItem -Path $InstallDir -Filter "*.vsix" | Select-Object -First 1).FullName
+    if ($VsixFile) {
+        Write-Host "Found VS Code. Installing extension..."
+        # The '&' is the call operator in PowerShell, needed to run commands with arguments
+        & code --install-extension $VsixFile
+    } else {
+        Write-Warning ".vsix file not found in downloaded package."
+    }
+} catch {
+    $VsixFileName = (Get-ChildItem -Path $InstallDir -Filter "*.vsix" | Select-Object -First 1).Name
+    Write-Host ""
+    Write-Warning "VS Code command-line tool ('code') not found or installation failed."
+    Write-Warning "To install the extension, open VS Code, go to the Extensions view, click the '...' menu,"
+    Write-Warning "select 'Install from VSIX...', and choose the file: $InstallDir\$VsixFileName"
+}
+
 # --- Cleanup ---
 Remove-Item -Recurse -Force $TempDir
 
