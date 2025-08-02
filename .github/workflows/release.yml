@@ -92,8 +92,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           cp README.md compiler
-          pip install build setuptools_scm
-          python -m build compiler
+          pip install build
+          python -m build --outdir compiler/dist compiler
 
       - name: Package extension with vsce
         if: runner.os == 'Linux'
