@@ -85,7 +85,8 @@ if [ "$OS_TYPE" = "Darwin" ]; then
         echo "Using Homebrew to install/upgrade pipx..."
         brew install pipx
     fi
-    python3 -m pipx ensurepath
+    
+    pipx ensurepath
 
 elif [ "$OS_TYPE" = "Linux" ]; then
 
@@ -103,7 +104,8 @@ elif [ "$OS_TYPE" = "Linux" ]; then
         echo "pipx not found via package manager, falling back to pip..."
         python3 -m pip install --user --upgrade pipx
     fi
-    python3 -m pipx ensurepath
+
+    pipx ensurepath
 fi
 
 echo "Installing ValuaScript Compiler with pipx..."
