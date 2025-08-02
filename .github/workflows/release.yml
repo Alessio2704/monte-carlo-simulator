@@ -91,6 +91,7 @@ jobs:
       - name: Build Python sdist and wheel for PyPI
         if: runner.os == 'Linux'
         run: |
+          cp README.md compiler
           pip install build setuptools_scm
           python -m build compiler
 
@@ -130,7 +131,7 @@ jobs:
     steps:
       - name: Get version from Git tag
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
-        
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
