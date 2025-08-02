@@ -91,12 +91,11 @@ jobs:
       - name: Build Python sdist and wheel for PyPI
         if: runner.os == 'Linux'
         run: |
-          SETUPTOOLS_SCM_PRETEND_VERSION_FOR_VALUASCRIPT_COMPILER=${{ env.RELEASE_VERSION }}
           cp README.md compiler
           pip install build
           python -m build --outdir compiler/dist compiler
         env:
-          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+          SETUPTOOLS_SCM_PRETEND_VERSION_FOR_VALUASCRIPT_COMPILER: ${{ env.RELEASE_VERSION }}
 
       - name: Package extension with vsce
         if: runner.os == 'Linux'
