@@ -1,0 +1,69 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      # --- Build C++ Engine (vse) ---
+      - name: Install C++ Build Tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ cmake zip
+
+      - name: Install C++ Build Tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake
+
+      - name: Install Build Tools (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ninja zip
+
+      - name: Configure CMake (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: cmake -B build
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -B build -G "Ninja"
+
+      - name: Build CMake Project
+        run: cmake --build build --config Release
+
+      # --- Run C++ Engine Tests ---
+      - name: Run Engine Tests (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: ./build/bin/run_tests
+
+      - name: Run Engine Tests (Windows)
+        if: runner.os == 'Windows'
+        run: .\build\bin\run_tests.exe
+
+      # --- Install Python dependencies and Run Compiler Tests ---
+      - name: Install Python Dependencies & Run Tests
+        shell: bash
+        run: |
+          pip install pytest
+          pip install -r compiler/requirements.txt
+          pytest compiler/tests/
+        env:
+          PYTHONPATH: ${{ github.workspace }}/compiler
