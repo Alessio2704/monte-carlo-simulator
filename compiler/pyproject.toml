@@ -4,8 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "valuascript-compiler"
+
 dynamic = ["version"]
 
 [tool.setuptools_scm]
-'SETUPTOOLS_SCM_PRETEND_VERSION_FOR_VALUASCRIPT_COMPILER'.
-fallback_version = "0.0.1" 
+
+fallback_version = "0.0.1"
