@@ -111,20 +111,77 @@ After installation, **you must open a new terminal window** for the `vsc` and `v
 
 ---
 
-## 🔬 Continuous Integration & Reliability
+## ⚙️ The Automation Pipeline: Professional CI/CD
 
-This project is more than just code; it's a reliably engineered and delivered product. We leverage a professional CI/CD pipeline, powered by GitHub Actions, to ensure that every release is robust, portable, and trustworthy.
+This project is built and delivered using a professional Continuous Integration and Continuous Delivery (CI/CD) pipeline powered by GitHub Actions. This ensures that every release is reliable, portable, and trustworthy. Our process is transparent and fully automated.
 
-- **Automated Cross-Platform Builds:** Every new version is automatically built in parallel on Windows, macOS, and Linux. We use native toolchains like MSVC on Windows and targeted Docker environments on Linux to produce optimized binaries for each platform.
+#### The Automation Heartbeat: Git-Tag-Triggered Releases
 
-- **Ensuring Portability:** To guarantee broad compatibility across the Linux ecosystem, our Linux binary is built inside an `ubuntu:22.04` container. This links it against an older, stable version of GLIBC, ensuring it runs flawlessly on a vast range of distributions, from Ubuntu 22.04 LTS to the latest Fedora and Debian releases.
+The entire release lifecycle begins when a developer pushes a Git tag in the format `vX.Y.Z` (e.g., `v1.0.5`). This single event triggers the automated workflow, eliminating manual errors and guaranteeing a consistent process.
 
-- **Release Gated by Automated Testing:** A release is only created if it passes our entire suite of tests on **all three operating systems**. This includes:
+```mermaid
+graph TD;
+    A[<i class='fa fa-tag'></i> Git Tag Push<br/>e.g., v1.0.5] --> B{Workflow Triggered};
+    B --> C["<strong>Job: build-and-release-assets</strong><br/><em>Runs in Parallel on a Win, macOS, Linux Matrix</em>"];
+    C --> D["<strong>Job: publish</strong><br/><em>Gated by `needs` keyword: Runs only if all builds succeed</em>"];
+    D --> E[<i class='fab fa-github'></i> Published to GitHub Releases];
+    D --> F[<i class='fab fa-python'></i> Published to PyPI];
 
-  - **GoogleTest** for the C++ engine to validate numerical correctness and logic.
-  - **Pytest** for the Python compiler to validate parsing, semantic analysis, and error reporting.
+    classDef job fill:#f0f8ff,stroke:#005cc5,stroke-width:2px;
+    class C,D job;
+```
 
-- **Automatic Versioning and Publishing:** The entire release process is triggered automatically. Pushing a Git tag in the format `vX.Y.Z` kicks off the workflow, which builds, tests, packages, and finally publishes the validated artifacts to both **GitHub Releases** and the **Python Package Index (PyPI)** without any manual intervention.
+---
+
+### Stage 1: Build, Test, and Verify (The Matrix Job)
+
+The moment a tag is pushed, a matrix of parallel jobs spins up to build and test ValuaScript across all three major operating systems simultaneously.
+
+<details>
+<summary><strong>Click to see the platform-specific build strategies</strong></summary>
+
+#### **Windows Build**
+
+- **Native Toolchain:** The C++ engine is compiled using the native Microsoft Visual C++ compiler (MSVC) by specifying the `"Visual Studio 17 2022"` generator in CMake. This ensures optimal performance and compatibility with the Windows ecosystem.
+- **Validation:** After a successful build, the `run_tests.exe` artifact is executed to run the full C++ test suite. This confirms the correctness of the build on Windows.
+
+#### **macOS Build**
+
+- **Native Toolchain:** The engine is built using the default Clang compiler provided by Apple's command-line tools, ensuring seamless integration with the macOS environment.
+- **Validation:** The compiled `run_tests` binary is immediately executed to validate the build.
+
+#### **Linux Build & Portability**
+
+- **The Challenge:** Building C++ applications for Linux is complex due to variations in system libraries (like GLIBC). A binary compiled on a very new Linux distribution will fail to run on older, but widely used, stable distributions.
+- **The Solution:** We solve this by decoupling our build environment from the GitHub runner. The Linux build is performed **inside a Docker container running `ubuntu:22.04`**. This links our C++ engine against an older, stable version of GLIBC, guaranteeing that the final `vse` executable is highly portable and runs flawlessly on a vast range of distributions, from Ubuntu 22.04 LTS to the latest Fedora and Debian releases.
+- **Validation:** Critically, our test suite is also run _inside this same container_, ensuring we are testing the exact artifact that will be released.
+
+#### **Python & VS Code Packaging**
+
+- Since the Python compiler and VS Code extension are platform-agnostic, they are built and packaged just once (on the Linux runner) for efficiency. The resulting packages (`.whl`, `.tar.gz`, `.vsix`) are then uploaded as artifacts.
+
+</details>
+
+---
+
+### Stage 2: Publish to the World
+
+This stage only runs if **all build and test jobs in Stage 1 have passed**. This is our quality gate.
+
+1.  **Consolidate Artifacts:** The publish job first downloads all the validated build artifacts (the `.zip` files from each OS, the Python packages, and the `.vsix` extension file) from the matrix jobs.
+2.  **Publish to PyPI:** The Python compiler package (`valuascript-compiler`) is automatically published to the **Python Package Index (PyPI)** using a trusted publisher token. This makes it available via `pip`.
+3.  **Create GitHub Release:** A new, public release is created on GitHub, tagged with the version number. All the binary artifacts and the VS Code extension are uploaded to this release, creating a permanent, public archive for every version.
+
+### The Final Link: User-Facing Scripts
+
+The `install.sh` and `install.ps1` scripts are the public "front door" to this automated backend. They are designed to be smart and robust:
+
+- They automatically detect the user's Operating System and CPU architecture.
+- They query the GitHub API to find the latest official release.
+- They download the correct `.zip` asset for the user's specific system from the release page.
+- They handle the installation of dependencies like `pipx` and the VS Code extension, providing a complete, one-command setup experience.
+
+This end-to-end automation ensures that every user receives a professionally built, rigorously tested, and correctly packaged version of ValuaScript, every single time.
 
 ## 🗑️ Uninstalling
 
