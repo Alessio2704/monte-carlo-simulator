@@ -39,6 +39,15 @@ else
     echo "Installation directory not found, skipping."
 fi
 
+# --- Uninstall VS Code Extension ---
+EXTENSION_ID="AlessioMarcuzzi.valuascript-language" 
+CODE_CMD=$(command -v code)
+
+if [ ! -z "$CODE_CMD" ]; then
+    echo "Uninstalling VS Code extension: $EXTENSION_ID..."
+    "$CODE_CMD" --uninstall-extension "$EXTENSION_ID" || true
+fi
+
 echo ""
 echo "✅ ValuaScript has been uninstalled successfully."
 echo "You may want to manually remove 'VSC_ENGINE_PATH' from your shell profile (~/.zshrc, ~/.bashrc, etc.)."

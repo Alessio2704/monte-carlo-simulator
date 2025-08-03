@@ -35,6 +35,15 @@ if (Test-Path $InstallDir) {
     Write-Host "Installation directory not found, skipping."
 }
 
+# --- Uninstall VS Code Extension ---
+$ExtensionId = "AlessioMarcuzzi.valuascript-language"
+$CodeCmd = Get-Command code -ErrorAction SilentlyContinue
+if ($CodeCmd) {
+    Write-Host "Uninstalling VS Code extension: $ExtensionId..."
+    try {
+        & $CodeCmd.Source --uninstall-extension $ExtensionId
+    } catch {}
+}
 
 Write-Host ""
 Write-Host "✅ Uninstallation complete!"
