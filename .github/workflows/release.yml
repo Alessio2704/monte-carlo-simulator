@@ -48,11 +48,20 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
       # --- Build C++ Engine (vse) ---
-
       - name: Build C++ Engine (Linux via Docker)
         if: runner.os == 'Linux'
         run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace ubuntu:22.04 bash -c "set -e; apt-get update && apt-get install -y build-essential cmake git; cd /workspace; cmake -B build -DCMAKE_BUILD_TYPE=Release; cmake --build build"
+          docker run --rm -v ${{ github.workspace }}:/workspace \
+            ubuntu:22.04 \
+            bash -c "
+              set -e
+              apt-get update && apt-get install -y build-essential cmake git
+              cd /workspace
+              echo '--- Configuring CMake inside container ---'
+              cmake -B build -DCMAKE_BUILD_TYPE=Release
+              echo '--- Building project inside container ---'
+              cmake --build build --config Release
+            "
 
       - name: Install C++ Build Tools (macOS)
         if: runner.os == 'macOS'
@@ -66,7 +75,8 @@ jobs:
         if: runner.os == 'Windows'
         run: cmake -B build -G "Visual Studio 17 2022" -A x64
 
-      - name: Build CMake Project
+      - name: Build CMake Project (non-Linux)
+        if: runner.os != 'Linux'
         run: cmake --build build --config Release
 
       - name: Create Engine Release Directory
