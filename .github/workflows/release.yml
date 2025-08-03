@@ -91,6 +91,7 @@ jobs:
             ubuntu:22.04 \
             bash -c "
               set -e
+              cd /workspace
               echo '--- Running C++ tests inside container ---'
               ./build/bin/run_tests
             "
