@@ -3,7 +3,7 @@
   "displayName": "ValuaScript",
   "description": "Language support for the ValuaScript financial modeling language.",
   "publisher": "AlessioMarcuzzi",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "engines": {
     "vscode": "^1.92.0"
   },
