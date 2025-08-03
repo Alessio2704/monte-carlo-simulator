@@ -113,6 +113,10 @@ fi
 echo "Installing ValuaScript Compiler with pipx..."
 pipx install valuascript-compiler
 
+if ["$OS_TYPE" = "Linux"]; then
+    source /root/.bashrc
+fi
+
 # --- Install VS Code Extension ---
 if [ -z "$DOWNLOAD_URL_VSIX" ]; then
     echo "Warning: Could not find a .vsix extension file in the release assets. Skipping."
