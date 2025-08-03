@@ -92,7 +92,13 @@ jobs:
         shell: bash
         run: cp build/bin/${{ matrix.vse_name }} release_assets/
 
-      - name: Create Engine Zip Archive
+      - name: Create Engine Zip Archive (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: Compress-Archive -Path release_assets\* -DestinationPath ValuaScript-Engine-v${{ env.RELEASE_VERSION }}-${{ matrix.asset_name_suffix }}.zip
+
+      - name: Create Engine Zip Archive (macOS/Linux)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           cd release_assets
