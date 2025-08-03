@@ -49,36 +49,36 @@ jobs:
 
       # --- Build C++ Engine (vse) ---
 
-      - name: Install C++ Build Tools (Linux)
+      - name: Build C++ Engine (Linux via Docker)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update 
-          sudo apt-get install -y cmake
+          docker run --rm -v ${{ github.workspace }}:/workspace ubuntu:22.04 bash -c "set -e; apt-get update && apt-get install -y build-essential cmake; cd /workspace; cmake -B build -DCMAKE_BUILD_TYPE=Release; cmake --build build"
 
       - name: Install C++ Build Tools (macOS)
         if: runner.os == 'macOS'
         run: brew install cmake
 
-      - name: Install C++ Build Tools (Windows)
-        if: runner.os == 'Windows'
-        run: choco install zip
-
-      - name: Configure CMake (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: cmake -B build
+      - name: Configure CMake (macOS)
+        if: runner.os == 'macOS'
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
-        run: cmake -B build -G "Ninja"
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
 
       - name: Build CMake Project
         run: cmake --build build --config Release
 
-      # --- Package the C++ Engine ---
       - name: Create Engine Release Directory
         run: mkdir release_assets
 
-      - name: Copy Engine to Release Directory
+      - name: Copy Engine to Release Directory (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cp build/bin/Release/${{ matrix.vse_name }} release_assets/
+
+      - name: Copy Engine to Release Directory (macOS/Linux)
+        if: runner.os != 'Windows'
         shell: bash
         run: cp build/bin/${{ matrix.vse_name }} release_assets/
 
