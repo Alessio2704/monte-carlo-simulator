@@ -79,6 +79,36 @@ jobs:
         if: runner.os != 'Linux'
         run: cmake --build build --config Release
 
+      # --- Run C++ Engine Tests ---
+      - name: Run Engine Tests (macOS)
+        if: runner.os == 'macOS'
+        run: ./build/bin/run_tests
+
+      - name: Run C++ Engine Tests (Linux via Docker)
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace \
+            ubuntu:22.04 \
+            bash -c "
+              set -e
+              echo '--- Running C++ tests inside container ---'
+              build/bin/${{ matrix.test_runner_name }}
+            "
+
+      - name: Run Engine Tests (Windows)
+        if: runner.os == 'Windows'
+        run: .\build\bin\Release\run_tests.exe
+
+      # --- Install Python dependencies and Run Compiler Tests ---
+      - name: Install Python Dependencies & Run Tests
+        shell: bash
+        run: |
+          pip install pytest
+          pip install -r compiler/requirements.txt
+          pytest compiler/tests/
+        env:
+          PYTHONPATH: ${{ github.workspace }}/compiler
+
       - name: Create Engine Release Directory
         run: mkdir release_assets
 
