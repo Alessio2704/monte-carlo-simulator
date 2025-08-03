@@ -44,6 +44,7 @@ jobs:
           node-version: "20.x"
 
       - name: Get version from Git tag
+        shell: bash
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
       # --- Build C++ Engine (vse) ---
@@ -132,6 +133,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Get version from Git tag
+        shell: bash
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
       - name: Download all artifacts
