@@ -92,7 +92,7 @@ jobs:
             bash -c "
               set -e
               echo '--- Running C++ tests inside container ---'
-              build/bin/${{ matrix.test_runner_name }}
+              ./build/bin/run_tests
             "
 
       - name: Run Engine Tests (Windows)
