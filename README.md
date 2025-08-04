@@ -128,7 +128,7 @@ graph TD;
     D --> F[<i class='fab fa-python'></i> Published to PyPI];
 
     classDef job fill:#f0f8ff,stroke:#005cc5,stroke-width:2px;
-    class C,D job;
+    class C,D job
 ```
 
 ---
