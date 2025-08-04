@@ -104,11 +104,8 @@ jobs:
       - name: Install Python Dependencies & Run Tests
         shell: bash
         run: |
-          pip install pytest
-          pip install -r compiler/requirements.txt
-          pytest compiler/tests/
-        env:
-          PYTHONPATH: ${{ github.workspace }}/compiler
+          pip install -e "./compiler[dev]"
+          pytest compiler/tests/ -v
 
       - name: Create Engine Release Directory
         run: mkdir release_assets
