@@ -1,7 +1,0 @@
-lark
-lsprotocol
-matplotlib
-numpy
-pandas
-pygls
-pytest

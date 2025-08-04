@@ -19,7 +19,8 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Alessio2704/monte-carlo-simulator",
     packages=find_packages(),
-    install_requires=["lark", "pandas", "matplotlib", "pygls>=1.0.0"],
+    install_requires=["lark", "pandas", "matplotlib", "pygls>=1.0.0", "lsprotocol"],
+    extras_require={"dev": ["pytest"]},
     package_data={"vsc": ["*.lark"]},
     entry_points={"console_scripts": ["vsc = vsc.cli:main"]},
     classifiers=[
