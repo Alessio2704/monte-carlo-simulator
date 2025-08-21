@@ -5,7 +5,7 @@
 [![C++ Version](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
 [![Python Version](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-**A high-performance, multithreaded C++ engine for quantitative financial modeling, driven by ValuaScript—a simple, dedicated scripting language with a smart, validating compiler.**
+**A high-performance, multithreaded C++ engine for quantitative financial modeling, driven by ValuaScript—a simple, dedicated scripting language with a smart, optimizing compiler.**
 
 ## 📖 About The Project
 
@@ -19,7 +19,8 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
   - **Ergonomic Syntax:** Includes intuitive bracket syntax (`variable[index]`) for element access, slice-like syntax (`variable[:-1]`) for deleting elements, and numeric separators (`1_000_000`) for enhanced readability.
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
   - **Robust Error Handling:** Features comprehensive static type inference in the compiler and detailed runtime checks in the engine, providing clear and precise error messages for common issues like incorrect function arguments or vector dimension mismatches.
-- **🐍 Smart Validating Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe. It provides **clear, user-friendly error messages** and performs advanced **static type inference** to catch logical errors before execution.
+- **🐍 Intelligent Optimizing Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe. It performs advanced optimizations like **Loop-Invariant Code Motion** (moving deterministic calculations out of the main simulation loop) and **Dead Code Elimination** (removing unused code) to generate a highly efficient execution plan.
+  - It provides **intelligent, user-friendly warnings**, performs **static type inference** to catch logical errors before execution, and offers **verbose feedback** on its optimization process.
 - **⚙️ Streamlined Workflow:** A `--run` flag allows for a seamless, one-step compile-and-execute experience.
 - **📊 Instant Visualization:** A `--plot` flag automatically generates a histogram of the simulation output, providing immediate visual analysis.
 - **📈 Data Export:** Natively supports exporting full simulation trial data to CSV files for further analysis with the `@output_file` directive.
@@ -35,12 +36,12 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 The project is cleanly separated into two main components: a Python **compiler** and a C++ **engine**. This modular structure separates the user-facing language tools from the high-performance computation core.
 
-The compilation process now generates a structured JSON recipe with distinct execution phases, making the engine's job clear and scalable.
+The compilation process generates a structured JSON recipe with distinct, optimized execution phases, making the engine's job clear and scalable.
 
 ```mermaid
 graph TD;
-    A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- "vsc my_model.vs --run" --> B["<b>vsc Compiler (Python)</b><br/><i>Validates, translates, & executes</i>"];
-    B -- generates & consumes --> C["<b>JSON Recipe</b><br/><i>Intermediate Representation</i>"];
+    A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- "vsc my_model.vs --run -O" --> B["<b>vsc Compiler (Python)</b><br/><i>Validates, optimizes, & translates</i>"];
+    B -- generates & consumes --> C["<b>JSON Recipe</b><br/><i>Optimized Intermediate Representation</i>"];
     C -- consumed by --> D["<b>Simulation Engine (C++)</b><br/><i>High-Performance Backend</i>"];
     D -- produces --> E["<b>Simulation Results</b><br/><i>Statistical Analysis & Plot</i>"];
 
@@ -50,7 +51,7 @@ graph TD;
 ```
 
 **Example JSON Recipe Structure:**
-The compiler transforms a `.vs` script into a JSON recipe that the C++ engine can execute. This recipe explicitly separates one-time data loading steps from the core per-trial calculations.
+The optimizing compiler transforms a `.vs` script into a JSON recipe that the C++ engine can execute. This recipe explicitly separates one-time calculations (`pre_trial_steps`) from the core per-trial simulation loop.
 
 ```json
 {
@@ -220,6 +221,22 @@ Special `@` directives configure the simulation. They can appear anywhere in the
 @output_file = "sim_results/amazon_model.csv"
 ```
 
+#### The Compiler & Optimizations
+
+The `vsc` compiler is a powerful tool with several command-line flags to control its behavior.
+
+- **`vsc <input_file>`**: The basic command to compile a ValuaScript file into a JSON recipe.
+- **`--run`**: Compiles the script and then immediately executes the simulation using the C++ engine.
+- **`-O` or `--optimize`**: Enables aggressive optimizations. This performs **Dead Code Elimination**, removing any variables and calculations that do not contribute to the final `@output` variable, resulting in a faster simulation.
+- **`-v` or `--verbose`**: Provides detailed feedback on the compiler's optimization process, showing you exactly which variables were moved to the pre-trial phase and which were removed by dead code elimination.
+
+**Example Usage:**
+
+```bash
+# Compile, run a fully optimized simulation, and see verbose output
+vsc my_model.vs --run -O -v
+```
+
 #### Variable Assignment (`let`)
 
 Use the `let` keyword to define variables. The compiler executes assignments sequentially and infers the type of each variable (`scalar` or `vector`).
@@ -260,12 +277,12 @@ let total_sales = sum_series(grow_series(100, 0.1, 5))
 ValuaScript supports intuitive Python-like syntax for working with vector elements.
 
 ```valuascript
-let my_vector =
+let my_vector = [100, 200, 300]
 
-let first_element = my_vector   # Accesses the first element (returns 100)
+let first_element = my_vector[0]   # Accesses the first element (returns 100)
 let last_element = my_vector[-1]    # Accesses the last element (returns 300)
 
-let vector_without_last = my_vector[:-1] # Returns a new vector
+let vector_without_last = my_vector[:-1] # Returns a new vector [100, 200]
 ```
 
 #### External Data Integration (CSV Reading)
@@ -331,7 +348,7 @@ python3 -m venv venv
 source venv/bin/activate # On Windows: .\venv\Scripts\activate.ps1
 
 # Install the compiler and its optional development dependencies
-pip install -e .
+pip install -e .[dev]
 
 # Run the tests
 pytest -v
@@ -341,7 +358,7 @@ pytest -v
 
 Adding a new function to ValuaScript is a clean, three-stage process that touches the C++ engine, the Python compiler, and their respective test suites. This ensures that every new function is not only implemented correctly but also fully validated and type-checked by the compiler.
 
-The engine's architecture now distinguishes between functions that run once (`pre_trial`) and functions that run in every simulation loop (`per_trial`). This is controlled by a simple configuration in the compiler.
+The compiler's architecture distinguishes between **deterministic** and **stochastic** functions. This is controlled by a simple boolean flag in the compiler's configuration, which it uses to perform its optimizations.
 
 Let's walk through a complete example: we will add a new function `clip(value, min_val, max_val)` that constrains a value to be within a specified range.
 
@@ -379,9 +396,9 @@ TrialValue ClipOperation::execute(const std::vector<TrialValue> &args) const
     {
         throw std::runtime_error("ClipOperation requires 3 arguments: value, min_val, max_val.");
     }
-    double value = std::get<double>(args);
-    double min_val = std::get<double>(args);
-    double max_val = std::get<double>(args);
+    double value = std::get<double>(args[0]);
+    double min_val = std::get<double>(args[1]);
+    double max_val = std::get<double>(args[2]);
     return std::clamp(value, min_val, max_val);
 }
 ```
@@ -412,26 +429,26 @@ Next, we must update the compiler's configuration so it can validate calls to `c
 **2.1. Add the Function Signature**
 
 Open the compiler's static configuration file:
-**File:** `compiler/vsc/config.py`
+**File:** `vsc/config.py`
 
-Find the `FUNCTION_SIGNATURES` dictionary and add an entry for `"clip"`. This entry tells the validator everything it needs to know: its arguments, their types, its return type, and crucially, when it should be executed.
+Find the `FUNCTION_SIGNATURES` dictionary and add an entry for `"clip"`. This entry tells the validator everything it needs to know: its arguments, their types, its return type, and crucially, whether its output is deterministic.
 
 ```python
-# In compiler/vsc/config.py, inside FUNCTION_SIGNATURES
+# In vsc/config.py, inside FUNCTION_SIGNATURES
 
 FUNCTION_SIGNATURES = {
     # ... other functions
-    "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar", "execution_phase": "per_trial", "doc": {}},
+    "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar", "is_stochastic": True, "doc": {}},
 
     # Add our new signature here (alphabetically)
-    "clip": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar", "execution_phase": "per_trial", "doc": {"summary": "Constrains a scalar value to be within a specified range.", "params": [{"name": "value", "desc": "The scalar value to clip."}, {"name": "min_val", "desc": "The minimum allowed value."}, {"name": "max_val", "desc": "The maximum allowed value."}], "returns": "The clipped scalar value."}},
+    "clip": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar", "is_stochastic": False, "doc": {"summary": "Constrains a scalar value to be within a specified range.", "params": [{"name": "value", "desc": "The scalar value to clip."}, {"name": "min_val", "desc": "The minimum allowed value."}, {"name": "max_val", "desc": "The maximum allowed value."}], "returns": "The clipped scalar value."}},
 
-    "compound_series": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "vector", "execution_phase": "per_trial", "doc": {}},
+    "compound_series": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "vector", "is_stochastic": False, "doc": {}},
     # ... other functions
 }
 ```
 
-- **`"execution_phase": "per_trial"`**: This is critical. We tag `clip` as a `per_trial` function because its logic needs to be executed inside every simulation loop. For data loading functions like `read_csv_vector`, this would be `"pre_trial"`. The compiler automatically handles partitioning the steps based on this tag.
+- **`"is_stochastic": False`**: This is the critical flag. We mark `clip` as deterministic because its output is predictable given the same inputs. The compiler uses this information to perform **Loop-Invariant Code Motion**, automatically moving any call to this function to the `pre_trial` phase if all its inputs are also deterministic. Conversely, functions like `Normal` are marked `"is_stochastic": True`, which "taints" any variable that depends on them, ensuring they are always re-calculated in the `per_trial` simulation loop.
 
 ---
 
@@ -455,7 +472,7 @@ The project is actively developed. Our current roadmap prioritizes practical uti
 The first official production release of ValuaScript. Features include:
 
 - Core C++ Engine (`vse`) & Python Compiler (`vsc`).
-- Compiler with full static type inference & robust, user-friendly error reporting.
+- Compiler with full static type inference, intelligent warnings, and powerful optimizations (Loop-Invariant Code Motion & Dead Code Elimination).
 - Streamlined `--run` flag for a one-step compile-and-execute workflow.
 - Instant data visualization via the `--plot` flag.
 - Data export to CSV via the `@output_file` directive.
@@ -473,16 +490,16 @@ The first official production release of ValuaScript. Features include:
   - **Why:** Models often require inputs that follow a specific, but not standard, distribution. Instead of forcing users to guess (`Normal`? `Lognormal`?), this feature would allow them to create a custom sampler directly from a real-world data series (e.g., historical oil prices, stock returns). This grounds the simulation in empirical evidence, significantly improving model realism.
   - **User-Facing Syntax (Example):**
 
-    ```valuascript
-    # 1. Read the historical data from a CSV file.
-    let oil_price_history = read_csv_vector("data/oil_prices.csv", "Price")
+  ```valuascript
+  # 1. Read the historical data from a CSV file.
+  let oil_price_history = read_csv_vector("data/oil_prices.csv", "Price")
 
-    # 2. Create a custom sampler based on that data's distribution.
-    let oil_price_sampler = create_sampler_from_data(oil_price_history)
+  # 2. Create a custom sampler based on that data's distribution.
+  let oil_price_sampler = create_sampler_from_data(oil_price_history)
 
-    # 3. Use the sampler like any other distribution (e.g., Normal, Pert).
-    let future_oil_price = oil_price_sampler()
-    ```
+  # 3. Use the sampler like any other distribution (e.g., Normal, Pert).
+  let future_oil_price = oil_price_sampler()
+  ```
 
 ### 🚀 Tier 2: Advanced Language Features
 
@@ -491,19 +508,19 @@ The first official production release of ValuaScript. Features include:
   - **Why:** To allow users to create reusable, importable functions and organize complex models into clean, encapsulated modules. This promotes cleaner, more abstract, and more scalable models, avoiding code duplication.
   - **User-Facing Syntax (Example):**
 
-    ```valuascript
-    // In modules/my_utils.vs
-    @export func calculate_npv_of_series(rate: scalar, cashflows: vector) -> scalar {
-        let present_value = npv(rate, cashflows)
-        return present_value
-    }
+  ```valuascript
+  // In modules/my_utils.vs
+  @export func calculate_npv_of_series(rate: scalar, cashflows: vector) -> scalar {
+      let present_value = npv(rate, cashflows)
+      return present_value
+  }
 
-    // In main_model.vs
-    @import "modules/my_utils.vs"
-    let discount_rate = 0.08
-    let project_cashflows =
-    let final_npv = calculate_npv_of_series(discount_rate, project_cashflows)
-    ```
+  // In main_model.vs
+  @import "modules/my_utils.vs"
+  let discount_rate = 0.08
+  let project_cashflows = [10, 12, 15]
+  let final_npv = calculate_npv_of_series(discount_rate, project_cashflows)
+  ```
 
 ### 🌌 V-Next: The "Blue Sky" Goal (JIT Compilation)
 
