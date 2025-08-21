@@ -140,3 +140,84 @@ def test_all_function_arities(base_script, func, provided_argc):
     expected_error = f"Function '{func}' expects {expected_argc} argument"
     with pytest.raises(ValuaScriptError, match=expected_error):
         validate_valuascript(script)
+
+
+# ==============================================================================
+# TESTS FOR LOOP-INVARIANT CODE MOTION OPTIMIZATION
+# ==============================================================================
+
+
+@pytest.mark.parametrize(
+    "script_body, expected_pre_trial, expected_per_trial",
+    [
+        pytest.param("let x = 10\nlet y = x + 5", ["x", "y"], [], id="all_deterministic"),
+        pytest.param("let x = Normal(1,1)\nlet y = Pert(1,2,3)", [], ["x", "y"], id="all_stochastic"),
+        pytest.param("let x = 100\nlet y = Normal(x, 10)", ["x"], ["y"], id="deterministic_feeds_stochastic"),
+        pytest.param("let x = Normal(1,1)\nlet y = x + 10\nlet z = y * 2", [], ["x", "y", "z"], id="stochastic_taints_chain"),
+        pytest.param("let result = 10 + Normal(1, 0.1)", [], ["result"], id="bugfix_nested_stochastic_in_expr"),
+        pytest.param("let x = 10\nlet y = log(x)\nlet z = Normal(y, 1)", ["x", "y"], ["z"], id="deterministic_chain_feeds_stochastic"),
+        pytest.param("let sto = Normal(1,1)\nlet result = log(sto)", [], ["sto", "result"], id="deterministic_func_with_stochastic_arg"),
+        pytest.param("let a = Normal(1,1)\nlet b = Normal(2,2)\nlet c = a + b", [], ["a", "b", "c"], id="expr_with_multiple_stochastic_vars"),
+        pytest.param(
+            """
+            let sto = Normal(1,1)
+            let det = 100
+            let result = sto + det
+            """,
+            ["det"],
+            ["sto", "result"],
+            id="simple_mix_with_dependency",
+        ),
+        pytest.param("let unused_sto = Normal(1,1)\nlet result = 10", ["result"], ["unused_sto"], id="unused_stochastic_variable"),
+        pytest.param("let unused_det = 100\nlet result = Normal(1,1)", ["unused_det"], ["result"], id="unused_deterministic_variable"),
+        pytest.param(
+            """
+            let det1 = 10
+            let det2 = 20
+            let sto1 = Normal(1, 1)
+            let det3 = det1 + det2
+            let sto2 = sto1 + det1
+            let sto3 = Pert(1, det3, 3)
+            let result = sto2 + sto3
+            """,
+            ["det1", "det2", "det3"],
+            ["sto1", "sto2", "sto3", "result"],
+            id="complex_mixed_dependency_graph",
+        ),
+        pytest.param(
+            # Data loading functions are deterministic and should always be pre-trial
+            'let data = read_csv_vector("p.csv", "c")',
+            ["data"],
+            [],
+            id="data_loading_is_always_pre_trial",
+        ),
+        pytest.param(
+            """
+            let historical_data = [1,2,3]
+            let mean_val = historical_data[0]
+            let result = Normal(mean_val, 1)
+            """,
+            ["historical_data", "mean_val"],
+            ["result"],
+            id="pre_trial_vector_access_feeds_stochastic",
+        ),
+    ],
+)
+def test_optimization_step_partitioning(script_body, expected_pre_trial, expected_per_trial):
+    """
+    Validates that the compiler correctly partitions execution steps into
+    pre-trial (deterministic) and per-trial (stochastic) phases.
+    """
+    # We must have a valid output variable, even if it's not the main focus of the test.
+    # We choose the last defined variable as the output for simplicity.
+    last_var = script_body.strip().split("\n")[-1].split("=")[0].replace("let", "").strip()
+    script = f"@iterations=1\n@output={last_var}\n{script_body}"
+
+    recipe = validate_valuascript(script)
+    assert recipe is not None, "Compilation failed unexpectedly"
+
+    actual_pre_trial_vars = [step["result"] for step in recipe["pre_trial_steps"]]
+    actual_per_trial_vars = [step["result"] for step in recipe["per_trial_steps"]]
+
+    assert set(actual_pre_trial_vars) == set(expected_pre_trial)
+    assert set(actual_per_trial_vars) == set(expected_per_trial)

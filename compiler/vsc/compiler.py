@@ -156,11 +156,22 @@ def _find_stochastic_variables(execution_steps, dependents):
     stochastic_vars = set()
     queue = deque()
 
-    # 1. Find the initial sources of stochasticity from function calls
+    def _expression_is_stochastic(expression_dict):
+        """Recursively checks if any function call within an expression is stochastic."""
+        if not isinstance(expression_dict, dict):
+            return False
+        func_name = expression_dict.get("function")
+        if func_name and FUNCTION_SIGNATURES.get(func_name, {}).get("is_stochastic", False):
+            return True
+        for arg in expression_dict.get("args", []):
+            if _expression_is_stochastic(arg):
+                return True
+        return False
+
+    # 1. Find initial sources of stochasticity by recursively checking expressions
     for step in execution_steps:
         if step.get("type") == "execution_assignment":
-            func_name = step.get("function")
-            if FUNCTION_SIGNATURES[func_name].get("is_stochastic", False):
+            if _expression_is_stochastic(step):
                 var_name = step["result"]
                 if var_name not in stochastic_vars:
                     stochastic_vars.add(var_name)
@@ -299,15 +310,8 @@ def validate_valuascript(script_content: str, context="cli"):
 
     pre_trial_steps_raw, per_trial_steps_raw = [], []
     for step in raw_recipe["execution_steps"]:
-        # Data loading functions are special; they *must* be pre-trial.
-        func_name = step.get("function")
-        is_data_loader = func_name and func_name.startswith("read_csv")
-
-        if step["result"] in stochastic_vars or is_data_loader == False and step["result"] not in stochastic_vars:
-            if step["result"] not in stochastic_vars and not is_data_loader:
-                pre_trial_steps_raw.append(step)
-            else:
-                per_trial_steps_raw.append(step)
+        if step["result"] in stochastic_vars:
+            per_trial_steps_raw.append(step)
         else:
             pre_trial_steps_raw.append(step)
 
