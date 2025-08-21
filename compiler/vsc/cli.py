@@ -28,6 +28,8 @@ def main():
         parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file.")
         parser.add_argument("--run", action="store_true", help="Execute the simulation engine after a successful compilation.")
         parser.add_argument("--plot", action="store_true", help="Generate and display a histogram of the simulation results.")
+        parser.add_argument("-O", "--optimize", action="store_true", help="Enable aggressive optimizations like Dead Code Elimination.")
+        parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output during compilation.")
         parser.add_argument("--engine-path", help="Explicit path to the 'vse' executable.")
         parser.add_argument("--lsp", action="store_true", help="Run the language server.")
         args = parser.parse_args()
@@ -49,7 +51,7 @@ def main():
                 script_content = f.read()
 
             print(f"--- Compiling {script_path} -> {output_file_path} ---")
-            final_recipe = validate_valuascript(script_content)
+            final_recipe = validate_valuascript(script_content, optimize=args.optimize, verbose=args.verbose)
 
             with open(output_file_path, "w") as f:
                 f.write(json.dumps(final_recipe, indent=2))

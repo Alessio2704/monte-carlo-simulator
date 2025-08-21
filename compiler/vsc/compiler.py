@@ -111,6 +111,23 @@ class ValuaScriptTransformer(Transformer):
 # ==============================================================================
 
 
+def _find_live_variables(output_var, dependencies):
+    """
+    Performs a backward traversal from the output variable to find all "live" variables.
+    Any variable not in this set is "dead code" and can be eliminated.
+    """
+    live_vars = set()
+    queue = deque([output_var])
+    while queue:
+        current_var = queue.popleft()
+        if current_var not in live_vars:
+            live_vars.add(current_var)
+            # Add all dependencies of the current variable to the queue
+            for dep in dependencies.get(current_var, []):
+                queue.append(dep)
+    return live_vars
+
+
 def _get_dependencies_from_arg(arg):
     """Recursively find all variable dependencies within a single argument."""
     deps = set()
@@ -218,7 +235,7 @@ def _topological_sort_steps(steps, dependencies):
     return [step_map[var] for var in sorted_vars]
 
 
-def validate_valuascript(script_content: str, context="cli"):
+def validate_valuascript(script_content: str, context="cli", optimize=False, verbose=False):
     if context == "lsp" and not script_content.strip():
         return None
     for i, line in enumerate(script_content.splitlines()):
@@ -291,21 +308,45 @@ def validate_valuascript(script_content: str, context="cli"):
         line = directives["output"]["line"]
         raise ValuaScriptError(f"L{line}: The final @output variable '{output_var}' is not defined.")
 
-    all_defined = set(defined_vars.keys())
-    unused = all_defined - used_vars
-    if output_var in unused:
-        unused.remove(output_var)
-    if unused and context != "lsp":
-        print(f"\n{TerminalColors.YELLOW}--- Compiler Warnings ---{TerminalColors.RESET}")
-        for var in sorted(list(unused)):
-            line_num = defined_vars[var]["line"]
-            print(f"{TerminalColors.YELLOW}Warning: Variable '{var}' was defined on line {line_num} but was never used.{TerminalColors.RESET}")
+    # --- STAGE 3.5: Pre-Optimization Analysis ---
+    all_original_vars = {step["result"] for step in raw_recipe["execution_steps"]}
+    dependencies, dependents = _build_dependency_graph(raw_recipe["execution_steps"])
+    live_variables = _find_live_variables(output_var, dependencies)
+
+    # Dead Code Elimination (if --optimize is enabled)
+    if optimize:
+        print("\n--- Running Dead Code Elimination ---")
+        original_step_count = len(raw_recipe["execution_steps"])
+
+        # Filter the steps to keep only the ones that define a "live" variable
+        raw_recipe["execution_steps"] = [step for step in raw_recipe["execution_steps"] if step["result"] in live_variables]
+
+        removed_count = original_step_count - len(raw_recipe["execution_steps"])
+        if removed_count > 0:
+            if verbose:
+                removed_vars = sorted(list(all_original_vars - live_variables))
+                print(f"Optimization complete: Removed {removed_count} unused variable(s): {', '.join(removed_vars)}")
+            else:
+                print(f"Optimization complete: Removed {removed_count} unused variable assignment(s).")
+        else:
+            print("Optimization complete: No unused variables found to remove.")
+
+        # Re-build dependency graphs with the reduced step list for the next stage
+        dependencies, dependents = _build_dependency_graph(raw_recipe["execution_steps"])
+
+    # Unused Variable Warnings (if not optimizing)
+    else:
+        unused_vars = all_original_vars - live_variables
+        if unused_vars and context != "lsp":
+            print(f"\n{TerminalColors.YELLOW}--- Compiler Warnings ---{TerminalColors.RESET}")
+            for var in sorted(list(unused_vars)):
+                line_num = defined_vars[var]["line"]
+                print(f"{TerminalColors.YELLOW}Warning: Variable '{var}' was defined on line {line_num} but was never used.{TerminalColors.RESET}")
 
     # --- Stage 4: Loop-Invariant Code Motion Optimization ---
     if context != "lsp":
         print(f"\n--- Running Compiler Optimizations ---")
 
-    dependencies, dependents = _build_dependency_graph(raw_recipe["execution_steps"])
     stochastic_vars = _find_stochastic_variables(raw_recipe["execution_steps"], dependents)
 
     pre_trial_steps_raw, per_trial_steps_raw = [], []
@@ -320,7 +361,11 @@ def validate_valuascript(script_content: str, context="cli"):
     pre_trial_steps = _topological_sort_steps(pre_trial_steps_raw, pre_trial_dependencies)
 
     if context != "lsp":
-        print(f"Optimization complete: Moved {len(pre_trial_steps)} deterministic step(s) to the pre-trial phase.")
+        if verbose and pre_trial_steps:
+            moved_vars = sorted([step["result"] for step in pre_trial_steps])
+            print(f"Optimization complete: Moved {len(pre_trial_steps)} deterministic step(s) to the pre-trial phase: {', '.join(moved_vars)}")
+        else:
+            print(f"Optimization complete: Moved {len(pre_trial_steps)} deterministic step(s) to the pre-trial phase.")
 
     # --- Stage 5: Final JSON Recipe Generation ---
     def _process_arg_for_json(arg):
