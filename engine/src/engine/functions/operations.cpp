@@ -174,10 +174,9 @@ inline std::vector<double> power_scalar_vector_simd(double scalar, const std::ve
 }
 
 // =====================================================================================
-// == GENERIC "SLOW PATH" HELPERS (Your original code)
+// == GENERIC "SLOW PATH" HELPERS
 // =====================================================================================
 
-// Helper to perform a variadic operation on a list of scalars
 inline double perform_variadic_op(OpCode code, const std::vector<double> &values)
 {
     if (values.empty())
@@ -211,7 +210,6 @@ inline double perform_variadic_op(OpCode code, const std::vector<double> &values
     return accumulator;
 }
 
-// This is a binary visitor for std::visit. It serves as the flexible fallback.
 struct ElementWiseVisitor
 {
     OpCode code;
@@ -269,13 +267,11 @@ TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) c
         return args[0];
 
     // --- FAST PATH DISPATCHER ---
-    // Specialize for the most common and expensive binary operations.
     if (args.size() == 2)
     {
         const auto &left = args[0];
         const auto &right = args[1];
 
-        // Case 1: vector op vector
         if (std::holds_alternative<std::vector<double>>(left) && std::holds_alternative<std::vector<double>>(right))
         {
             const auto &vec_left = std::get<std::vector<double>>(left);
@@ -299,7 +295,6 @@ TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) c
                 break; // Fall through for any other op code
             }
         }
-        // Case 2: vector op scalar
         else if (std::holds_alternative<std::vector<double>>(left) && std::holds_alternative<double>(right))
         {
             const auto &vec = std::get<std::vector<double>>(left);
@@ -320,7 +315,6 @@ TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) c
                 break;
             }
         }
-        // Case 3: scalar op vector
         else if (std::holds_alternative<double>(left) && std::holds_alternative<std::vector<double>>(right))
         {
             double scalar = std::get<double>(left);
@@ -344,8 +338,6 @@ TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) c
     }
 
     // --- SLOW PATH (FALLBACK) ---
-    // If no fast path was matched (e.g., all-scalar, 3+ args, or unspecialized op),
-    // use the original, flexible std::visit logic.
     bool has_vector = false;
     for (const auto &arg : args)
     {
@@ -373,7 +365,6 @@ TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) c
     return accumulator;
 }
 
-// --- Concrete Operation Implementations ---
 AddOperation::AddOperation() : VariadicBaseOperation(OpCode::ADD) {}
 SubtractOperation::SubtractOperation() : VariadicBaseOperation(OpCode::SUBTRACT) {}
 MultiplyOperation::MultiplyOperation() : VariadicBaseOperation(OpCode::MULTIPLY) {}
@@ -429,45 +420,55 @@ TrialValue GrowSeriesOperation::execute(const std::vector<TrialValue> &args) con
     double base_val = std::get<double>(args[0]);
     double growth_rate = std::get<double>(args[1]);
     int num_years = static_cast<int>(std::get<double>(args[2]));
-    std::vector<double> series;
-    series.reserve(num_years);
+
+    std::vector<double> series(num_years); // Pre-allocate
     double current_val = base_val;
+    double growth_factor = 1.0 + growth_rate;
     for (int i = 0; i < num_years; ++i)
     {
-        current_val *= (1.0 + growth_rate);
-        series.push_back(current_val);
+        current_val *= growth_factor;
+        series[i] = current_val;
     }
     return series;
 }
+
 TrialValue CompoundSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
         throw std::runtime_error("Function 'compound_series' requires 2 arguments.");
     double base_val = std::get<double>(args[0]);
     const auto &growth_rates = std::get<std::vector<double>>(args[1]);
-    std::vector<double> series;
-    series.reserve(growth_rates.size());
+
+    std::vector<double> series(growth_rates.size()); // Pre-allocate
     double current_val = base_val;
-    for (const auto &rate : growth_rates)
+    for (size_t i = 0; i < growth_rates.size(); ++i)
     {
-        current_val *= (1.0 + rate);
-        series.push_back(current_val);
+        current_val *= (1.0 + growth_rates[i]);
+        series[i] = current_val;
     }
     return series;
 }
+
 TrialValue NpvOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
         throw std::runtime_error("Function 'npv' requires 2 arguments.");
     double rate = std::get<double>(args[0]);
     const auto &cashflows = std::get<std::vector<double>>(args[1]);
+
     double npv = 0.0;
-    for (size_t i = 0; i < cashflows.size(); ++i)
+    double discount_factor = 1.0 + rate;
+    if (discount_factor == 0.0)
+        throw std::runtime_error("Discount rate cannot be -100% (-1.0).");
+
+    for (const auto &cashflow : cashflows)
     {
-        npv += cashflows[i] / std::pow(1.0 + rate, i + 1);
+        npv += cashflow / discount_factor;
+        discount_factor *= (1.0 + rate);
     }
     return npv;
 }
+
 TrialValue SumSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
@@ -514,6 +515,7 @@ TrialValue DeleteElementOperation::execute(const std::vector<TrialValue> &args) 
     }
     return result_vector;
 }
+
 TrialValue SeriesDeltaOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
@@ -521,14 +523,15 @@ TrialValue SeriesDeltaOperation::execute(const std::vector<TrialValue> &args) co
     const auto &series = std::get<std::vector<double>>(args[0]);
     if (series.empty())
         return std::vector<double>{};
-    std::vector<double> delta_series;
-    delta_series.reserve(series.size() - 1);
-    for (size_t i = 1; i < series.size(); ++i)
+
+    std::vector<double> delta_series(series.size() - 1); // Pre-allocate
+    for (size_t i = 0; i < delta_series.size(); ++i)
     {
-        delta_series.push_back(series[i] - series[i - 1]);
+        delta_series[i] = series[i + 1] - series[i];
     }
     return delta_series;
 }
+
 TrialValue ComposeVectorOperation::execute(const std::vector<TrialValue> &args) const
 {
     std::vector<double> composed_vector;
@@ -539,6 +542,7 @@ TrialValue ComposeVectorOperation::execute(const std::vector<TrialValue> &args) 
     }
     return composed_vector;
 }
+
 TrialValue InterpolateSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
@@ -550,13 +554,13 @@ TrialValue InterpolateSeriesOperation::execute(const std::vector<TrialValue> &ar
         return std::vector<double>{};
     if (num_years == 1)
         return std::vector<double>{end_value};
-    std::vector<double> series;
-    series.reserve(num_years);
+
+    std::vector<double> series(num_years); // Pre-allocate
     double total_diff = end_value - start_value;
     double step = total_diff / (num_years - 1);
     for (int i = 0; i < num_years; ++i)
     {
-        series.push_back(start_value + i * step);
+        series[i] = start_value + i * step;
     }
     return series;
 }
