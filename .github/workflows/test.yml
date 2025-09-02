@@ -31,10 +31,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake
 
+      # --- Strategy to avoid a github actions error (to be fixed by github) ---
       - name: Install C++ Build Tools (macOS)
         if: runner.os == 'macOS'
-        run: brew install cmake
-
+        run: brew uninstall cmake && brew untap local/pinned && brew install cmake
+        
       - name: Install Build Tools (Windows)
         if: runner.os == 'Windows'
         run: choco install zip
