@@ -46,9 +46,10 @@ jobs:
               cmake --build build --config Release
             "
 
+      # --- Strategy to avoid a github actions error (to be fixed by github) ---
       - name: Install C++ Build Tools (macOS)
         if: runner.os == 'macOS'
-        run: brew install cmake
+        run: brew uninstall cmake && brew untap local/pinned && brew install cmake
 
       - name: Configure CMake (macOS)
         if: runner.os == 'macOS'
