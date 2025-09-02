@@ -30,7 +30,7 @@ jobs:
             asset_name_suffix: macos-x64
             vse_name: vse
             python-version: "3.9"
-          - os: ubuntu-latest-arm64
+          - os: ubuntu-22.04-arm
             asset_name_suffix: linux-arm64
             vse_name: vse
             python-version: "3.9"
