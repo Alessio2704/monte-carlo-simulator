@@ -10,12 +10,20 @@ permissions:
 
 jobs:
   build-and-release-assets:
-    name: Build Release Assets on ${{ matrix.os }}
+    name: Build Release Assets on ${{ matrix.os }} (${{ matrix.asset_name_suffix }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os:
+          [
+            ubuntu-latest,
+            macos-latest,
+            windows-latest,
+            macos-13,
+            ubuntu-latest-arm64,
+            windows-11-arm,
+          ]
         include:
           - os: ubuntu-latest
             asset_name_suffix: linux-x64
@@ -25,6 +33,15 @@ jobs:
             vse_name: vse
           - os: windows-latest
             asset_name_suffix: windows-x64
+            vse_name: vse.exe
+          - os: macos-13
+            asset_name_suffix: macos-x64
+            vse_name: vse
+          - os: ubuntu-latest-arm64
+            asset_name_suffix: linux-arm64
+            vse_name: vse
+          - os: windows-11-arm
+            asset_name_suffix: windows-arm64
             vse_name: vse.exe
 
     steps:
@@ -66,15 +83,19 @@ jobs:
 
       - name: Install C++ Build Tools (macOS)
         if: runner.os == 'macOS'
-        run: brew install cmake
+        run: brew uninstall cmake && brew untap local/pinned && brew install cmake
 
       - name: Configure CMake (macOS)
         if: runner.os == 'macOS'
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
-      - name: Configure CMake (Windows)
-        if: runner.os == 'Windows'
+      - name: Configure CMake (Windows x64)
+        if: matrix.os == 'windows-latest'
         run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Configure CMake (Windows ARM64)
+        if: matrix.os == 'windows-11-arm'
+        run: cmake -B build -G "Visual Studio 17 2022" -A ARM64
 
       - name: Build CMake Project (non-Linux)
         if: runner.os != 'Linux'
@@ -135,7 +156,7 @@ jobs:
 
       # --- Package Python & VSCode Ext (ONCE, on Linux runner) ---
       - name: Build Python sdist and wheel for PyPI
-        if: runner.os == 'Linux'
+        if: matrix.os == 'ubuntu-latest' # Run only on one of the linux runners
         run: |
           cp README.md compiler
           pip install build
@@ -144,7 +165,7 @@ jobs:
           SETUPTOOLS_SCM_PRETEND_VERSION_FOR_VALUASCRIPT_COMPILER: ${{ env.RELEASE_VERSION }}
 
       - name: Package extension with vsce
-        if: runner.os == 'Linux'
+        if: matrix.os == 'ubuntu-latest' # Run only on one of the linux runners
         run: |
           cd extension
           npm version ${{ env.RELEASE_VERSION }} --no-git-tag-version
@@ -153,14 +174,14 @@ jobs:
 
       # --- Upload all assets as artifacts ---
       - name: Upload Python Package Artifact
-        if: runner.os == 'Linux'
+        if: matrix.os == 'ubuntu-latest' # Run only on one of the linux runners
         uses: actions/upload-artifact@v4
         with:
           name: python-package
           path: compiler/dist
 
       - name: Upload VS Code Extension Artifact
-        if: runner.os == 'Linux'
+        if: matrix.os == 'ubuntu-latest' # Run only on one of the linux runners
         uses: actions/upload-artifact@v4
         with:
           name: vsix-package
@@ -201,6 +222,9 @@ jobs:
             artifacts/release-asset-linux-x64/*.zip
             artifacts/release-asset-macos-arm64/*.zip
             artifacts/release-asset-windows-x64/*.zip
+            artifacts/release-asset-macos-x64/*.zip
+            artifacts/release-asset-linux-arm64/*.zip
+            artifacts/release-asset-windows-arm64/*.zip
             artifacts/vsix-package/*.vsix
           body: |
             Official release of the ValuaScript toolchain.
