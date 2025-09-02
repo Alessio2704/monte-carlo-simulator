@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build on ${{ matrix.os }}
+    name: Build and Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -18,47 +18,70 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
 
+      - name: Get version from Git tag
+        shell: bash
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
       # --- Build C++ Engine (vse) ---
-      - name: Install C++ Build Tools (Linux)
+      - name: Build C++ Engine (Linux via Docker)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake
+          docker run --rm -v ${{ github.workspace }}:/workspace \
+            ubuntu:22.04 \
+            bash -c "
+              set -e
+              apt-get update && apt-get install -y build-essential cmake git
+              cd /workspace
+              echo '--- Configuring CMake inside container ---'
+              cmake -B build -DCMAKE_BUILD_TYPE=Release
+              echo '--- Building project inside container ---'
+              cmake --build build --config Release
+            "
 
-      # --- Strategy to avoid a github actions error (to be fixed by github) ---
       - name: Install C++ Build Tools (macOS)
         if: runner.os == 'macOS'
-        run: brew uninstall cmake && brew untap local/pinned && brew install cmake
-        
-      - name: Install Build Tools (Windows)
-        if: runner.os == 'Windows'
-        run: choco install zip
+        run: brew install cmake
 
-      - name: Configure CMake (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: cmake -B build
+      - name: Configure CMake (macOS)
+        if: runner.os == 'macOS'
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
-        run: cmake -B build -G "Ninja"
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
 
-      - name: Build CMake Project
+      - name: Build CMake Project (non-Linux)
+        if: runner.os != 'Linux'
         run: cmake --build build --config Release
 
       # --- Run C++ Engine Tests ---
-      - name: Run Engine Tests (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: Run Engine Tests (macOS)
+        if: runner.os == 'macOS'
         run: ./build/bin/run_tests
+
+      - name: Run C++ Engine Tests (Linux via Docker)
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace \
+            ubuntu:22.04 \
+            bash -c "
+              set -e
+              cd /workspace
+              echo '--- Running C++ tests inside container ---'
+              ./build/bin/run_tests
+            "
 
       - name: Run Engine Tests (Windows)
         if: runner.os == 'Windows'
-        run: .\build\bin\run_tests.exe
+        run: .\build\bin\Release\run_tests.exe
 
       # --- Install Python dependencies and Run Compiler Tests ---
       - name: Install Python Dependencies & Run Tests
