@@ -12,22 +12,45 @@ REPO="Alessio2704/monte-carlo-simulator"
 OS_TYPE="$(uname -s)"
 CPU_ARCH="$(uname -m)"
 
+echo "Detected OS: $OS_TYPE"
+echo "Detected Arch: $CPU_ARCH"
+
 case "$OS_TYPE" in
     Linux)
-        ENGINE_ASSET_SUFFIX="linux-x64"
+        case "$CPU_ARCH" in
+            x86_64)
+                ENGINE_ASSET_SUFFIX="linux-x64"
+                ;;
+            aarch64)
+                ENGINE_ASSET_SUFFIX="linux-arm64"
+                ;;
+            *)
+                echo "Error: Unsupported Linux architecture '$CPU_ARCH'."
+                exit 1
+                ;;
+        esac
         ;;
     Darwin)
-        if [ "$CPU_ARCH" = "arm64" ]; then
-            ENGINE_ASSET_SUFFIX="macos-arm64"
-        else
-            ENGINE_ASSET_SUFFIX="macos-x64"
-        fi
+        case "$CPU_ARCH" in
+            x86_64)
+                ENGINE_ASSET_SUFFIX="macos-x64"
+                ;;
+            arm64)
+                ENGINE_ASSET_SUFFIX="macos-arm64"
+                ;;
+            *)
+                echo "Error: Unsupported macOS architecture '$CPU_ARCH'."
+                exit 1
+                ;;
+        esac
         ;;
     *)
         echo "Error: Unsupported operating system '$OS_TYPE'."
         exit 1
         ;;
 esac
+
+echo "Using release asset suffix: $ENGINE_ASSET_SUFFIX"
 
 # --- Fetch Latest Release URLs ---
 echo "Fetching latest release information from GitHub..."

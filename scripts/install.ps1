@@ -5,7 +5,24 @@ Write-Host "Welcome to the ValuaScript Installer for Windows!"
 # --- Configuration ---
 $Repo = "Alessio2704/monte-carlo-simulator"
 $InstallDir = [System.Environment]::GetFolderPath('MyDocuments') + "\ValuaScript-Tools"
-$AssetSuffix = "windows-x64"
+
+# --- Detect Architecture ---
+$AssetSuffix = ""
+Write-Host "Detecting system architecture..."
+switch ($env:PROCESSOR_ARCHITECTURE) {
+    "AMD64" {
+        $AssetSuffix = "windows-x64"
+    }
+    "ARM64" {
+        $AssetSuffix = "windows-arm64"
+    }
+    default {
+        Write-Error "Error: Unsupported Windows architecture '$($env:PROCESSOR_ARCHITECTURE)'."
+        exit 1
+    }
+}
+Write-Host "Detected architecture: $($env:PROCESSOR_ARCHITECTURE). Using asset suffix: $AssetSuffix"
+
 
 # --- Fetch Latest Release ---
 Write-Host "Fetching latest release..."
@@ -45,7 +62,6 @@ try {
     Write-Host "Installing/upgrading pipx..."
     python -m pip install --user -q --upgrade pipx
     
-    # --- THIS IS THE KEY FIX ---
     # Find the Python user 'Scripts' directory and add it to this script's PATH.
     # This makes the 'pipx' command available immediately for the next steps.
     Write-Host "Making pipx available to the current session..."
