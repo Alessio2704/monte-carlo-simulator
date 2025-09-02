@@ -11,12 +11,11 @@
 class LiteralAssignmentStep : public IExecutionStep
 {
 public:
-    LiteralAssignmentStep(const std::string &result_name, TrialValue value);
-
+    LiteralAssignmentStep(size_t result_index, TrialValue value);
     void execute(TrialContext &context) const override;
 
 private:
-    std::string m_result_name;
+    size_t m_result_index;
     TrialValue m_value;
 };
 
@@ -24,22 +23,23 @@ private:
 class ExecutionAssignmentStep : public IExecutionStep
 {
 public:
-    // The factory type, defined here for convenience
     using ExecutableFactory = std::unordered_map<std::string, std::function<std::unique_ptr<IExecutable>()>>;
 
     ExecutionAssignmentStep(
-        const std::string &result_name,
+        size_t result_index,
         std::unique_ptr<IExecutable> logic,
         const std::vector<json> &args,
-        const ExecutableFactory &factory);
-
+        const ExecutableFactory &factory,
+        const std::unordered_map<std::string, size_t> &variable_registry);
     void execute(TrialContext &context) const override;
 
 private:
-    std::string m_result_name;
+    size_t m_result_index;
     std::unique_ptr<IExecutable> m_logic;
+
+    TrialValue resolve_value(const json &arg, const TrialContext &context) const;
+
     std::vector<json> m_args;
     const ExecutableFactory &m_factory_ref;
-
-    TrialValue resolve_value_recursively(const json &arg, const TrialContext &context) const;
+    const std::unordered_map<std::string, size_t> &m_variable_registry_ref;
 };

@@ -2,7 +2,6 @@
 #include "include/engine/functions/operations.h"
 #include "include/engine/functions/samplers.h"
 #include "include/engine/core/ExecutionSteps.h"
-
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <stdexcept>
@@ -16,6 +15,7 @@ SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
 {
     build_executable_factory();
     parse_recipe(json_recipe_path);
+    build_variable_registry();
     run_pre_trial_phase();
     build_per_trial_steps();
 }
@@ -74,9 +74,6 @@ void SimulationEngine::build_executable_factory()
     { return std::make_unique<ReadCsvScalarOperation>(); };
     m_executable_factory["read_csv_vector"] = []
     { return std::make_unique<ReadCsvVectorOperation>(); };
-
-    m_executable_factory["series_delta"] = []
-    { return std::make_unique<SeriesDeltaOperation>(); };
 
     // Distribution Samplers
     m_executable_factory["Normal"] = []
@@ -176,10 +173,47 @@ void SimulationEngine::parse_recipe(const std::string &path)
     }
 }
 
+void SimulationEngine::build_variable_registry()
+{
+    size_t current_index = 0;
+    auto register_variable_if_new = [&](const std::string &name)
+    {
+        if (m_variable_registry.find(name) == m_variable_registry.end())
+        {
+            m_variable_registry[name] = current_index++;
+        }
+    };
+
+    // Iterate through ALL steps in the recipe to find every variable name
+    for (const auto &step_def_variant : m_recipe.pre_trial_steps)
+    {
+        std::visit([&](auto &&step_def)
+                   { register_variable_if_new(step_def.result_name); },
+                   step_def_variant);
+    }
+    for (const auto &step_def_variant : m_recipe.per_trial_steps)
+    {
+        std::visit([&](auto &&step_def)
+                   { register_variable_if_new(step_def.result_name); },
+                   step_def_variant);
+    }
+
+    // Find the index for the final output variable
+    auto it = m_variable_registry.find(m_recipe.output_variable);
+    if (it == m_variable_registry.end())
+    {
+        throw std::runtime_error("Output variable '" + m_recipe.output_variable + "' is not defined in any step.");
+    }
+    m_output_variable_index = it->second;
+
+    // Pre-allocate the context vector to the final determined size
+    m_preloaded_context_vector.resize(m_variable_registry.size());
+}
+
 void SimulationEngine::run_pre_trial_phase()
 {
     std::cout << "\n--- Running Pre-Trial Phase ---" << std::endl;
-    // This method builds and executes pre-trial steps immediately.
+    // This method executes steps against the pre-allocated vector context.
     for (const auto &step_def_variant : m_recipe.pre_trial_steps)
     {
         std::visit([this](auto &&step_def)
@@ -187,8 +221,11 @@ void SimulationEngine::run_pre_trial_phase()
             using T = std::decay_t<decltype(step_def)>;
             std::unique_ptr<IExecutionStep> step_to_execute;
 
+            // Get the index for the result variable.
+            size_t result_index = m_variable_registry.at(step_def.result_name);
+
             if constexpr (std::is_same_v<T, LiteralAssignmentDef>) {
-                step_to_execute = std::make_unique<LiteralAssignmentStep>(step_def.result_name, step_def.value);
+                step_to_execute = std::make_unique<LiteralAssignmentStep>(result_index, step_def.value);
             } else if constexpr (std::is_same_v<T, ExecutionAssignmentDef>) {
                 auto it = m_executable_factory.find(step_def.function_name);
                 if (it == m_executable_factory.end()) {
@@ -196,14 +233,14 @@ void SimulationEngine::run_pre_trial_phase()
                 }
                 auto executable_logic = it->second();
                 step_to_execute = std::make_unique<ExecutionAssignmentStep>(
-                    step_def.result_name, std::move(executable_logic), step_def.args, m_executable_factory
+                    result_index, std::move(executable_logic), step_def.args, m_executable_factory, m_variable_registry
                 );
             }
-            // Execute the step and store the result in the preloaded context.
-            step_to_execute->execute(m_preloaded_context); },
+            // Execute the step and store the result in the preloaded context vector.
+            step_to_execute->execute(m_preloaded_context_vector); },
                    step_def_variant);
     }
-    std::cout << "Pre-trial phase complete. " << m_preloaded_context.size() << " variable(s) loaded." << std::endl;
+    std::cout << "Pre-trial phase complete. " << m_preloaded_context_vector.size() << " variable slots allocated." << std::endl;
 }
 
 void SimulationEngine::build_per_trial_steps()
@@ -214,9 +251,11 @@ void SimulationEngine::build_per_trial_steps()
                    {
             using T = std::decay_t<decltype(step_def)>;
 
+            size_t result_index = m_variable_registry.at(step_def.result_name);
+
             if constexpr (std::is_same_v<T, LiteralAssignmentDef>) {
                 m_per_trial_steps.push_back(
-                    std::make_unique<LiteralAssignmentStep>(step_def.result_name, step_def.value)
+                    std::make_unique<LiteralAssignmentStep>(result_index, step_def.value)
                 );
             } else if constexpr (std::is_same_v<T, ExecutionAssignmentDef>) {
                 auto it = m_executable_factory.find(step_def.function_name);
@@ -228,13 +267,15 @@ void SimulationEngine::build_per_trial_steps()
                 
                 m_per_trial_steps.push_back(
                     std::make_unique<ExecutionAssignmentStep>(
-                        step_def.result_name,
+                        result_index,
                         std::move(executable_logic),
                         step_def.args,
-                        m_executable_factory
+                        m_executable_factory,
+                        m_variable_registry
                     )
                 );
-            } }, step_def_variant);
+            } },
+                   step_def_variant);
     }
 }
 
@@ -245,22 +286,13 @@ void SimulationEngine::run_batch(int num_trials, std::vector<TrialValue> &result
         results.reserve(num_trials);
         for (int i = 0; i < num_trials; ++i)
         {
-            // Each trial starts with a copy of the pre-loaded context.
-            TrialContext trial_context = m_preloaded_context;
+            TrialContext trial_context = m_preloaded_context_vector;
 
             for (const auto &step : m_per_trial_steps)
             {
                 step->execute(trial_context);
             }
-            // Ensure the output variable exists before trying to access it
-            if (trial_context.count(m_recipe.output_variable))
-            {
-                results.push_back(trial_context.at(m_recipe.output_variable));
-            }
-            else
-            {
-                throw std::runtime_error("Output variable '" + m_recipe.output_variable + "' was not calculated in the simulation.");
-            }
+            results.push_back(trial_context.at(m_output_variable_index));
         }
     }
     catch (...)

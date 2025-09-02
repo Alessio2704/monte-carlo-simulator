@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include "include/engine/core/datastructures.h"
 
-using TrialContext = std::unordered_map<std::string, TrialValue>;
+using TrialContext = std::vector<TrialValue>;
 
 // Interface for a single step in the simulation's execution sequence.
 class IExecutionStep
