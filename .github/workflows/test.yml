@@ -7,40 +7,37 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
-    name: Build and Test on ${{ matrix.os }} (${{ matrix.asset_name_suffix }})
+  build-and-test-assets:
+    name: Build & Test on ${{ matrix.os }} (${{ matrix.asset_name_suffix }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          [
-            ubuntu-latest,
-            macos-latest,
-            windows-latest,
-            macos-13,
-            ubuntu-latest-arm64,
-            windows-11-arm,
-          ]
         include:
           - os: ubuntu-latest
             asset_name_suffix: linux-x64
             vse_name: vse
+            python-version: "3.9"
           - os: macos-latest
             asset_name_suffix: macos-arm64
             vse_name: vse
+            python-version: "3.9"
           - os: windows-latest
             asset_name_suffix: windows-x64
             vse_name: vse.exe
+            python-version: "3.9"
           - os: macos-13
             asset_name_suffix: macos-x64
             vse_name: vse
+            python-version: "3.9"
           - os: ubuntu-latest-arm64
             asset_name_suffix: linux-arm64
             vse_name: vse
+            python-version: "3.9"
           - os: windows-11-arm
             asset_name_suffix: windows-arm64
             vse_name: vse.exe
+            python-version: "3.12" # Using a newer version as 3.9 is not available for Win ARM64
 
     steps:
       - name: Checkout repository
@@ -51,7 +48,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: ${{ matrix.python-version }}
 
       - name: Get version from Git tag
         shell: bash
@@ -82,11 +79,11 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Configure CMake (Windows x64)
-        if: matrix.os == 'windows-latest'
+        if: matrix.asset_name_suffix == 'windows-x64'
         run: cmake -B build -G "Visual Studio 17 2022" -A x64
 
       - name: Configure CMake (Windows ARM64)
-        if: matrix.os == 'windows-11-arm'
+        if: matrix.asset_name_suffix == 'windows-arm64'
         run: cmake -B build -G "Visual Studio 17 2022" -A ARM64
 
       - name: Build CMake Project (non-Linux)
