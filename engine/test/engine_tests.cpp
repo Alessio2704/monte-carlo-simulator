@@ -32,6 +32,31 @@ std::string read_file_content(const std::string &path)
     return buffer.str();
 }
 
+// Executes a command and captures its standard output.
+std::string exec_command(const char *cmd)
+{
+    std::array<char, 128> buffer;
+    std::string result;
+
+#ifdef _WIN32
+    // Use the Windows-specific _popen and _pclose functions
+    std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd, "r"), _pclose);
+#else
+    // Use the standard POSIX popen and pclose on other systems
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+#endif
+
+    if (!pipe)
+    {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr)
+    {
+        result += buffer.data();
+    }
+    return result;
+}
+
 // =============================================================================
 // --- BASE FIXTURE FOR AUTOMATIC FILE CLEANUP ---
 // =============================================================================
@@ -69,7 +94,7 @@ class DeterministicEngineTest : public FileCleanupTest,
 class EngineSamplerTest : public FileCleanupTest
 {
 protected:
-    void RunAndAnalyze(const std::string &recipe_content, int num_trials, double expected_mean, double tolerance, bool check_bounds = false, double min_bound = 0.0, double max_bound = 0.0)
+    void RunAndAnalyze(const std::string &recipe_content, size_t num_trials, double expected_mean, double tolerance, bool check_bounds = false, double min_bound = 0.0, double max_bound = 0.0)
     {
         const std::string filename = "sampler_test.json";
         create_test_recipe(filename, recipe_content);
@@ -309,7 +334,7 @@ TEST_F(EngineErrorTests, ThrowsOnVectorSizeMismatch)
     }
     catch (const std::runtime_error &e)
     {
-        EXPECT_STREQ(e.what(), "Vector size mismatch: element-wise operation requires vectors of the same length, but got sizes 2 and 3.");
+        EXPECT_STREQ(e.what(), "L-1: In function 'add': Vector size mismatch: element-wise operation requires vectors of the same length, but got sizes 2 and 3.");
     }
     catch (...)
     {
@@ -328,7 +353,7 @@ TEST_F(EngineErrorTests, ThrowsOnInvalidPertParams)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"X","per_trial_steps":[{"type":"execution_assignment","result":"X","function":"Pert","args":[100,50,200]}]})");
     SimulationEngine engine("err.json");
-    ASSERT_THROW(engine.run(), std::invalid_argument);
+    ASSERT_THROW(engine.run(), std::runtime_error);
 }
 
 // --- Tests for Argument Count Checks ---
@@ -356,42 +381,42 @@ TEST_F(EngineErrorTests, ThrowsOnInvalidPertParams)
 
 TEST_F(EngineErrorTests, AllSamplersThrowOnIncorrectArgCount)
 {
-    TEST_ARITY("Normal", "[1.0]", "Function 'Normal' requires 2 arguments: mean, stddev.");
-    TEST_ARITY("Uniform", "[1.0, 2.0, 3.0]", "Function 'Uniform' requires 2 arguments: min, max.");
-    TEST_ARITY("Bernoulli", "[]", "Function 'Bernoulli' requires 1 argument: p.");
-    TEST_ARITY("Lognormal", "[1.0]", "Function 'Lognormal' requires 2 arguments: log_mean, log_stddev.");
-    TEST_ARITY("Beta", "[1.0]", "Function 'Beta' requires 2 arguments: alpha, beta.");
-    TEST_ARITY("Pert", "[1.0, 2.0]", "Function 'Pert' requires 3 arguments: min, mostLikely, max.");
-    TEST_ARITY("Triangular", "[1.0, 2.0, 3.0, 4.0]", "Function 'Triangular' requires 3 arguments: min, mostLikely, max.");
+    TEST_ARITY("Normal", "[1.0]", "L-1: In function 'Normal': Function 'Normal' requires 2 arguments: mean, stddev.");
+    TEST_ARITY("Uniform", "[1.0, 2.0, 3.0]", "L-1: In function 'Uniform': Function 'Uniform' requires 2 arguments: min, max.");
+    TEST_ARITY("Bernoulli", "[]", "L-1: In function 'Bernoulli': Function 'Bernoulli' requires 1 argument: p.");
+    TEST_ARITY("Lognormal", "[1.0]", "L-1: In function 'Lognormal': Function 'Lognormal' requires 2 arguments: log_mean, log_stddev.");
+    TEST_ARITY("Beta", "[1.0]", "L-1: In function 'Beta': Function 'Beta' requires 2 arguments: alpha, beta.");
+    TEST_ARITY("Pert", "[1.0, 2.0]", "L-1: In function 'Pert': Function 'Pert' requires 3 arguments: min, mostLikely, max.");
+    TEST_ARITY("Triangular", "[1.0, 2.0, 3.0, 4.0]", "L-1: In function 'Triangular': Function 'Triangular' requires 3 arguments: min, mostLikely, max.");
 }
 
 TEST_F(EngineErrorTests, AllOperationsThrowOnIncorrectArgCount)
 {
     // 1-argument functions
-    TEST_ARITY("log", "[]", "Function 'log' requires 1 argument.");
-    TEST_ARITY("log10", "[1.0, 2.0]", "Function 'log10' requires 1 argument.");
-    TEST_ARITY("exp", "[]", "Function 'exp' requires 1 argument.");
-    TEST_ARITY("sin", "[1.0, 2.0]", "Function 'sin' requires 1 argument.");
-    TEST_ARITY("cos", "[]", "Function 'cos' requires 1 argument.");
-    TEST_ARITY("tan", "[1.0, 2.0]", "Function 'tan' requires 1 argument.");
-    TEST_ARITY("identity", "[]", "Function 'identity' requires exactly 1 argument.");
-    TEST_ARITY("sum_series", "[[1,2], [3,4]]", "Function 'sum_series' requires 1 argument.");
-    TEST_ARITY("series_delta", "[]", "Function 'series_delta' requires 1 argument.");
+    TEST_ARITY("log", "[]", "L-1: In function 'log': Function 'log' requires 1 argument.");
+    TEST_ARITY("log10", "[1.0, 2.0]", "L-1: In function 'log10': Function 'log10' requires 1 argument.");
+    TEST_ARITY("exp", "[]", "L-1: In function 'exp': Function 'exp' requires 1 argument.");
+    TEST_ARITY("sin", "[1.0, 2.0]", "L-1: In function 'sin': Function 'sin' requires 1 argument.");
+    TEST_ARITY("cos", "[]", "L-1: In function 'cos': Function 'cos' requires 1 argument.");
+    TEST_ARITY("tan", "[1.0, 2.0]", "L-1: In function 'tan': Function 'tan' requires 1 argument.");
+    TEST_ARITY("identity", "[]", "L-1: In function 'identity': Function 'identity' requires exactly 1 argument.");
+    TEST_ARITY("sum_series", "[[1,2], [3,4]]", "L-1: In function 'sum_series': Function 'sum_series' requires 1 argument.");
+    TEST_ARITY("series_delta", "[]", "L-1: In function 'series_delta': Function 'series_delta' requires 1 argument.");
 
     // 2-argument functions
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"X","per_trial_steps":[{"type":"literal_assignment","result":"v","value":[1,2]},{"type":"execution_assignment","result":"X","function":"compound_series","args":["v"]}]})");
     SimulationEngine engine_cs("err.json");
     ASSERT_THROW(engine_cs.run(), std::runtime_error);
-    TEST_ARITY("npv", "[0.05, [1,2], 3.0]", "Function 'npv' requires 2 arguments.");
-    TEST_ARITY("get_element", "[1]", "Function 'get_element' requires 2 arguments.");
-    TEST_ARITY("delete_element", "[[1,2]]", "Function 'delete_element' requires 2 arguments.");
-    TEST_ARITY("read_csv_vector", R"([{"type": "string_literal", "value": "f.csv"}])", "Function 'read_csv_vector' requires 2 arguments.");
+    TEST_ARITY("npv", "[0.05, [1,2], 3.0]", "L-1: In function 'npv': Function 'npv' requires 2 arguments.");
+    TEST_ARITY("get_element", "[1]", "L-1: In function 'get_element': Function 'get_element' requires 2 arguments.");
+    TEST_ARITY("delete_element", "[[1,2]]", "L-1: In function 'delete_element': Function 'delete_element' requires 2 arguments.");
+    TEST_ARITY("read_csv_vector", R"([{"type": "string_literal", "value": "f.csv"}])", "L-1: In function 'read_csv_vector': Function 'read_csv_vector' requires 2 arguments.");
 
     // 3-argument functions
-    TEST_ARITY("grow_series", "[1, 0.1]", "Function 'grow_series' requires 3 arguments.");
-    TEST_ARITY("interpolate_series", "[1, 10, 5, 4]", "Function 'interpolate_series' requires 3 arguments.");
-    TEST_ARITY("capitalize_expense", "[1, [2,3]]", "Function 'capitalize_expense' requires 3 arguments.");
-    TEST_ARITY("read_csv_scalar", R"([{"type": "string_literal", "value": "f.csv"}, {"type": "string_literal", "value": "c"}])", "Function 'read_csv_scalar' requires 3 arguments.");
+    TEST_ARITY("grow_series", "[1, 0.1]", "L-1: In function 'grow_series': Function 'grow_series' requires 3 arguments.");
+    TEST_ARITY("interpolate_series", "[1, 10, 5, 4]", "L-1: In function 'interpolate_series': Function 'interpolate_series' requires 3 arguments.");
+    TEST_ARITY("capitalize_expense", "[1, [2,3]]", "L-1: In function 'capitalize_expense': Function 'capitalize_expense' requires 3 arguments.");
+    TEST_ARITY("read_csv_scalar", R"([{"type": "string_literal", "value": "f.csv"}, {"type": "string_literal", "value": "c"}])", "L-1: In function 'read_csv_scalar': Function 'read_csv_scalar' requires 3 arguments.");
 }
 
 TEST_F(EngineFileOutputTest, WritesScalarOutputCorrectly)
@@ -621,4 +646,105 @@ TEST_F(CsvEngineTest, ThrowsOnNonNumericData)
     })";
     create_test_recipe("err.json", recipe_content);
     ASSERT_THROW(SimulationEngine engine("err.json"), std::runtime_error);
+}
+
+// =============================================================================
+// --- TEST FIXTURE FOR PREVIEW MODE ---
+// =============================================================================
+class EnginePreviewModeTest : public FileCleanupTest
+{
+};
+
+TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForDeterministicScalar)
+{
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable": "a",
+        "per_trial_steps": [{"type": "literal_assignment", "result": "a", "value": 123.45678}]
+    })";
+    create_test_recipe("preview_test.json", recipe);
+
+#ifdef _WIN32
+    std::string command = ".\\build\\bin\\Release\\vse.exe --preview preview_test.json";
+#else
+    std::string command = "./build/bin/vse --preview preview_test.json";
+#endif
+
+    std::string output = exec_command(command.c_str());
+
+    auto json_out = nlohmann::json::parse(output);
+    EXPECT_EQ(json_out["status"], "success");
+    EXPECT_EQ(json_out["type"], "scalar");
+    EXPECT_NEAR(json_out["value"], 123.4568, 1e-5);
+}
+
+TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForStochasticScalar)
+{
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 100}, "output_variable": "a",
+        "per_trial_steps": [{"type": "execution_assignment", "result": "a", "function": "Normal", "args": [100, 0]}]
+    })";
+    create_test_recipe("preview_test.json", recipe);
+
+#ifdef _WIN32
+    std::string command = ".\\build\\bin\\Release\\vse.exe --preview preview_test.json";
+#else
+    std::string command = "./build/bin/vse --preview preview_test.json";
+#endif
+
+    std::string output = exec_command(command.c_str());
+
+    auto json_out = nlohmann::json::parse(output);
+    EXPECT_EQ(json_out["status"], "success");
+    EXPECT_EQ(json_out["type"], "scalar");
+    EXPECT_NEAR(json_out["value"], 100.0, 1e-5);
+}
+
+TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForVector)
+{
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable": "a",
+        "per_trial_steps": [{"type": "literal_assignment", "result": "a", "value": [1.11111, 2.22222, 3.33333]}]
+    })";
+    create_test_recipe("preview_test.json", recipe);
+
+#ifdef _WIN32
+    std::string command = ".\\build\\bin\\Release\\vse.exe --preview preview_test.json";
+#else
+    std::string command = "./build/bin/vse --preview preview_test.json";
+#endif
+
+    std::string output = exec_command(command.c_str());
+
+    auto json_out = nlohmann::json::parse(output);
+    EXPECT_EQ(json_out["status"], "success");
+    EXPECT_EQ(json_out["type"], "vector");
+    ASSERT_EQ(json_out["value"].size(), 3);
+    EXPECT_NEAR(json_out["value"][0], 1.1111, 1e-5);
+    EXPECT_NEAR(json_out["value"][1], 2.2222, 1e-5);
+    EXPECT_NEAR(json_out["value"][2], 3.3333, 1e-5);
+}
+
+TEST_F(EnginePreviewModeTest, OutputsErrorJsonOnRuntimeError)
+{
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable": "a",
+        "per_trial_steps": [{"type": "execution_assignment", "result": "a", "function": "divide", "args": [1, 0]}]
+    })";
+    create_test_recipe("preview_test.json", recipe);
+
+// On Windows, popen captures stdout, but stderr from the child might go to the parent's stderr.
+// On Unix, we can redirect stderr to stdout to capture it. This is the simplest cross-platform way for this test.
+#ifdef _WIN32
+    std::string command = ".\\build\\bin\\Release\\vse.exe --preview preview_test.json";
+#else
+    std::string command = "./build/bin/vse --preview preview_test.json 2>&1";
+#endif
+
+    std::string output = exec_command(command.c_str());
+
+    // In case of a runtime error, the engine should still produce a valid JSON error message.
+    auto json_out = nlohmann::json::parse(output);
+    EXPECT_EQ(json_out["status"], "error");
+    ASSERT_TRUE(json_out.contains("message"));
+    EXPECT_THAT(json_out["message"].get<std::string>(), ::testing::HasSubstr("Division by zero"));
 }

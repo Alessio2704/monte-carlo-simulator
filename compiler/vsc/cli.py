@@ -24,7 +24,7 @@ def main():
 
     try:
         parser = argparse.ArgumentParser(description="Compile a .vs file into a .json recipe.")
-        parser.add_argument("input_file", nargs="?", default=None, help="The path to the input .vs file.")
+        parser.add_argument("input_file", nargs="?", default=None, help="The path to the input .vs file. Omit to read from stdin.")
         parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file.")
         parser.add_argument("--run", action="store_true", help="Execute the simulation engine after a successful compilation.")
         parser.add_argument("--plot", action="store_true", help="Generate and display a histogram of the simulation results.")
@@ -32,6 +32,7 @@ def main():
         parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output during compilation.")
         parser.add_argument("--engine-path", help="Explicit path to the 'vse' executable.")
         parser.add_argument("--lsp", action="store_true", help="Run the language server.")
+        parser.add_argument("--preview-var", dest="preview_var", default=None, help="Generate a temporary recipe to preview a specific variable's value.")
         args = parser.parse_args()
 
         if args.lsp:
@@ -40,24 +41,33 @@ def main():
             start_server()
             return
 
-        if not args.input_file:
-            parser.error("the following arguments are required: input_file")
+        is_preview_mode = args.preview_var is not None
 
-        output_file_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json"
-        script_path = args.input_file
+        if not args.input_file and sys.stdin.isatty() and not is_preview_mode:
+            parser.error("input_file is required when not reading from a pipe or in preview mode.")
+
+        output_file_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json" if args.input_file else "stdin.json"
+
+        script_path = args.input_file or "stdin"
 
         try:
-            with open(script_path, "r") as f:
-                script_content = f.read()
+            if not args.input_file:
+                script_content = sys.stdin.read()
+            else:
+                with open(args.input_file, "r") as f:
+                    script_content = f.read()
 
-            print(f"--- Compiling {script_path} -> {output_file_path} ---")
-            final_recipe = validate_valuascript(script_content, optimize=args.optimize, verbose=args.verbose)
+            if not is_preview_mode:
+                print(f"--- Compiling {script_path} -> {output_file_path} ---")
+
+            final_recipe = validate_valuascript(script_content, optimize=is_preview_mode or args.optimize, verbose=args.verbose and not is_preview_mode, preview_variable=args.preview_var)
 
             with open(output_file_path, "w") as f:
                 f.write(json.dumps(final_recipe, indent=2))
 
-            print(f"\n{TerminalColors.GREEN}--- Compilation Successful ---{TerminalColors.RESET}")
-            print(f"Recipe written to {output_file_path}")
+            if not is_preview_mode:
+                print(f"\n{TerminalColors.GREEN}--- Compilation Successful ---{TerminalColors.RESET}")
+                print(f"Recipe written to {output_file_path}")
 
             if args.run:
                 engine_executable = find_engine_executable(args.engine_path)
@@ -65,11 +75,17 @@ def main():
                     print(f"\n{TerminalColors.RED}--- Execution Failed: Could not find the simulation engine. ---{TerminalColors.RESET}", file=sys.stderr)
                     sys.exit(1)
 
-                print(f"\n--- Running Simulation ---")
-                subprocess.run([engine_executable, output_file_path], check=True)
-                print(f"{TerminalColors.GREEN}--- Simulation Finished Successfully ---{TerminalColors.RESET}")
+                if is_preview_mode:
+                    proc = subprocess.run([engine_executable, "--preview", output_file_path], capture_output=True, text=True, check=True)
+                    # THE FIX: Use print() for more reliable output flushing in subprocesses.
+                    # The `end=''` prevents an extra newline from being added.
+                    print(proc.stdout, end="")
+                else:
+                    print(f"\n--- Running Simulation ---")
+                    subprocess.run([engine_executable, output_file_path], check=True)
+                    print(f"{TerminalColors.GREEN}--- Simulation Finished Successfully ---{TerminalColors.RESET}")
 
-                if args.plot:
+                if args.plot and not is_preview_mode:
                     output_file_from_recipe = final_recipe.get("simulation_config", {}).get("output_file")
                     if output_file_from_recipe and os.path.exists(output_file_from_recipe):
                         generate_and_show_plot(output_file_from_recipe)
@@ -89,7 +105,7 @@ def main():
             sys.exit(1)
 
     finally:
-        if "--lsp" not in sys.argv:
+        if "--lsp" not in sys.argv and "--preview-var" not in sys.argv:
             end_time = time.perf_counter()
             duration = end_time - start_time
             print(f"\n{TerminalColors.CYAN}--- Total Execution Time: {duration:.4f} seconds ---{TerminalColors.RESET}")

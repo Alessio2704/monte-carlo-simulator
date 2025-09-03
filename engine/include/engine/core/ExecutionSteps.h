@@ -27,6 +27,8 @@ public:
 
     ExecutionAssignmentStep(
         size_t result_index,
+        std::string function_name,
+        int line_num,
         std::unique_ptr<IExecutable> logic,
         const std::vector<json> &args,
         const ExecutableFactory &factory,
@@ -35,10 +37,10 @@ public:
 
 private:
     size_t m_result_index;
+    std::string m_function_name;
+    int m_line_num;
     std::unique_ptr<IExecutable> m_logic;
-
     TrialValue resolve_value(const json &arg, const TrialContext &context) const;
-
     std::vector<json> m_args;
     const ExecutableFactory &m_factory_ref;
     const std::unordered_map<std::string, size_t> &m_variable_registry_ref;

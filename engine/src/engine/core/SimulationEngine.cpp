@@ -11,7 +11,8 @@
 
 using json = nlohmann::json;
 
-SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
+SimulationEngine::SimulationEngine(const std::string &json_recipe_path, bool is_preview)
+    : m_is_preview(is_preview)
 {
     build_executable_factory();
     parse_recipe(json_recipe_path);
@@ -105,12 +106,9 @@ void SimulationEngine::parse_recipe(const std::string &path)
         throw std::runtime_error("Failed to open recipe file: " + path);
     }
     json recipe_json = json::parse(file_stream);
-
     const auto &config = recipe_json["simulation_config"];
-
     m_recipe.num_trials = config["num_trials"];
     m_recipe.output_variable = recipe_json["output_variable"];
-
     if (config.contains("output_file"))
     {
         if (config["output_file"].is_string())
@@ -119,14 +117,16 @@ void SimulationEngine::parse_recipe(const std::string &path)
         }
     }
 
-    // Helper lambda to parse a step_def from json
     auto parse_step = [](const json &step_json) -> ExecutionStepDef
     {
         std::string type = step_json["type"];
+        int line = step_json.value("line", -1);
+
         if (type == "literal_assignment")
         {
             LiteralAssignmentDef def;
             def.result_name = step_json["result"];
+            def.line = line;
             const auto &val = step_json["value"];
             if (val.is_array())
             {
@@ -148,6 +148,7 @@ void SimulationEngine::parse_recipe(const std::string &path)
             def.result_name = step_json["result"];
             def.function_name = step_json["function"];
             def.args = step_json["args"];
+            def.line = line;
             return def;
         }
         else
@@ -155,7 +156,6 @@ void SimulationEngine::parse_recipe(const std::string &path)
             throw std::runtime_error("Unknown execution step type in JSON recipe: " + type);
         }
     };
-
     if (recipe_json.contains("pre_trial_steps"))
     {
         for (const auto &step_json : recipe_json["pre_trial_steps"])
@@ -163,7 +163,6 @@ void SimulationEngine::parse_recipe(const std::string &path)
             m_recipe.pre_trial_steps.push_back(parse_step(step_json));
         }
     }
-
     if (recipe_json.contains("per_trial_steps"))
     {
         for (const auto &step_json : recipe_json["per_trial_steps"])
@@ -172,7 +171,6 @@ void SimulationEngine::parse_recipe(const std::string &path)
         }
     }
 }
-
 void SimulationEngine::build_variable_registry()
 {
     size_t current_index = 0;
@@ -212,35 +210,35 @@ void SimulationEngine::build_variable_registry()
 
 void SimulationEngine::run_pre_trial_phase()
 {
-    std::cout << "\n--- Running Pre-Trial Phase ---" << std::endl;
-    // This method executes steps against the pre-allocated vector context.
+    if (!m_is_preview)
+    {
+        std::cout << "\n--- Running Pre-Trial Phase ---" << std::endl;
+    }
     for (const auto &step_def_variant : m_recipe.pre_trial_steps)
     {
         std::visit([this](auto &&step_def)
                    {
             using T = std::decay_t<decltype(step_def)>;
             std::unique_ptr<IExecutionStep> step_to_execute;
-
-            // Get the index for the result variable.
             size_t result_index = m_variable_registry.at(step_def.result_name);
-
             if constexpr (std::is_same_v<T, LiteralAssignmentDef>) {
                 step_to_execute = std::make_unique<LiteralAssignmentStep>(result_index, step_def.value);
             } else if constexpr (std::is_same_v<T, ExecutionAssignmentDef>) {
                 auto it = m_executable_factory.find(step_def.function_name);
-                if (it == m_executable_factory.end()) {
-                    throw std::runtime_error("Unknown function in pre-trial recipe: " + step_def.function_name);
-                }
+                if (it == m_executable_factory.end()) { throw std::runtime_error("Unknown function: " + step_def.function_name); }
                 auto executable_logic = it->second();
                 step_to_execute = std::make_unique<ExecutionAssignmentStep>(
-                    result_index, std::move(executable_logic), step_def.args, m_executable_factory, m_variable_registry
+                    result_index, step_def.function_name, step_def.line,
+                    std::move(executable_logic), step_def.args, m_executable_factory, m_variable_registry
                 );
             }
-            // Execute the step and store the result in the preloaded context vector.
             step_to_execute->execute(m_preloaded_context_vector); },
                    step_def_variant);
     }
-    std::cout << "Pre-trial phase complete. " << m_preloaded_context_vector.size() << " variable slots allocated." << std::endl;
+    if (!m_is_preview)
+    {
+        std::cout << "Pre-trial phase complete. " << m_preloaded_context_vector.size() << " variable slots allocated." << std::endl;
+    }
 }
 
 void SimulationEngine::build_per_trial_steps()
@@ -250,35 +248,23 @@ void SimulationEngine::build_per_trial_steps()
         std::visit([this](auto &&step_def)
                    {
             using T = std::decay_t<decltype(step_def)>;
-
             size_t result_index = m_variable_registry.at(step_def.result_name);
-
             if constexpr (std::is_same_v<T, LiteralAssignmentDef>) {
-                m_per_trial_steps.push_back(
-                    std::make_unique<LiteralAssignmentStep>(result_index, step_def.value)
-                );
+                m_per_trial_steps.push_back(std::make_unique<LiteralAssignmentStep>(result_index, step_def.value));
             } else if constexpr (std::is_same_v<T, ExecutionAssignmentDef>) {
                 auto it = m_executable_factory.find(step_def.function_name);
-                if (it == m_executable_factory.end()) {
-                    throw std::runtime_error("Unknown function in recipe: " + step_def.function_name);
-                }
-                
+                if (it == m_executable_factory.end()) { throw std::runtime_error("Unknown function: " + step_def.function_name); }
                 auto executable_logic = it->second(); 
-                
                 m_per_trial_steps.push_back(
                     std::make_unique<ExecutionAssignmentStep>(
-                        result_index,
-                        std::move(executable_logic),
-                        step_def.args,
-                        m_executable_factory,
-                        m_variable_registry
+                        result_index, step_def.function_name, step_def.line,
+                        std::move(executable_logic), step_def.args, m_executable_factory, m_variable_registry
                     )
                 );
             } },
                    step_def_variant);
     }
 }
-
 void SimulationEngine::run_batch(int num_trials, std::vector<TrialValue> &results, std::exception_ptr &out_exception)
 {
     try

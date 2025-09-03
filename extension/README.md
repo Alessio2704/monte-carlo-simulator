@@ -3,9 +3,9 @@
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/Alessio2704/monte-carlo-simulator/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++ Version](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
-[![Python Version](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-**A high-performance, multithreaded C++ engine for quantitative financial modeling, driven by ValuaScript—a simple, dedicated scripting language with a smart, validating compiler.**
+**A high-performance, multithreaded C++ engine for quantitative financial modeling, driven by ValuaScript—a simple, dedicated scripting language with a smart, optimizing compiler.**
 
 ## 📖 About The Project
 
@@ -16,24 +16,32 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 ### Key Features
 
 - **✨ Simple & Intuitive Language:** Models are defined in **ValuaScript (`.vs`)**, a clean, declarative language with a **familiar, spreadsheet-like formula syntax** using standard mathematical operators (`+`, `-`, `*`, `/`, `^`).
+  - **Ergonomic Syntax:** Includes intuitive bracket syntax (`variable[index]`) for element access, slice-like syntax (`variable[:-1]`) for deleting elements, and numeric separators (`1_000_000`) for enhanced readability.
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores for maximum simulation speed.
-- **🐍 Smart Validating Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe. It provides **clear, user-friendly error messages** and performs advanced **static type inference** to catch logical errors before execution.
+  - **Robust Error Handling:** Features comprehensive static type inference in the compiler and detailed runtime checks in the engine, providing clear and precise error messages for common issues like incorrect function arguments or vector dimension mismatches.
+- **🐍 Intelligent Optimizing Compiler:** A robust compiler, `vsc`, transpiles ValuaScript into a JSON recipe. It performs advanced optimizations like **Loop-Invariant Code Motion** (moving deterministic calculations out of the main simulation loop) and **Dead Code Elimination** (removing unused code) to generate a highly efficient execution plan.
+  - It provides **intelligent, user-friendly warnings**, performs **static type inference** to catch logical errors before execution, and offers **verbose feedback** on its optimization process.
 - **⚙️ Streamlined Workflow:** A `--run` flag allows for a seamless, one-step compile-and-execute experience.
 - **📊 Instant Visualization:** A `--plot` flag automatically generates a histogram of the simulation output, providing immediate visual analysis.
 - **📈 Data Export:** Natively supports exporting full simulation trial data to CSV files for further analysis with the `@output_file` directive.
 - **🎲 Integrated Monte Carlo Simulation:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, etc.) with fully validated parameters.
-- **🛡️ Robust & Tested:** Comprehensive unit test suite for both the C++ engine (GoogleTest) and the Python compiler (Pytest), ensuring correctness and stability.
+- **🛡️ Robust & Tested:** Comprehensive unit test suite for both the C++ engine (GoogleTest) and the Python compiler (Pytest), ensuring correctness and stability. The entire toolchain is validated by a comprehensive test suite on every release.
+- **🛠️ Professional VS Code Extension:** A full-featured extension providing:
+  - Dynamic, maintainable syntax highlighting.
+  - A comprehensive set of code snippets.
+  - A Python-based Language Server for real-time, as-you-type error diagnostics and **hover-for-help** with function signatures and descriptions.
+  - A **custom file icon** (a stylized distribution curve) for `.vs` files, ensuring a polished editor experience.
 
 ## 🏛️ Architecture
 
 The project is cleanly separated into two main components: a Python **compiler** and a C++ **engine**. This modular structure separates the user-facing language tools from the high-performance computation core.
 
-The compilation process now generates a structured JSON recipe with distinct execution phases, making the engine's job clear and scalable.
+The compilation process generates a structured JSON recipe with distinct, optimized execution phases, making the engine's job clear and scalable.
 
 ```mermaid
 graph TD;
-    A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- "vsc my_model.vs --run" --> B["<b>vsc Compiler (Python)</b><br/><i>Validates, translates, & executes</i>"];
-    B -- generates & consumes --> C["<b>JSON Recipe</b><br/><i>Intermediate Representation</i>"];
+    A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model</i>"] -- "vsc my_model.vs --run -O" --> B["<b>vsc Compiler (Python)</b><br/><i>Validates, optimizes, & translates</i>"];
+    B -- generates & consumes --> C["<b>JSON Recipe</b><br/><i>Optimized Intermediate Representation</i>"];
     C -- consumed by --> D["<b>Simulation Engine (C++)</b><br/><i>High-Performance Backend</i>"];
     D -- produces --> E["<b>Simulation Results</b><br/><i>Statistical Analysis & Plot</i>"];
 
@@ -43,7 +51,7 @@ graph TD;
 ```
 
 **Example JSON Recipe Structure:**
-The compiler transforms a `.vs` script into a JSON recipe that the C++ engine can execute. This recipe explicitly separates one-time data loading steps from the core per-trial calculations.
+The optimizing compiler transforms a `.vs` script into a JSON recipe that the C++ engine can execute. This recipe explicitly separates one-time calculations (`pre_trial_steps`) from the core per-trial simulation loop.
 
 ```json
 {
@@ -74,157 +82,125 @@ The compiler transforms a `.vs` script into a JSON recipe that the C++ engine ca
 }
 ```
 
-## 🚀 Getting Started
+## 🚀 Quick Installation
 
-This guide provides two paths for getting started: as an **End-User** who wants to use the tools, and as a **Developer** who wants to build the project from source.
+Get started in minutes with our automated installation scripts.
 
-### For End-Users (Recommended)
+#### Prerequisites
 
-The easiest way to get started is to download the pre-compiled tools from the latest GitHub release. This allows you to use ValuaScript without needing to install any development tools.
+1.  **Python 3.9+ must be installed.** You can download it from [python.org](https://python.org).
+    - On Windows, ensure you check the box **"Add Python to PATH"** during installation.
+2.  **Administrator/sudo privileges** are required to add the tools to your system's PATH.
 
-1.  **Download the Tools:** Go to the [**latest GitHub Release**](https://github.com/Alessio2704/monte-carlo-simulator/releases).
+### macOS & Linux
 
-    - Download the `vsc` compiler executable for your operating system.
-    - Download the `monte-carlo-simulator` engine executable for your operating system.
-    - Download the `valuascript-x.x.x.vsix` VS Code extension file.
-
-2.  **Install the VS Code Extension:**
-
-    - Open VS Code, go to the Extensions view, click the `...` menu, and select **"Install from VSIX..."**.
-    - Select the `.vsix` file you downloaded.
-
-3.  **Make the Tools Available:**
-    - Place the `vsc` and `monte-carlo-simulator` executables in a single, convenient directory (e.g., `~/valuascript-tools/`).
-    - Follow the instructions in the **"⚙️ Configuration"** section below to add this directory to your system's PATH. This is a one-time setup that makes the tools available from any terminal.
-
-### For Developers (Building from Source)
-
-This path is for users who want to contribute to the project or build everything from the source code.
-
-#### 1. Install Prerequisites
-
-First, ensure you have the necessary build tools for your operating system.
-
-<details>
-<summary><b>macOS Prerequisites</b></summary>
-
-1.  **Install Command Line Tools:** This provides the C++ compiler (Clang).
-    ```bash
-    xcode-select --install
-    ```
-2.  **Install Homebrew:** Follow the instructions at [brew.sh](https://brew.sh/).
-3.  **Install Git and CMake:**
-    ```bash
-    brew install git cmake
-    ```
-4.  **Install Python:** A recent version of Python 3 is required. You can install it via Homebrew (`brew install python`) or from [python.org](https://www.python.org/).
-
-</details>
-
-<details>
-<summary><b>Linux (Debian/Ubuntu) Prerequisites</b></summary>
-
-1.  **Install Build Tools:** This provides Git, the C++ compiler (GCC), and CMake.
-    ```bash
-    sudo apt update
-    sudo apt install build-essential cmake git python3-pip python3-venv
-    ```
-
-</details>
-
-<details>
-<summary><b>Windows Prerequisites</b></summary>
-
-1.  **Install Visual Studio 2019 or newer:** Download the free "Community" edition from the [Visual Studio website](https://visualstudio.microsoft.com/downloads/). During installation, you **must** select the **"Desktop development with C++"** workload.
-2.  **Install Git:** Download and install [Git for Windows](https://git-scm.com/download/win).
-3.  **Install CMake:** Download and run the installer from the [CMake website](https://cmake.org/download/). **Important:** During installation, select the option **"Add CMake to the system PATH for all users"** or "...for the current user".
-4.  **Install Python:** Download and install a recent version of Python 3 from the [Microsoft Store](https://www.microsoft.com/p/python-310/9pjpw5ldxlz5) or [python.org](https://www.python.org/downloads/windows/). Ensure the option to "Add Python to PATH" is selected during installation.
-
-</details>
-
-#### 2. Clone and Build the Project
-
-Once the prerequisites are installed, the build process is the same for all platforms.
+Open your terminal and run the following one-line command:
 
 ```bash
-# Clone the repository
-git clone https://github.com/Alessio2704/monte-carlo-simulator.git
-cd monte-carlo-simulator
-
-# Configure and build the C++ engine from the root directory
-cmake -B build
-cmake --build build
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.sh)"
 ```
 
-This creates the `monte-carlo-simulator` executable inside the `build/bin/` directory.
+### Windows
 
-#### 3. Install the Python Compiler
+Open a new **PowerShell terminal as Administrator** (right-click the Start Menu > "Terminal (Admin)") and run:
 
-Follow the developer instructions to set up the Python environment and install the `vsc` compiler in editable mode.
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.ps1'))
+```
+
+After installation, **you must open a new terminal window** for the `vsc` and `vse` commands to be available.
 
 ---
 
-## ⚙️ Configuration (One-Time Setup)
+## ⚙️ The Automation Pipeline: Professional CI/CD
 
-To use the tools seamlessly from any terminal, you need to tell your system where to find them.
+This project is built and delivered using a professional Continuous Integration and Continuous Delivery (CI/CD) pipeline powered by GitHub Actions. This ensures that every release is reliable, portable, and trustworthy. Our process is transparent and fully automated.
 
-### Method 1: Setting the `VSC_ENGINE_PATH` (Recommended)
+#### The Automation Heartbeat: Git-Tag-Triggered Releases
 
-This method is best if you only want to use the `--run` flag with the globally installed `vsc` compiler.
+The entire release lifecycle begins when a developer pushes a Git tag in the format `vX.Y.Z` (e.g., `v1.0.5`). This single event triggers the automated workflow, eliminating manual errors and guaranteeing a consistent process.
 
-First, get the **absolute path** to your `monte-carlo-simulator` executable.
+```mermaid
+graph TD;
+    A[<i class='fa fa-tag'></i> Git Tag Push<br/>e.g., v1.0.5] --> B{Workflow Triggered};
+    B --> C["<strong>Job: build-and-release-assets</strong><br/><em>Runs in Parallel on a Win, macOS, Linux Matrix</em>"];
+    C --> D["<strong>Job: publish</strong><br/><em>Gated by `needs` keyword: Runs only if all builds succeed</em>"];
+    D --> E[<i class='fab fa-github'></i> Published to GitHub Releases];
+    D --> F[<i class='fab fa-python'></i> Published to PyPI];
 
-- **If you built from source:** The path will be something like `/path/to/monte-carlo-simulator/build/bin/monte-carlo-simulator`.
-- **If you downloaded from a release:** It's the path to wherever you saved the executable.
+    classDef job fill:#f0f8ff,stroke:#005cc5,stroke-width:2px;
+    class C,D job
+```
+
+---
+
+### Stage 1: Build, Test, and Verify (The Matrix Job)
+
+The moment a tag is pushed, a matrix of parallel jobs spins up to build and test ValuaScript across all three major operating systems simultaneously.
 
 <details>
-<summary><b>macOS & Linux Instructions (Zsh/Bash)</b></summary>
+<summary><strong>Click to see the platform-specific build strategies</strong></summary>
 
-1.  **Open your shell configuration file.** This is typically `~/.zshrc` for Zsh (default on modern macOS) or `~/.bashrc` for Bash.
-    ```bash
-    # For Zsh
-    open ~/.zshrc
-    ```
-2.  **Add the `export` command.** Go to the very bottom of the file and add the following line, replacing the example path with your own absolute path.
-    ```bash
-    # Set the path for the ValuaScript Simulation Engine
-    export VSC_ENGINE_PATH="/path/to/your/monte-carlo-simulator"
-    ```
-3.  **Save the file and apply the changes** by opening a **new terminal window** or by running `source ~/.zshrc`.
+#### **Windows Build**
+
+- **Native Toolchain:** The C++ engine is compiled using the native Microsoft Visual C++ compiler (MSVC) by specifying the `"Visual Studio 17 2022"` generator in CMake. This ensures optimal performance and compatibility with the Windows ecosystem.
+- **Validation:** After a successful build, the `run_tests.exe` artifact is executed to run the full C++ test suite. This confirms the correctness of the build on Windows.
+
+#### **macOS Build**
+
+- **Native Toolchain:** The engine is built using the default Clang compiler provided by Apple's command-line tools, ensuring seamless integration with the macOS environment.
+- **Validation:** The compiled `run_tests` binary is immediately executed to validate the build.
+
+#### **Linux Build & Portability**
+
+- **The Challenge:** Building C++ applications for Linux is complex due to variations in system libraries (like GLIBC). A binary compiled on a very new Linux distribution will fail to run on older, but widely used, stable distributions.
+- **The Solution:** We solve this by decoupling our build environment from the GitHub runner. The Linux build is performed **inside a Docker container running `ubuntu:22.04`**. This links our C++ engine against an older, stable version of GLIBC, guaranteeing that the final `vse` executable is highly portable and runs flawlessly on a vast range of distributions, from Ubuntu 22.04 LTS to the latest Fedora and Debian releases.
+- **Validation:** Critically, our test suite is also run _inside this same container_, ensuring we are testing the exact artifact that will be released.
+
+#### **Python & VS Code Packaging**
+
+- Since the Python compiler and VS Code extension are platform-agnostic, they are built and packaged just once (on the Linux runner) for efficiency. The resulting packages (`.whl`, `.tar.gz`, `.vsix`) are then uploaded as artifacts.
 
 </details>
 
-<details>
-<summary><b>Windows Instructions</b></summary>
+---
 
-1.  **Open Environment Variables:** Open the Start Menu, type "env", and select "Edit the system environment variables".
-2.  **Edit User Variables:** In the window that appears, click the "Environment Variables..." button. In the top section ("User variables for yourname"), click "New...".
-3.  **Create the Variable:**
-    - **Variable name:** `VSC_ENGINE_PATH`
-    - **Variable value:** `C:\path\to\your\monte-carlo-simulator.exe` (replace with your actual absolute path)
-4.  **Confirm:** Click OK on all the windows to close them. You **must open a new Command Prompt or PowerShell terminal** for the changes to take effect.
+### Stage 2: Publish to the World
 
-</details>
+This stage only runs if **all build and test jobs in Stage 1 have passed**. This is our quality gate.
 
-### Method 2: Adding Tools to the System PATH
+1.  **Consolidate Artifacts:** The publish job first downloads all the validated build artifacts (the `.zip` files from each OS, the Python packages, and the `.vsix` extension file) from the matrix jobs.
+2.  **Publish to PyPI:** The Python compiler package (`valuascript-compiler`) is automatically published to the **Python Package Index (PyPI)** using a trusted publisher token. This makes it available via `pip`.
+3.  **Create GitHub Release:** A new, public release is created on GitHub, tagged with the version number. All the binary artifacts and the VS Code extension are uploaded to this release, creating a permanent, public archive for every version.
 
-This method is best if you downloaded the release binaries or want to run both `vsc` and `monte-carlo-simulator` as global commands.
+### The Final Link: User-Facing Scripts
 
-<details>
-<summary><b>Click for instructions on adding to PATH</b></summary>
+The `install.sh` and `install.ps1` scripts are the public "front door" to this automated backend. They are designed to be smart and robust:
 
-Follow the same steps as above, but instead of creating `VSC_ENGINE_PATH`, you will **edit the `Path` variable**.
+- They automatically detect the user's Operating System and CPU architecture.
+- They query the GitHub API to find the latest official release.
+- They download the correct `.zip` asset for the user's specific system from the release page.
+- They handle the installation of dependencies like `pipx` and the VS Code extension, providing a complete, one-command setup experience.
 
-- **On macOS/Linux:** Add this line to your `~/.zshrc` or `~/.bashrc`, replacing the path with the directory containing your executables:
-  ```bash
-  # Add ValuaScript tools to the system PATH
-  export PATH="$PATH:/path/to/your/tools_directory"
-  ```
-- **On Windows:** In the Environment Variables window, find and select the `Path` variable in the "User variables" list and click "Edit...". Click "New" and paste in the path to the directory containing your executables (e.g., `C:\Users\yourname\valuascript-tools`).
+This end-to-end automation ensures that every user receives a professionally built, rigorously tested, and correctly packaged version of ValuaScript, every single time.
 
-Remember to open a **new terminal** for the changes to take effect.
+## 🗑️ Uninstalling
 
-</details>
+To completely remove ValuaScript from your system, you can use our one-line uninstallation scripts.
+
+#### macOS & Linux
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/uninstall.sh)"
+```
+
+#### Windows
+
+Open PowerShell and run:
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/uninstall.ps1'))
+```
 
 ## 📜 ValuaScript Language Guide
 
@@ -236,13 +212,29 @@ Special `@` directives configure the simulation. They can appear anywhere in the
 
 ```valuascript
 # Defines the number of Monte Carlo trials to run. (Required)
-@iterations = 100000
+@iterations = 100_000
 
 # Specifies which variable's final value should be collected. (Required)
 @output = final_share_price
 
 # Exports all trial results to a CSV for analysis and plotting. (Optional)
 @output_file = "sim_results/amazon_model.csv"
+```
+
+#### The Compiler & Optimizations
+
+The `vsc` compiler is a powerful tool with several command-line flags to control its behavior.
+
+- **`vsc <input_file>`**: The basic command to compile a ValuaScript file into a JSON recipe.
+- **`--run`**: Compiles the script and then immediately executes the simulation using the C++ engine.
+- **`-O` or `--optimize`**: Enables aggressive optimizations. This performs **Dead Code Elimination**, removing any variables and calculations that do not contribute to the final `@output` variable, resulting in a faster simulation.
+- **`-v` or `--verbose`**: Provides detailed feedback on the compiler's optimization process, showing you exactly which variables were moved to the pre-trial phase and which were removed by dead code elimination.
+
+**Example Usage:**
+
+```bash
+# Compile, run a fully optimized simulation, and see verbose output
+vsc my_model.vs --run -O -v
 ```
 
 #### Variable Assignment (`let`)
@@ -279,6 +271,18 @@ let total_sales = sum_series(grow_series(100, 0.1, 5))
 # for the 'mean' parameter of Normal, which expects a scalar.
 # THIS WILL CAUSE A COMPILER ERROR:
 # let random_value = Normal(grow_series(100, 0.1, 5), 10)
+```
+
+**4. Vector Element Access and Deletion**
+ValuaScript supports intuitive Python-like syntax for working with vector elements.
+
+```valuascript
+let my_vector = [100, 200, 300]
+
+let first_element = my_vector[0]   # Accesses the first element (returns 100)
+let last_element = my_vector[-1]    # Accesses the last element (returns 300)
+
+let vector_without_last = my_vector[:-1] # Returns a new vector [100, 200]
 ```
 
 #### External Data Integration (CSV Reading)
@@ -328,7 +332,7 @@ The project includes comprehensive test suites for both components.
 **1. C++ Engine Tests (GoogleTest)**
 
 ```bash
-# First, build the project from the root directory (see "Getting Started")
+# First, build the project from the root directory (see "Installation and Setup")
 # Then, run the test executable
 ./build/bin/run_tests
 ```
@@ -339,11 +343,12 @@ The project includes comprehensive test suites for both components.
 # Navigate to the compiler directory
 cd compiler
 
-# Activate your virtual environment if not already active
-source venv/bin/activate
+# (Optional but Recommended) Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate # On Windows: .\venv\Scripts\activate.ps1
 
-# Install pytest if needed
-pip install pytest
+# Install the compiler and its optional development dependencies
+pip install -e .[dev]
 
 # Run the tests
 pytest -v
@@ -353,7 +358,7 @@ pytest -v
 
 Adding a new function to ValuaScript is a clean, three-stage process that touches the C++ engine, the Python compiler, and their respective test suites. This ensures that every new function is not only implemented correctly but also fully validated and type-checked by the compiler.
 
-The engine's architecture now distinguishes between functions that run once (`pre_trial`) and functions that run in every simulation loop (`per_trial`). This is controlled by a simple configuration in the compiler.
+The compiler's architecture distinguishes between **deterministic** and **stochastic** functions. This is controlled by a simple boolean flag in the compiler's configuration, which it uses to perform its optimizations.
 
 Let's walk through a complete example: we will add a new function `clip(value, min_val, max_val)` that constrains a value to be within a specified range.
 
@@ -424,26 +429,26 @@ Next, we must update the compiler's configuration so it can validate calls to `c
 **2.1. Add the Function Signature**
 
 Open the compiler's static configuration file:
-**File:** `compiler/vsc/config.py`
+**File:** `vsc/config.py`
 
-Find the `FUNCTION_SIGNATURES` dictionary and add an entry for `"clip"`. This entry tells the validator everything it needs to know: its arguments, their types, its return type, and crucially, when it should be executed.
+Find the `FUNCTION_SIGNATURES` dictionary and add an entry for `"clip"`. This entry tells the validator everything it needs to know: its arguments, their types, its return type, and crucially, whether its output is deterministic.
 
 ```python
-# In compiler/vsc/config.py, inside FUNCTION_SIGNATURES
+# In vsc/config.py, inside FUNCTION_SIGNATURES
 
 FUNCTION_SIGNATURES = {
     # ... other functions
-    "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar", "execution_phase": "per_trial"},
+    "Beta": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "scalar", "is_stochastic": True, "doc": {}},
 
     # Add our new signature here (alphabetically)
-    "clip": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar", "execution_phase": "per_trial"},
+    "clip": {"variadic": False, "arg_types": ["scalar", "scalar", "scalar"], "return_type": "scalar", "is_stochastic": False, "doc": {"summary": "Constrains a scalar value to be within a specified range.", "params": [{"name": "value", "desc": "The scalar value to clip."}, {"name": "min_val", "desc": "The minimum allowed value."}, {"name": "max_val", "desc": "The maximum allowed value."}], "returns": "The clipped scalar value."}},
 
-    "compound_series": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "vector", "execution_phase": "per_trial"},
+    "compound_series": {"variadic": False, "arg_types": ["scalar", "vector"], "return_type": "vector", "is_stochastic": False, "doc": {}},
     # ... other functions
 }
 ```
 
-- **`"execution_phase": "per_trial"`**: This is critical. We tag `clip` as a `per_trial` function because its logic needs to be executed inside every simulation loop. For data loading functions like `read_csv_vector`, this would be `"pre_trial"`. The compiler automatically handles partitioning the steps based on this tag.
+- **`"is_stochastic": False`**: This is the critical flag. We mark `clip` as deterministic because its output is predictable given the same inputs. The compiler uses this information to perform **Loop-Invariant Code Motion**, automatically moving any call to this function to the `pre_trial` phase if all its inputs are also deterministic. Conversely, functions like `Normal` are marked `"is_stochastic": True`, which "taints" any variable that depends on them, ensuring they are always re-calculated in the `per_trial` simulation loop.
 
 ---
 
@@ -462,21 +467,19 @@ After adding these tests and confirming they all pass, your new function is full
 
 The project is actively developed. Our current roadmap prioritizes practical utility and user experience.
 
-### ✅ Completed Milestones
+### ✅ Version 1.0 (Current)
 
-- **V1.0:** Core C++ Engine & ValuaScript Compiler.
-- **V1.1:** Compiler with full type inference & robust error reporting.
-- **V1.2:** Streamlined `--run` flag, data export via `@output_file`, and instant visualization via `--plot` flag.
-- **V1.3:** Major architectural refactor into modular `compiler` and `engine` directories.
-- **V1.4:**
-  - **External Data Integration:** Added `read_csv_scalar` and `read_csv_vector` functions.
-  - **Architectural Enhancement:** Refactored the engine's execution flow into distinct **pre-trial** (for data loading) and **per-trial** (for simulation) phases.
-- **V1.5 (Current):**
-  - **VS Code Extension:** A full-featured extension providing:
-    - Dynamic, maintainable syntax highlighting.
-    - A comprehensive set of code snippets.
-    - A Python-based Language Server for real-time, as-you-type error diagnostics.
-  - **Compiler Unification:** The compiler logic was refactored into a single, unified validation function used by the CLI, Language Server, and test suite, ensuring consistent behavior.
+The first official production release of ValuaScript. Features include:
+
+- Core C++ Engine (`vse`) & Python Compiler (`vsc`).
+- Compiler with full static type inference, intelligent warnings, and powerful optimizations (Loop-Invariant Code Motion & Dead Code Elimination).
+- Streamlined `--run` flag for a one-step compile-and-execute workflow.
+- Instant data visualization via the `--plot` flag.
+- Data export to CSV via the `@output_file` directive.
+- External data integration (`read_csv_scalar`, `read_csv_vector`) with a high-performance pre-trial execution phase.
+- Intuitive syntax for element access (`vector[index]`) and deletion (`vector[:-1]`).
+- Support for numeric separators (`1_000_000`) for enhanced readability.
+- Full-featured VS Code Extension with syntax highlighting, snippets, Language Server (hover-for-help), and a custom file icon.
 
 ---
 
@@ -485,23 +488,39 @@ The project is actively developed. Our current roadmap prioritizes practical uti
 - [ ] **Empirical Distribution Sampler (`create_sampler_from_data`)**
 
   - **Why:** Models often require inputs that follow a specific, but not standard, distribution. Instead of forcing users to guess (`Normal`? `Lognormal`?), this feature would allow them to create a custom sampler directly from a real-world data series (e.g., historical oil prices, stock returns). This grounds the simulation in empirical evidence, significantly improving model realism.
-  - **User-Facing Syntax:**
+  - **User-Facing Syntax (Example):**
 
-    ```valuascript
-    # 1. Read the historical data from a CSV file.
-    let oil_price_history = read_csv_vector("data/oil_prices.csv", "Price")
+  ```valuascript
+  # 1. Read the historical data from a CSV file.
+  let oil_price_history = read_csv_vector("data/oil_prices.csv", "Price")
 
-    # 2. Create a custom sampler based on that data's distribution.
-    let oil_price_sampler = create_sampler_from_data(oil_price_history)
+  # 2. Create a custom sampler based on that data's distribution.
+  let oil_price_sampler = create_sampler_from_data(oil_price_history)
 
-    # 3. Use the sampler like any other distribution (e.g., Normal, Pert).
-    let future_oil_price = oil_price_sampler()
-    ```
+  # 3. Use the sampler like any other distribution (e.g., Normal, Pert).
+  let future_oil_price = oil_price_sampler()
+  ```
 
 ### 🚀 Tier 2: Advanced Language Features
 
-- [ ] **Modularization (`@import` / `@export`)**
-  - **Why:** To allow users to create reusable, importable modules (e.g., a standard WACC calculation). This promotes cleaner, more abstract, and more scalable models, avoiding code duplication.
+- [ ] **User-Defined Functions (`func`, `@export`) & Modularization (`@import`)**
+
+  - **Why:** To allow users to create reusable, importable functions and organize complex models into clean, encapsulated modules. This promotes cleaner, more abstract, and more scalable models, avoiding code duplication.
+  - **User-Facing Syntax (Example):**
+
+  ```valuascript
+  // In modules/my_utils.vs
+  @export func calculate_npv_of_series(rate: scalar, cashflows: vector) -> scalar {
+      let present_value = npv(rate, cashflows)
+      return present_value
+  }
+
+  // In main_model.vs
+  @import "modules/my_utils.vs"
+  let discount_rate = 0.08
+  let project_cashflows = [10, 12, 15]
+  let final_npv = calculate_npv_of_series(discount_rate, project_cashflows)
+  ```
 
 ### 🌌 V-Next: The "Blue Sky" Goal (JIT Compilation)
 

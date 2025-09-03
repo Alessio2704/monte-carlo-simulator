@@ -203,7 +203,6 @@ def test_all_function_arities(base_script, func, provided_argc):
         ),
     ],
 )
-
 def test_optimization_step_partitioning(script_body, expected_pre_trial, expected_per_trial):
     """
     Validates that the compiler correctly partitions execution steps into
@@ -222,6 +221,7 @@ def test_optimization_step_partitioning(script_body, expected_pre_trial, expecte
 
     assert set(actual_pre_trial_vars) == set(expected_pre_trial)
     assert set(actual_per_trial_vars) == set(expected_per_trial)
+
 
 @pytest.mark.parametrize(
     "script_body, output_var, expected_remaining_vars",
@@ -309,3 +309,56 @@ def test_dead_code_elimination_is_disabled_by_default():
 
     # Both variables should be present in the recipe
     assert all_vars_in_recipe == {"live", "dead"}
+
+
+# ==============================================================================
+# TESTS FOR PREVIEW MODE (LIVE VARIABLE INSPECTION)
+# ==============================================================================
+
+
+@pytest.mark.parametrize(
+    "script_body, preview_var, expected_output_var, expected_num_trials, expected_remaining_vars",
+    [
+        pytest.param("let a = 10\nlet b = 20", "a", "a", 1, {"a"}, id="preview_deterministic_var_selects_correct_var_and_sets_trials_to_1"),
+        pytest.param("@iterations=9999\n@output=z\nlet a = 10\nlet b = a + 5\nlet c = 100", "b", "b", 1, {"a", "b"}, id="preview_deterministic_chain_ignores_directives_and_prunes_dead_code"),
+        pytest.param("let sto = Normal(1,1)\nlet det = 20", "sto", "sto", 100, {"sto"}, id="preview_stochastic_var_selects_correct_var_and_sets_trials_to_100"),
+        pytest.param(
+            "@iterations=1\n@output=z\nlet a = 10\nlet b = Normal(a, 1)\nlet c = b + 5", "c", "c", 100, {"a", "b", "c"}, id="preview_stochastic_chain_ignores_directives_and_keeps_dependencies"
+        ),
+        pytest.param("let a = 10\nlet b = 20", "b", "b", 1, {"b"}, id="preview_selects_last_deterministic_variable"),
+    ],
+)
+def test_preview_mode_compilation(script_body, preview_var, expected_output_var, expected_num_trials, expected_remaining_vars):
+    """
+    Validates that the compiler, when given a `preview_variable`, correctly:
+    1. Overrides the script's @output and @iterations directives.
+    2. Forces dead code elimination based on the previewed variable.
+    3. Sets the correct number of trials (1 for deterministic, 100 for stochastic).
+    """
+    # The @output and @iterations directives in the script should be ignored,
+    # but we provide dummy ones to ensure the script is structurally valid if needed.
+    full_script = f"@iterations=999\n@output=ignored\n{script_body}"
+
+    # Run compilation with the preview_variable set
+    recipe = validate_valuascript(full_script, preview_variable=preview_var)
+    assert recipe is not None, "Compilation failed unexpectedly in preview mode"
+
+    # 1. Check that the output variable was correctly overridden
+    assert recipe["output_variable"] == expected_output_var
+
+    # 2. Check that the number of trials was correctly overridden
+    assert recipe["simulation_config"]["num_trials"] == expected_num_trials
+
+    # 3. Check that dead code was correctly eliminated
+    actual_remaining_vars = {step["result"] for step in recipe["pre_trial_steps"]} | {step["result"] for step in recipe["per_trial_steps"]}
+    assert actual_remaining_vars == expected_remaining_vars
+
+
+def test_preview_mode_throws_on_undefined_variable():
+    """
+    Ensures that previewing a variable that is not defined in the script
+    raises a ValuaScriptError, just like a normal compilation would.
+    """
+    script = "@iterations=1\n@output=a\nlet a = 1"
+    with pytest.raises(ValuaScriptError, match="The final @output variable 'undefined_var' is not defined."):
+        validate_valuascript(script, preview_variable="undefined_var")
