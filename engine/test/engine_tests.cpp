@@ -656,7 +656,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForDeterministicScalar)
     create_test_recipe("preview_test.json", recipe);
 
     // Assuming the 'vse' executable is in a location findable from the test run directory
-    std::string command = "./bin/vse --preview preview_test.json";
+    std::string command = "./build/bin/vse --preview preview_test.json";
     std::string output = exec_command(command.c_str());
 
     auto json_out = nlohmann::json::parse(output);
@@ -673,7 +673,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForStochasticScalar)
     })"; // StdDev of 0 makes the result deterministic for testing
     create_test_recipe("preview_test.json", recipe);
 
-    std::string command = "./bin/vse --preview preview_test.json";
+    std::string command = "./build/bin/vse --preview preview_test.json";
     std::string output = exec_command(command.c_str());
 
     auto json_out = nlohmann::json::parse(output);
@@ -690,7 +690,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForVector)
     })";
     create_test_recipe("preview_test.json", recipe);
 
-    std::string command = "./bin/vse --preview preview_test.json";
+    std::string command = "./build/bin/vse --preview preview_test.json";
     std::string output = exec_command(command.c_str());
 
     auto json_out = nlohmann::json::parse(output);
@@ -715,7 +715,7 @@ TEST_F(EnginePreviewModeTest, OutputsErrorJsonOnRuntimeError)
 #ifdef _WIN32
     std::string command = ".\\bin\\vse.exe --preview preview_test.json";
 #else
-    std::string command = "./bin/vse --preview preview_test.json 2>&1";
+    std::string command = "./build/bin/vse --preview preview_test.json 2>&1";
 #endif
 
     std::string output = exec_command(command.c_str());
@@ -735,7 +735,7 @@ TEST_F(EnginePreviewModeTest, OutputsErrorJsonForEmptyResults)
     })";
     create_test_recipe("preview_test.json", recipe);
 
-    std::string command = "./bin/vse --preview preview_test.json";
+    std::string command = "./build/bin/vse --preview preview_test.json";
     std::string output = exec_command(command.c_str());
 
     auto json_out = nlohmann::json::parse(output);

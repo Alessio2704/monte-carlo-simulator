@@ -1,0 +1,4 @@
+{
+        "simulation_config": {"num_trials": 0}, "output_variable": "a",
+        "per_trial_steps": [{"type": "literal_assignment", "result": "a", "value": 123}]
+    }
