@@ -32,6 +32,23 @@ std::string read_file_content(const std::string &path)
     return buffer.str();
 }
 
+// Executes a command and captures its standard output.
+std::string exec_command(const char *cmd)
+{
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe)
+    {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+    {
+        result += buffer.data();
+    }
+    return result;
+}
+
 // =============================================================================
 // --- BASE FIXTURE FOR AUTOMATIC FILE CLEANUP ---
 // =============================================================================
@@ -621,4 +638,107 @@ TEST_F(CsvEngineTest, ThrowsOnNonNumericData)
     })";
     create_test_recipe("err.json", recipe_content);
     ASSERT_THROW(SimulationEngine engine("err.json"), std::runtime_error);
+}
+
+// =============================================================================
+// --- TEST FIXTURE FOR PREVIEW MODE ---
+// =============================================================================
+class EnginePreviewModeTest : public FileCleanupTest
+{
+};
+
+TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForDeterministicScalar)
+{
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable": "a",
+        "per_trial_steps": [{"type": "literal_assignment", "result": "a", "value": 123.45678}]
+    })";
+    create_test_recipe("preview_test.json", recipe);
+
+    // Assuming the 'vse' executable is in a location findable from the test run directory
+    std::string command = "./bin/vse --preview preview_test.json";
+    std::string output = exec_command(command.c_str());
+
+    auto json_out = nlohmann::json::parse(output);
+    EXPECT_EQ(json_out["status"], "success");
+    EXPECT_EQ(json_out["type"], "scalar");
+    EXPECT_NEAR(json_out["value"], 123.4568, 1e-5);
+}
+
+TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForStochasticScalar)
+{
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 100}, "output_variable": "a",
+        "per_trial_steps": [{"type": "execution_assignment", "result": "a", "function": "Normal", "args": [100, 0]}]
+    })"; // StdDev of 0 makes the result deterministic for testing
+    create_test_recipe("preview_test.json", recipe);
+
+    std::string command = "./bin/vse --preview preview_test.json";
+    std::string output = exec_command(command.c_str());
+
+    auto json_out = nlohmann::json::parse(output);
+    EXPECT_EQ(json_out["status"], "success");
+    EXPECT_EQ(json_out["type"], "scalar");
+    EXPECT_NEAR(json_out["value"], 100.0, 1e-5);
+}
+
+TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForVector)
+{
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable": "a",
+        "per_trial_steps": [{"type": "literal_assignment", "result": "a", "value": [1.11111, 2.22222, 3.33333]}]
+    })";
+    create_test_recipe("preview_test.json", recipe);
+
+    std::string command = "./bin/vse --preview preview_test.json";
+    std::string output = exec_command(command.c_str());
+
+    auto json_out = nlohmann::json::parse(output);
+    EXPECT_EQ(json_out["status"], "success");
+    EXPECT_EQ(json_out["type"], "vector");
+    ASSERT_EQ(json_out["value"].size(), 3);
+    EXPECT_NEAR(json_out["value"][0], 1.1111, 1e-5);
+    EXPECT_NEAR(json_out["value"][1], 2.2222, 1e-5);
+    EXPECT_NEAR(json_out["value"][2], 3.3333, 1e-5);
+}
+
+TEST_F(EnginePreviewModeTest, OutputsErrorJsonOnRuntimeError)
+{
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable": "a",
+        "per_trial_steps": [{"type": "execution_assignment", "result": "a", "function": "divide", "args": [1, 0]}]
+    })";
+    create_test_recipe("preview_test.json", recipe);
+
+// On Windows, popen captures stdout, but stderr from the child might go to the parent's stderr.
+// On Unix, we can redirect stderr to stdout to capture it. This is the simplest cross-platform way for this test.
+#ifdef _WIN32
+    std::string command = ".\\bin\\vse.exe --preview preview_test.json";
+#else
+    std::string command = "./bin/vse --preview preview_test.json 2>&1";
+#endif
+
+    std::string output = exec_command(command.c_str());
+
+    // In case of a runtime error, the engine should still produce a valid JSON error message.
+    auto json_out = nlohmann::json::parse(output);
+    EXPECT_EQ(json_out["status"], "error");
+    ASSERT_TRUE(json_out.contains("message"));
+    EXPECT_THAT(json_out["message"].get<std::string>(), ::testing::HasSubstr("Division by zero"));
+}
+
+TEST_F(EnginePreviewModeTest, OutputsErrorJsonForEmptyResults)
+{
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 0}, "output_variable": "a",
+        "per_trial_steps": [{"type": "literal_assignment", "result": "a", "value": 123}]
+    })";
+    create_test_recipe("preview_test.json", recipe);
+
+    std::string command = "./bin/vse --preview preview_test.json";
+    std::string output = exec_command(command.c_str());
+
+    auto json_out = nlohmann::json::parse(output);
+    EXPECT_EQ(json_out["status"], "error");
+    EXPECT_EQ(json_out["message"], "No results were generated.");
 }

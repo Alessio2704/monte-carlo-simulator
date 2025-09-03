@@ -112,24 +112,18 @@ class ValuaScriptTransformer(Transformer):
 
 
 def _find_live_variables(output_var, dependencies):
-    """
-    Performs a backward traversal from the output variable to find all "live" variables.
-    Any variable not in this set is "dead code" and can be eliminated.
-    """
     live_vars = set()
     queue = deque([output_var])
     while queue:
         current_var = queue.popleft()
         if current_var not in live_vars:
             live_vars.add(current_var)
-            # Add all dependencies of the current variable to the queue
             for dep in dependencies.get(current_var, []):
                 queue.append(dep)
     return live_vars
 
 
 def _get_dependencies_from_arg(arg):
-    """Recursively find all variable dependencies within a single argument."""
     deps = set()
     if isinstance(arg, Token):
         deps.add(str(arg))
@@ -140,11 +134,6 @@ def _get_dependencies_from_arg(arg):
 
 
 def _build_dependency_graph(execution_steps):
-    """
-    Builds two graphs:
-    1. dependencies: maps a variable to the set of variables it depends on.
-    2. dependents: maps a variable to the set of variables that depend on it.
-    """
     dependencies = {}
     dependents = {step["result"]: set() for step in execution_steps}
 
@@ -157,7 +146,6 @@ def _build_dependency_graph(execution_steps):
                 current_deps.update(dep_vars)
         dependencies[var_name] = current_deps
 
-    # Build the reverse graph (dependents)
     for var, deps in dependencies.items():
         for dep in deps:
             if dep in dependents:
@@ -167,14 +155,10 @@ def _build_dependency_graph(execution_steps):
 
 
 def _find_stochastic_variables(execution_steps, dependents):
-    """
-    Performs taint analysis to find all variables that depend on a stochastic source.
-    """
     stochastic_vars = set()
     queue = deque()
 
     def _expression_is_stochastic(expression_dict):
-        """Recursively checks if any function call within an expression is stochastic."""
         if not isinstance(expression_dict, dict):
             return False
         func_name = expression_dict.get("function")
@@ -185,7 +169,6 @@ def _find_stochastic_variables(execution_steps, dependents):
                 return True
         return False
 
-    # 1. Find initial sources of stochasticity by recursively checking expressions
     for step in execution_steps:
         if step.get("type") == "execution_assignment":
             if _expression_is_stochastic(step):
@@ -194,7 +177,6 @@ def _find_stochastic_variables(execution_steps, dependents):
                     stochastic_vars.add(var_name)
                     queue.append(var_name)
 
-    # 2. Propagate the stochastic "taint" through the dependency graph
     while queue:
         current_var = queue.popleft()
         for dependent_var in dependents.get(current_var, []):
@@ -206,10 +188,6 @@ def _find_stochastic_variables(execution_steps, dependents):
 
 
 def _topological_sort_steps(steps, dependencies):
-    """
-    Sorts a list of execution steps based on their dependencies to ensure
-    correct calculation order.
-    """
     step_map = {step["result"]: step for step in steps}
     sorted_vars = []
     visited = set()
@@ -220,7 +198,6 @@ def _topological_sort_steps(steps, dependencies):
         recursion_stack.add(var)
         for dep in dependencies.get(var, []):
             if dep in recursion_stack:
-                # This should ideally be caught earlier, but serves as a safeguard.
                 raise ValuaScriptError(f"Circular dependency detected involving variable '{var}'.")
             if dep not in visited and dep in step_map:
                 visit(dep)
@@ -236,6 +213,10 @@ def _topological_sort_steps(steps, dependencies):
 
 
 def validate_valuascript(script_content: str, context="cli", optimize=False, verbose=False, preview_variable=None):
+    # THE FIX: If previewing a variable, optimization must be enabled.
+    if preview_variable:
+        optimize = True
+
     if context == "lsp" and not script_content.strip():
         return None
     for i, line in enumerate(script_content.splitlines()):
@@ -252,32 +233,28 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
             if len(clean_line.split()) > 0 and clean_line.split()[0] == "let":
                 raise ValuaScriptError(f"L{i+1}: Syntax Error: Incomplete assignment.")
 
-    # --- Stage 1: Parsing and Transformation ---
     parse_tree = LARK_PARSER.parse(script_content)
     raw_recipe = ValuaScriptTransformer().transform(parse_tree)
 
-    # --- Stage 2: Process Directives and Basic Config ---
     raw_directives_list = raw_recipe.get("directives", [])
     seen_directives, directives = set(), {}
     for d in raw_directives_list:
         name = d["name"]
         if name not in DIRECTIVE_CONFIG:
             raise ValuaScriptError(f"L{d['line']}: Unknown directive '@{name}'.")
-        if name in seen_directives:
+        # In preview mode, we parse directives but ignore re-definition errors, as they will be overridden anyway.
+        if name in seen_directives and not preview_variable:
             raise ValuaScriptError(f"L{d['line']}: The directive '@{name}' is defined more than once.")
         seen_directives.add(name)
         directives[name] = d
 
     sim_config, output_var = {}, ""
-    # In preview mode, we override the main directives.
     if preview_variable:
         output_var = preview_variable
-        # We still process output_file in case it's needed for a CSV read.
         if "output_file" in directives:
             raw_value = directives["output_file"]["value"]
             if isinstance(raw_value, _StringLiteral):
                 sim_config["output_file"] = raw_value.value
-
     else:
         for name, config in DIRECTIVE_CONFIG.items():
             if config["required"] and name not in directives:
@@ -304,62 +281,50 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
         if not output_var:
             raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
 
-    # --- Stage 3: Type Inference and Semantic Validation ---
-    defined_vars, used_vars = {}, set()
+    defined_vars = {}
     for step in raw_recipe["execution_steps"]:
         line, result_var = step["line"], step["result"]
         if result_var in defined_vars:
             raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once.")
-        rhs_type = _infer_expression_type(step, defined_vars, used_vars, line, result_var)
+        rhs_type = _infer_expression_type(step, defined_vars, set(), line, result_var)
         defined_vars[result_var] = {"type": rhs_type, "line": line}
 
     if output_var not in defined_vars:
-        line = directives.get("output", {}).get("line", 1)
-        raise ValuaScriptError(f"The variable '{output_var}' is not defined.")
+        raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined.")
 
-    # --- STAGE 3.5: Pre-Optimization Analysis ---
     all_original_vars = {step["result"] for step in raw_recipe["execution_steps"]}
     dependencies, dependents = _build_dependency_graph(raw_recipe["execution_steps"])
-    live_variables = _find_live_variables(output_var, dependencies)
 
-    # Dead Code Elimination (if --optimize is enabled)
     if optimize:
+        live_variables = _find_live_variables(output_var, dependencies)
         if verbose:
             print("\n--- Running Dead Code Elimination ---")
         original_step_count = len(raw_recipe["execution_steps"])
-
-        # Filter the steps to keep only the ones that define a "live" variable
         raw_recipe["execution_steps"] = [step for step in raw_recipe["execution_steps"] if step["result"] in live_variables]
-
         removed_count = original_step_count - len(raw_recipe["execution_steps"])
-        if removed_count > 0:
-            if verbose:
-                removed_vars = sorted(list(all_original_vars - live_variables))
-                print(f"Optimization complete: Removed {removed_count} unused variable(s): {', '.join(removed_vars)}")
+        if removed_count > 0 and verbose:
+            removed_vars = sorted(list(all_original_vars - live_variables))
+            print(f"Optimization complete: Removed {removed_count} unused variable(s): {', '.join(removed_vars)}")
         elif verbose:
             print("Optimization complete: No unused variables found to remove.")
-
-        # Re-build dependency graphs with the reduced step list for the next stage
         dependencies, dependents = _build_dependency_graph(raw_recipe["execution_steps"])
-
-    # Unused Variable Warnings (if not optimizing)
     else:
-        unused_vars = all_original_vars - live_variables
+        live_variables = all_original_vars
+        unused_vars = all_original_vars - _find_live_variables(output_var, dependencies)
         if unused_vars and context != "lsp":
             print(f"\n{TerminalColors.YELLOW}--- Compiler Warnings ---{TerminalColors.RESET}")
             for var in sorted(list(unused_vars)):
                 line_num = defined_vars[var]["line"]
                 print(f"{TerminalColors.YELLOW}Warning: Variable '{var}' was defined on line {line_num} but was never used.{TerminalColors.RESET}")
 
-    # --- Stage 4: Loop-Invariant Code Motion Optimization ---
     if verbose:
         print(f"\n--- Running Compiler Optimizations ---")
 
     stochastic_vars = _find_stochastic_variables(raw_recipe["execution_steps"], dependents)
 
-    # Override num_trials for preview mode based on whether the target is stochastic
     if preview_variable:
-        sim_config["num_trials"] = 1000
+        is_stochastic = preview_variable in stochastic_vars
+        sim_config["num_trials"] = 100 if is_stochastic else 1
 
     pre_trial_steps_raw, per_trial_steps_raw = [], []
     for step in raw_recipe["execution_steps"]:
@@ -368,18 +333,13 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
         else:
             pre_trial_steps_raw.append(step)
 
-    # Ensure correct execution order within the pre-trial phase
     pre_trial_dependencies = {k: v for k, v in dependencies.items() if k in {s["result"] for s in pre_trial_steps_raw}}
     pre_trial_steps = _topological_sort_steps(pre_trial_steps_raw, pre_trial_dependencies)
 
-    if verbose:
-        if pre_trial_steps:
-            moved_vars = sorted([step["result"] for step in pre_trial_steps])
-            print(f"Optimization complete: Moved {len(pre_trial_steps)} deterministic step(s) to the pre-trial phase: {', '.join(moved_vars)}")
-        else:
-            print(f"Optimization complete: Moved 0 deterministic steps to the pre-trial phase.")
+    if verbose and pre_trial_steps:
+        moved_vars = sorted([step["result"] for step in pre_trial_steps])
+        print(f"Optimization complete: Moved {len(pre_trial_steps)} deterministic step(s) to the pre-trial phase: {', '.join(moved_vars)}")
 
-    # --- Stage 5: Final JSON Recipe Generation ---
     def _process_arg_for_json(arg):
         if isinstance(arg, _StringLiteral):
             return {"type": "string_literal", "value": arg.value}
@@ -389,7 +349,7 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
             arg["args"] = [_process_arg_for_json(a) for a in arg["args"]]
         return arg
 
-    for step in pre_trial_steps + per_trial_steps_raw:  # Use raw per_trial, as its order is already correct
+    for step in pre_trial_steps + per_trial_steps_raw:
         if "value" in step:
             if isinstance(step.get("value"), Token):
                 step["value"] = str(step["value"])
@@ -418,7 +378,7 @@ def _infer_expression_type(expression_dict, defined_vars, used_vars, line_num, c
             for item in value:
                 if not isinstance(item, (int, float)):
                     error_val = f'"{item.value}"' if isinstance(item, _StringLiteral) else str(item)
-                    raise ValuaScriptError(f"L{line_num}: Invalid item {error_val} in vector literal for '{current_result_var}'. Only literal numbers are allowed in vectors.")
+                    raise ValuaScriptError(f"L{line_num}: Invalid item {error_val} in vector literal for '{current_result_var}'.")
             return "vector"
         if isinstance(value, _StringLiteral):
             return "string"

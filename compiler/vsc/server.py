@@ -110,30 +110,24 @@ def hover(params):
     word = _get_word_at_position(document, params.position)
     source = document.source
 
-    # THE FIX: Restore the function hover logic
     if word in FUNCTION_SIGNATURES:
         sig = FUNCTION_SIGNATURES[word]
         doc = sig.get("doc")
         if not doc:
             return None
-
         param_names = [p["name"] for p in doc.get("params", [])]
         signature_str = f"{word}({', '.join(param_names)})"
-
         contents = [f"```valuascript\n(function) {signature_str}\n```", "---", f"**{doc.get('summary', '')}**"]
         if "params" in doc and doc["params"]:
             param_docs = ["\n#### Parameters:"]
             for p in doc["params"]:
                 param_docs.append(f"- `{p.get('name', '')}`: {p.get('desc', '')}")
             contents.append("\n".join(param_docs))
-
         if "returns" in doc:
             returns_doc = doc.get("returns", "")
             return_type_val = sig.get("return_type", "any")
-            # Handle callable return types for display purposes
             return_type_str = "dynamic" if callable(return_type_val) else return_type_val
             contents.append(f"\n**Returns**: `{return_type_str}` — {returns_doc}")
-
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
 
     defined_vars, stochastic_vars = _get_script_analysis(source)
@@ -152,7 +146,6 @@ def hover(params):
         tmp_recipe_file = None
         try:
             recipe = validate_valuascript(source, context="lsp", optimize=True, preview_variable=word)
-
             engine_path = find_engine_executable(None)
             if not engine_path:
                 return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error: Simulation engine 'vse' not found.*"))
@@ -163,23 +156,32 @@ def hover(params):
 
             run_proc = subprocess.run([engine_path, "--preview", recipe_path], text=True, capture_output=True, timeout=15)
 
+            # Even if the process failed, first check if it produced a valid JSON error on stdout.
+            if run_proc.stdout:
+                try:
+                    result_json = json.loads(run_proc.stdout)
+                    if result_json.get("status") == "error":
+                        message = result_json.get("message", "An unknown error occurred in the engine.")
+                        return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Engine Runtime Error:*\n```\n{message}\n```"))
+                except json.JSONDecodeError:
+                    # stdout was not valid JSON, proceed to check return code
+                    pass
+
+            # If we're here, either stdout was empty or not a valid error JSON.
+            # Now, check the return code as before.
             if run_proc.returncode != 0:
                 error_output = run_proc.stderr.strip() or "Process failed without an error message."
                 return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error during value preview:*\n```\n{error_output}\n```"))
 
+            # If we've made it this far, the process succeeded and stdout should contain valid JSON.
             try:
                 result_json = json.loads(run_proc.stdout)
             except json.JSONDecodeError:
                 return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error: Could not parse preview result from engine.*"))
 
-            if result_json.get("status") == "error":
-                message = result_json.get("message", "An unknown error occurred in the engine.")
-                return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Engine Error:*\n```\n{message}\n```"))
-
             value = result_json.get("value")
             value_label = "Mean Value (100 trials)" if is_stochastic else "Value"
             value_str = json.dumps(value, indent=2)
-
             md_value = f"**{value_label}:**\n```json\n{value_str}\n```"
 
             return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n{md_value}"))

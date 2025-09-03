@@ -46,7 +46,6 @@ def main():
         if not args.input_file and sys.stdin.isatty() and not is_preview_mode:
             parser.error("input_file is required when not reading from a pipe or in preview mode.")
 
-        # In preview mode, the recipe is temporary. Otherwise, use specified/default path.
         output_file_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json" if args.input_file else "stdin.json"
 
         script_path = args.input_file or "stdin"
@@ -61,12 +60,8 @@ def main():
             if not is_preview_mode:
                 print(f"--- Compiling {script_path} -> {output_file_path} ---")
 
-            final_recipe = validate_valuascript(
-                script_content, optimize=args.optimize or is_preview_mode, verbose=args.verbose and not is_preview_mode, preview_variable=args.preview_var  # Optimization is forced in preview mode
-            )
+            final_recipe = validate_valuascript(script_content, optimize=is_preview_mode or args.optimize, verbose=args.verbose and not is_preview_mode, preview_variable=args.preview_var)
 
-            # In preview mode, we might not want to save the recipe, but it's needed for the engine
-            # A cleaner LSP implementation would handle this in memory. For CLI, writing is okay.
             with open(output_file_path, "w") as f:
                 f.write(json.dumps(final_recipe, indent=2))
 
@@ -81,9 +76,10 @@ def main():
                     sys.exit(1)
 
                 if is_preview_mode:
-                    # In preview mode, run with the --preview flag and capture stdout
                     proc = subprocess.run([engine_executable, "--preview", output_file_path], capture_output=True, text=True, check=True)
-                    sys.stdout.write(proc.stdout)  # Pass the engine's output through
+                    # THE FIX: Use print() for more reliable output flushing in subprocesses.
+                    # The `end=''` prevents an extra newline from being added.
+                    print(proc.stdout, end="")
                 else:
                     print(f"\n--- Running Simulation ---")
                     subprocess.run([engine_executable, output_file_path], check=True)
@@ -109,7 +105,6 @@ def main():
             sys.exit(1)
 
     finally:
-        # Suppress the timer in LSP or preview mode
         if "--lsp" not in sys.argv and "--preview-var" not in sys.argv:
             end_time = time.perf_counter()
             duration = end_time - start_time
