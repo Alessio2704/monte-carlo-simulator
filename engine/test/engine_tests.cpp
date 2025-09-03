@@ -37,7 +37,15 @@ std::string exec_command(const char *cmd)
 {
     std::array<char, 128> buffer;
     std::string result;
+
+#ifdef _WIN32
+    // Use the Windows-specific _popen and _pclose functions
+    std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd, "r"), _pclose);
+#else
+    // Use the standard POSIX popen and pclose on other systems
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+#endif
+
     if (!pipe)
     {
         throw std::runtime_error("popen() failed!");
