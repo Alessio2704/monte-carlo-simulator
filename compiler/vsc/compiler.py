@@ -213,7 +213,6 @@ def _topological_sort_steps(steps, dependencies):
 
 
 def validate_valuascript(script_content: str, context="cli", optimize=False, verbose=False, preview_variable=None):
-    # THE FIX: If previewing a variable, optimization must be enabled.
     if preview_variable:
         optimize = True
 
@@ -309,7 +308,6 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
             print("Optimization complete: No unused variables found to remove.")
         dependencies, dependents = _build_dependency_graph(raw_recipe["execution_steps"])
     else:
-        live_variables = all_original_vars
         unused_vars = all_original_vars - _find_live_variables(output_var, dependencies)
         if unused_vars and context != "lsp":
             print(f"\n{TerminalColors.YELLOW}--- Compiler Warnings ---{TerminalColors.RESET}")
@@ -357,15 +355,7 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
                 step["value"] = step["value"].value
         if "args" in step:
             step["args"] = [_process_arg_for_json(a) for a in step["args"]]
-        if "line" in step:
-            del step["line"]
-
-    return {
-        "simulation_config": sim_config,
-        "output_variable": output_var,
-        "pre_trial_steps": pre_trial_steps,
-        "per_trial_steps": per_trial_steps_raw,
-    }
+    return {"simulation_config": sim_config, "output_variable": output_var, "pre_trial_steps": pre_trial_steps, "per_trial_steps": per_trial_steps_raw}
 
 
 def _infer_expression_type(expression_dict, defined_vars, used_vars, line_num, current_result_var):
@@ -398,7 +388,6 @@ def _infer_expression_type(expression_dict, defined_vars, used_vars, line_num, c
             arg_type = None
             if isinstance(arg, Token):
                 var_name = str(arg)
-                used_vars.add(var_name)
                 if var_name not in defined_vars:
                     raise ValuaScriptError(f"L{line_num}: Variable '{var_name}' used in function '{func_name}' is not defined.")
                 arg_type = defined_vars[var_name]["type"]
