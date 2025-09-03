@@ -11,7 +11,9 @@
 
 using json = nlohmann::json;
 
-SimulationEngine::SimulationEngine(const std::string &json_recipe_path)
+// Modified constructor to accept the preview flag
+SimulationEngine::SimulationEngine(const std::string &json_recipe_path, bool is_preview)
+    : m_is_preview(is_preview)
 {
     build_executable_factory();
     parse_recipe(json_recipe_path);
@@ -212,8 +214,11 @@ void SimulationEngine::build_variable_registry()
 
 void SimulationEngine::run_pre_trial_phase()
 {
-    std::cout << "\n--- Running Pre-Trial Phase ---" << std::endl;
-    // This method executes steps against the pre-allocated vector context.
+    if (!m_is_preview)
+    {
+        std::cout << "\n--- Running Pre-Trial Phase ---" << std::endl;
+    }
+
     for (const auto &step_def_variant : m_recipe.pre_trial_steps)
     {
         std::visit([this](auto &&step_def)
@@ -221,7 +226,6 @@ void SimulationEngine::run_pre_trial_phase()
             using T = std::decay_t<decltype(step_def)>;
             std::unique_ptr<IExecutionStep> step_to_execute;
 
-            // Get the index for the result variable.
             size_t result_index = m_variable_registry.at(step_def.result_name);
 
             if constexpr (std::is_same_v<T, LiteralAssignmentDef>) {
@@ -236,11 +240,15 @@ void SimulationEngine::run_pre_trial_phase()
                     result_index, std::move(executable_logic), step_def.args, m_executable_factory, m_variable_registry
                 );
             }
-            // Execute the step and store the result in the preloaded context vector.
+            
             step_to_execute->execute(m_preloaded_context_vector); },
                    step_def_variant);
     }
-    std::cout << "Pre-trial phase complete. " << m_preloaded_context_vector.size() << " variable slots allocated." << std::endl;
+
+    if (!m_is_preview)
+    {
+        std::cout << "Pre-trial phase complete. " << m_preloaded_context_vector.size() << " variable slots allocated." << std::endl;
+    }
 }
 
 void SimulationEngine::build_per_trial_steps()

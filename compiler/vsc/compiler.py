@@ -235,7 +235,7 @@ def _topological_sort_steps(steps, dependencies):
     return [step_map[var] for var in sorted_vars]
 
 
-def validate_valuascript(script_content: str, context="cli", optimize=False, verbose=False):
+def validate_valuascript(script_content: str, context="cli", optimize=False, verbose=False, preview_variable=None):
     if context == "lsp" and not script_content.strip():
         return None
     for i, line in enumerate(script_content.splitlines()):
@@ -269,31 +269,40 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
         directives[name] = d
 
     sim_config, output_var = {}, ""
-    for name, config in DIRECTIVE_CONFIG.items():
-        if config["required"] and name not in directives:
-            raise ValuaScriptError(config["error_missing"])
-        if name in directives:
-            d = directives[name]
-            raw_value = d["value"]
-            if config["type"] is str and name == "output_file" and not isinstance(raw_value, _StringLiteral):
-                raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
-            elif config["type"] is str and name == "output" and not isinstance(raw_value, Token):
-                raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
+    # In preview mode, we override the main directives.
+    if preview_variable:
+        output_var = preview_variable
+        # We still process output_file in case it's needed for a CSV read.
+        if "output_file" in directives:
+            raw_value = directives["output_file"]["value"]
+            if isinstance(raw_value, _StringLiteral):
+                sim_config["output_file"] = raw_value.value
 
-            value_for_validation = raw_value.value if isinstance(raw_value, _StringLiteral) else (str(raw_value) if isinstance(raw_value, Token) else raw_value)
+    else:
+        for name, config in DIRECTIVE_CONFIG.items():
+            if config["required"] and name not in directives:
+                raise ValuaScriptError(config["error_missing"])
+            if name in directives:
+                d = directives[name]
+                raw_value = d["value"]
+                if config["type"] is str and name == "output_file" and not isinstance(raw_value, _StringLiteral):
+                    raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
+                elif config["type"] is str and name == "output" and not isinstance(raw_value, Token):
+                    raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
 
-            if config["type"] is int and not isinstance(value_for_validation, int):
-                raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
+                value_for_validation = raw_value.value if isinstance(raw_value, _StringLiteral) else (str(raw_value) if isinstance(raw_value, Token) else raw_value)
 
-            if name == "iterations":
-                sim_config["num_trials"] = value_for_validation
-            elif name == "output":
-                output_var = value_for_validation
-            elif name == "output_file":
-                sim_config["output_file"] = value_for_validation
+                if config["type"] is int and not isinstance(value_for_validation, int):
+                    raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
 
-    if not output_var:
-        raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
+                if name == "iterations":
+                    sim_config["num_trials"] = value_for_validation
+                elif name == "output":
+                    output_var = value_for_validation
+                elif name == "output_file":
+                    sim_config["output_file"] = value_for_validation
+        if not output_var:
+            raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
 
     # --- Stage 3: Type Inference and Semantic Validation ---
     defined_vars, used_vars = {}, set()
@@ -305,8 +314,8 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
         defined_vars[result_var] = {"type": rhs_type, "line": line}
 
     if output_var not in defined_vars:
-        line = directives["output"]["line"]
-        raise ValuaScriptError(f"L{line}: The final @output variable '{output_var}' is not defined.")
+        line = directives.get("output", {}).get("line", 1)
+        raise ValuaScriptError(f"The variable '{output_var}' is not defined.")
 
     # --- STAGE 3.5: Pre-Optimization Analysis ---
     all_original_vars = {step["result"] for step in raw_recipe["execution_steps"]}
@@ -315,7 +324,8 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
 
     # Dead Code Elimination (if --optimize is enabled)
     if optimize:
-        print("\n--- Running Dead Code Elimination ---")
+        if verbose:
+            print("\n--- Running Dead Code Elimination ---")
         original_step_count = len(raw_recipe["execution_steps"])
 
         # Filter the steps to keep only the ones that define a "live" variable
@@ -326,9 +336,7 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
             if verbose:
                 removed_vars = sorted(list(all_original_vars - live_variables))
                 print(f"Optimization complete: Removed {removed_count} unused variable(s): {', '.join(removed_vars)}")
-            else:
-                print(f"Optimization complete: Removed {removed_count} unused variable assignment(s).")
-        else:
+        elif verbose:
             print("Optimization complete: No unused variables found to remove.")
 
         # Re-build dependency graphs with the reduced step list for the next stage
@@ -344,10 +352,14 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
                 print(f"{TerminalColors.YELLOW}Warning: Variable '{var}' was defined on line {line_num} but was never used.{TerminalColors.RESET}")
 
     # --- Stage 4: Loop-Invariant Code Motion Optimization ---
-    if context != "lsp":
+    if verbose:
         print(f"\n--- Running Compiler Optimizations ---")
 
     stochastic_vars = _find_stochastic_variables(raw_recipe["execution_steps"], dependents)
+
+    # Override num_trials for preview mode based on whether the target is stochastic
+    if preview_variable:
+        sim_config["num_trials"] = 1000
 
     pre_trial_steps_raw, per_trial_steps_raw = [], []
     for step in raw_recipe["execution_steps"]:
@@ -360,12 +372,12 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
     pre_trial_dependencies = {k: v for k, v in dependencies.items() if k in {s["result"] for s in pre_trial_steps_raw}}
     pre_trial_steps = _topological_sort_steps(pre_trial_steps_raw, pre_trial_dependencies)
 
-    if context != "lsp":
-        if verbose and pre_trial_steps:
+    if verbose:
+        if pre_trial_steps:
             moved_vars = sorted([step["result"] for step in pre_trial_steps])
             print(f"Optimization complete: Moved {len(pre_trial_steps)} deterministic step(s) to the pre-trial phase: {', '.join(moved_vars)}")
         else:
-            print(f"Optimization complete: Moved {len(pre_trial_steps)} deterministic step(s) to the pre-trial phase.")
+            print(f"Optimization complete: Moved 0 deterministic steps to the pre-trial phase.")
 
     # --- Stage 5: Final JSON Recipe Generation ---
     def _process_arg_for_json(arg):

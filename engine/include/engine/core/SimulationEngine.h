@@ -12,13 +12,13 @@
 class SimulationEngine
 {
 public:
-    explicit SimulationEngine(const std::string &json_recipe_path);
+    explicit SimulationEngine(const std::string &json_recipe_path, bool is_preview = false);
     std::vector<TrialValue> run();
     std::string get_output_file_path() const;
 
 private:
     void parse_recipe(const std::string &path);
-    void build_variable_registry(); // Analyzes the recipe to map all variable names to indices.
+    void build_variable_registry();
     void run_pre_trial_phase();
     void build_per_trial_steps();
     void run_batch(int num_trials, std::vector<TrialValue> &results, std::exception_ptr &out_exception);
@@ -35,4 +35,6 @@ private:
     size_t m_output_variable_index;
 
     std::vector<std::unique_ptr<IExecutionStep>> m_per_trial_steps;
+
+    bool m_is_preview;
 };
