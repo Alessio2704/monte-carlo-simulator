@@ -664,7 +664,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForDeterministicScalar)
     create_test_recipe("preview_test.json", recipe);
 
 #ifdef _WIN32
-    std::string command = ".\\build\\bin\\vse.exe --preview preview_test.json";
+    std::string command = ".\\build\\bin\\Release\\vse.exe --preview preview_test.json";
 #else
     std::string command = "./build/bin/vse --preview preview_test.json";
 #endif
@@ -686,7 +686,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForStochasticScalar)
     create_test_recipe("preview_test.json", recipe);
 
 #ifdef _WIN32
-    std::string command = ".\\build\\bin\\vse.exe --preview preview_test.json";
+    std::string command = ".\\build\\bin\\Release\\vse.exe --preview preview_test.json";
 #else
     std::string command = "./build/bin/vse --preview preview_test.json";
 #endif
@@ -708,7 +708,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForVector)
     create_test_recipe("preview_test.json", recipe);
 
 #ifdef _WIN32
-    std::string command = ".\\build\\bin\\vse.exe --preview preview_test.json";
+    std::string command = ".\\build\\bin\\Release\\vse.exe --preview preview_test.json";
 #else
     std::string command = "./build/bin/vse --preview preview_test.json";
 #endif
@@ -735,7 +735,7 @@ TEST_F(EnginePreviewModeTest, OutputsErrorJsonOnRuntimeError)
 // On Windows, popen captures stdout, but stderr from the child might go to the parent's stderr.
 // On Unix, we can redirect stderr to stdout to capture it. This is the simplest cross-platform way for this test.
 #ifdef _WIN32
-    std::string command = ".\\build\\bin\\vse.exe --preview preview_test.json";
+    std::string command = ".\\build\\bin\\Release\\vse.exe --preview preview_test.json";
 #else
     std::string command = "./build/bin/vse --preview preview_test.json 2>&1";
 #endif
