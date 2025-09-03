@@ -13,13 +13,34 @@ from vsc.exceptions import ValuaScriptError
 
 @pytest.fixture
 def find_engine_path():
-    """A helper to find the C++ engine for integration tests."""
+    """
+    A helper to find the C++ engine for integration tests.
+    This is platform-aware and checks for configuration-specific build
+    directories (like 'Release') on Windows.
+    """
     engine_name = "vse.exe" if sys.platform == "win32" else "vse"
-    # Look in the conventional build directory relative to the compiler folder
-    dev_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "build", "bin", engine_name))
-    if os.path.exists(dev_path):
-        return dev_path
-    pytest.skip("Could not find C++ engine executable for integration tests. Run `cmake --build build` first.", allow_module_level=True)
+    base_build_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "build", "bin"))
+
+    potential_paths = []
+    if sys.platform == "win32":
+        # On Windows, MSBuild creates configuration-specific subdirectories.
+        # The CI pipeline builds in 'Release' mode. We also check for 'Debug'
+        # to support local development.
+        potential_paths.append(os.path.join(base_build_path, "Release", engine_name))
+        potential_paths.append(os.path.join(base_build_path, "Debug", engine_name))
+
+    # For non-Windows platforms or as a fallback, check the base bin directory.
+    potential_paths.append(os.path.join(base_build_path, engine_name))
+
+    for path in potential_paths:
+        if os.path.exists(path):
+            return path  # Return the first valid path found
+
+    # If the executable was not found in any of the potential locations, skip the tests.
+    pytest.skip(
+        "Could not find C++ engine executable for integration tests. " "Ensure the engine has been built (e.g., `cmake --build build`).",
+        allow_module_level=True,
+    )
 
 
 def run_preview_integration(script_content: str, preview_var: str, engine_path: str):
