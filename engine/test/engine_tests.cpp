@@ -94,7 +94,7 @@ class DeterministicEngineTest : public FileCleanupTest,
 class EngineSamplerTest : public FileCleanupTest
 {
 protected:
-    void RunAndAnalyze(const std::string &recipe_content, int num_trials, double expected_mean, double tolerance, bool check_bounds = false, double min_bound = 0.0, double max_bound = 0.0)
+    void RunAndAnalyze(const std::string &recipe_content, size_t num_trials, double expected_mean, double tolerance, bool check_bounds = false, double min_bound = 0.0, double max_bound = 0.0)
     {
         const std::string filename = "sampler_test.json";
         create_test_recipe(filename, recipe_content);
