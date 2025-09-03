@@ -26,11 +26,21 @@ from vsc.utils import format_lark_error, find_engine_executable
 server = LanguageServer("valuascript-server", "v1")
 
 
+def _format_number_with_separators(n):
+    """Formats a number with underscores for thousands separation."""
+    if isinstance(n, int):
+        return f"{n:,}".replace(",", "_")
+    if isinstance(n, float):
+        parts = str(n).split(".")
+        integer_part = f"{int(parts[0]):,}".replace(",", "_")
+        return f"{integer_part}.{parts[1]}"
+    return n  # Return as is if not a number
+
+
 def _validate(ls, params):
     text_doc = ls.workspace.get_document(params.text_document.uri)
     source = text_doc.source
     diagnostics = []
-
     ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
     def strip_ansi(text):
@@ -40,7 +50,6 @@ def _validate(ls, params):
     try:
         sys.stdout = open(os.devnull, "w")
         validate_valuascript(source, context="lsp")
-
     except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
         line, col = e.line - 1, e.column - 1
         msg = strip_ansi(format_lark_error(e, source).splitlines()[-1])
@@ -56,7 +65,6 @@ def _validate(ls, params):
     finally:
         sys.stdout.close()
         sys.stdout = original_stdout
-
     ls.publish_diagnostics(params.text_document.uri, diagnostics)
 
 
@@ -85,7 +93,6 @@ def _get_script_analysis(source: str):
         parse_tree = LARK_PARSER.parse(source)
         raw_recipe = ValuaScriptTransformer().transform(parse_tree)
         execution_steps = raw_recipe.get("execution_steps", [])
-
         from vsc.compiler import _infer_expression_type
 
         defined_vars = {}
@@ -95,10 +102,8 @@ def _get_script_analysis(source: str):
                 defined_vars[step["result"]] = {"type": rhs_type}
             except ValuaScriptError:
                 defined_vars[step["result"]] = {"type": "error"}
-
         dependencies, dependents = _build_dependency_graph(execution_steps)
         stochastic_vars = _find_stochastic_variables(execution_steps, dependents)
-
         return defined_vars, stochastic_vars
     except Exception:
         return {}, set()
@@ -145,8 +150,7 @@ def hover(params):
 
         tmp_recipe_file = None
         try:
-            recipe = validate_valuascript(source, context="lsp", optimize=True, preview_variable=word)
-            engine_path = find_engine_executable(None)
+            recipe, engine_path = validate_valuascript(source, context="lsp", optimize=True, preview_variable=word), find_engine_executable(None)
             if not engine_path:
                 return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error: Simulation engine 'vse' not found.*"))
 
@@ -156,7 +160,6 @@ def hover(params):
 
             run_proc = subprocess.run([engine_path, "--preview", recipe_path], text=True, capture_output=True, timeout=15)
 
-            # Even if the process failed, first check if it produced a valid JSON error on stdout.
             if run_proc.stdout:
                 try:
                     result_json = json.loads(run_proc.stdout)
@@ -164,16 +167,12 @@ def hover(params):
                         message = result_json.get("message", "An unknown error occurred in the engine.")
                         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Engine Runtime Error:*\n```\n{message}\n```"))
                 except json.JSONDecodeError:
-                    # stdout was not valid JSON, proceed to check return code
                     pass
 
-            # If we're here, either stdout was empty or not a valid error JSON.
-            # Now, check the return code as before.
             if run_proc.returncode != 0:
                 error_output = run_proc.stderr.strip() or "Process failed without an error message."
                 return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error during value preview:*\n```\n{error_output}\n```"))
 
-            # If we've made it this far, the process succeeded and stdout should contain valid JSON.
             try:
                 result_json = json.loads(run_proc.stdout)
             except json.JSONDecodeError:
@@ -181,11 +180,16 @@ def hover(params):
 
             value = result_json.get("value")
             value_label = "Mean Value (100 trials)" if is_stochastic else "Value"
-            value_str = json.dumps(value, indent=2)
-            md_value = f"**{value_label}:**\n```json\n{value_str}\n```"
 
+            formatted_value = value
+            if isinstance(value, (int, float)):
+                formatted_value = _format_number_with_separators(value)
+            elif isinstance(value, list):
+                formatted_value = [_format_number_with_separators(item) for item in value]
+
+            value_str = json.dumps(formatted_value, indent=2)
+            md_value = f"**{value_label}:**\n```\n{value_str.replace("\"", "")}\n```"
             return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n{md_value}"))
-
         except Exception as e:
             return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*An error occurred while fetching live value: {e}*"))
         finally:
