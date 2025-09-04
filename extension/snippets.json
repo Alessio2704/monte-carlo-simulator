@@ -4,6 +4,15 @@
     "body": ["let ${1:variable_name} = ${2:value}"],
     "description": "Declare a new variable"
   },
+  "func statement": {
+    "prefix": "func",
+    "body": [
+      "func ${1:function_name}(${2:param}: ${3:type}) -> ${4:return_type} {",
+      "\treturn ${5:value}",
+      "}"
+    ],
+    "description": "Declare a new function"
+  },
   "@iterations directive": {
     "prefix": "@iterations",
     "body": ["@iterations = ${1:10000}"],
