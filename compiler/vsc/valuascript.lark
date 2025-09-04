@@ -1,8 +1,14 @@
 // A script is a sequence of directives and assignments in any order.
-start: (directive | assignment)*
+start: (directive | assignment | function_def)*
 
 directive: "@" CNAME "=" expression -> directive_setting
 assignment: LET CNAME "=" expression -> assignment
+
+// --- FUNCTION DEFINITION ---
+function_def: "func" CNAME "(" [param ("," param)*] ")" "->" CNAME "{" function_body "}"
+function_body: (assignment | return_statement)+
+param: CNAME ":" CNAME
+return_statement: "return" expression
 
 // --- HIERARCHY FOR MATHEMATICAL EXPRESSIONS ---
 ?expression: term ((ADD|SUB) term)*         -> infix_expression
