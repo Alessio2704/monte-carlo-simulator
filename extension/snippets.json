@@ -8,7 +8,8 @@
     "prefix": "func",
     "body": [
       "func ${1:function_name}(${2:param}: ${3:type}) -> ${4:return_type} {",
-      "\treturn ${5:value}",
+      "\t\"\"\"${5:Documentation...}\"\"\"",
+      "\treturn ${6:value}",
       "}"
     ],
     "description": "Declare a new function"

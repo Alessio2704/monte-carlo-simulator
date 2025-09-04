@@ -16,11 +16,12 @@ BASE_SCRIPT = "@iterations=1\n@output=result\n"
 # --- 1. VALID FUNCTION DEFINITIONS AND CALLS ---
 
 
-def test_valid_scalar_function():
+def test_valid_scalar_function_with_docstring():
     script = """
     @iterations=1
     @output=result
     func add_one(x: scalar) -> scalar {
+        \"\"\"Adds one to a scalar.\"\"\"
         return x + 1
     }
     let result = add_one(10)
@@ -33,7 +34,8 @@ def test_valid_scalar_function():
     assert any("__add_one_1__x" in step["result"] for step in recipe["pre_trial_steps"])
 
 
-def test_valid_vector_function():
+def test_valid_vector_function_without_docstring():
+    """Explicitly test that a function without a docstring is valid."""
     script = """
     @iterations=1
     @output=result

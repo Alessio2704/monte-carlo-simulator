@@ -7,13 +7,15 @@ import tempfile
 from collections import deque
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
 from pygls.server import LanguageServer
-from lsprotocol.types import Diagnostic, Position, Range, DiagnosticSeverity
 from lsprotocol.types import (
-    TEXT_DOCUMENT_HOVER,
-    Hover,
+    Diagnostic,
+    Position,
+    Range,
+    DiagnosticSeverity,
     MarkupContent,
     MarkupKind,
-    Position,
+    TEXT_DOCUMENT_HOVER,
+    Hover,
 )
 from pygls.workspace import Document
 
@@ -41,7 +43,7 @@ def _format_number_with_separators(n):
         parts = str(n).split(".")
         integer_part = f"{int(parts[0]):,}".replace(",", "_")
         return f"{integer_part}.{parts[1]}"
-    return n  # Return as is if not a number
+    return n
 
 
 def _validate(ls, params):
@@ -99,7 +101,7 @@ def _is_udf_stochastic(func_def, user_functions, checked_functions=None):
     if checked_functions is None:
         checked_functions = set()
     if func_def["name"] in checked_functions:
-        return False  # Avoid infinite recursion for call graph cycles
+        return False
 
     checked_functions.add(func_def["name"])
 
@@ -175,7 +177,6 @@ def hover(params):
     source = document.source
     defined_vars, stochastic_vars, user_functions = _get_script_analysis(source)
 
-    # Hover for built-in functions
     if word in FUNCTION_SIGNATURES:
         sig = FUNCTION_SIGNATURES[word]
         doc = sig.get("doc")
@@ -196,15 +197,16 @@ def hover(params):
             contents.append(f"\n**Returns**: `{return_type_str}` — {returns_doc}")
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
 
-    # Hover for user-defined functions
     if word in user_functions:
         func_def = user_functions[word]
         params_str = ", ".join([f"{p['name']}: {p['type']}" for p in func_def["params"]])
         signature = f"(user defined function) {func_def['name']}({params_str}) -> {func_def['return_type']}"
         contents = [f"```valuascript\n{signature}\n```"]
+        if func_def.get("docstring"):
+            contents.append("---")
+            contents.append(func_def["docstring"])
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
 
-    # Hover for variables (value preview)
     if word in defined_vars:
         var_info = defined_vars[word]
         var_type = var_info.get("type", "unknown")

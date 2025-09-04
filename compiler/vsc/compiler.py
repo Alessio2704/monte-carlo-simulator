@@ -2,6 +2,7 @@ import os
 import sys
 from lark import Lark, Transformer, Token
 from collections import deque
+from textwrap import dedent
 
 from .exceptions import ValuaScriptError
 from .utils import TerminalColors
@@ -32,6 +33,11 @@ class _StringLiteral:
 class ValuaScriptTransformer(Transformer):
     def STRING(self, s):
         return _StringLiteral(s.value[1:-1])
+
+    def DOCSTRING(self, s):
+        # Remove the triple quotes and dedent the string
+        content = s.value[3:-3]
+        return dedent(content).strip()
 
     def infix_expression(self, items):
         if len(items) == 1:
@@ -107,16 +113,21 @@ class ValuaScriptTransformer(Transformer):
 
     def function_def(self, items):
         func_name_token = items[0]
-        # items = [name_token, param1, ..., return_type_token, body_list]
-        params = [p for p in items[1:-2] if isinstance(p, dict)]
-        return_type_token = items[-2]
         body_list = items[-1]
+
+        # Based on the grammar, the item at index -2 is the docstring (or None if absent)
+        # and the item at -3 is the return type.
+        docstring = items[-2]
+        return_type_token = items[-3]
+        params = items[1:-3]
+
         return {
             "type": "function_definition",
             "name": str(func_name_token),
-            "params": params,
+            "params": [p for p in params if isinstance(p, dict)],
             "return_type": str(return_type_token),
             "body": body_list,
+            "docstring": docstring,
             "line": func_name_token.line,
         }
 

@@ -5,7 +5,7 @@ directive: "@" CNAME "=" expression -> directive_setting
 assignment: LET CNAME "=" expression -> assignment
 
 // --- FUNCTION DEFINITION ---
-function_def: "func" CNAME "(" [param ("," param)*] ")" "->" CNAME "{" function_body "}"
+function_def: "func" CNAME "(" [param ("," param)*] ")" "->" CNAME "{" [DOCSTRING] function_body "}"
 function_body: (assignment | return_statement)+
 param: CNAME ":" CNAME
 return_statement: "return" expression
@@ -39,6 +39,7 @@ MUL: "*"
 DIV: "/"
 POW: "^"
 STRING: /"[^"]*"/
+DOCSTRING: /"{3}(.|\n)*?"{3}/
 
 // --- Custom Number Terminal to support separators ---
 // We define our own SIGNED_NUMBER using Lark's EBNF-style terminals for clarity and robustness.
