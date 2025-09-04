@@ -228,8 +228,10 @@ def test_udf_calling_another_udf():
     recipe = validate_valuascript(script)
     assert recipe is not None
     # Check that inlining was recursive
-    assert any("__add_and_double_1__s" in step["result"] for step in recipe["pre_trial_steps"])
-    assert any("__double_1__x" in step["result"] for step in recipe["pre_trial_steps"])
+    all_vars = {step["result"] for step in recipe["pre_trial_steps"]}
+    assert "__add_and_double_1__s" in all_vars
+    # The call to double() inside add_and_double() gets its own unique mangling
+    assert any(key.startswith("__double_") for key in all_vars)
 
 
 def test_direct_recursion_error():
@@ -241,8 +243,7 @@ def test_direct_recursion_error():
     }
     let result = recursive(10)
     """
-    # The error is caught after inlining during the topological sort
-    with pytest.raises(ValuaScriptError, match="Circular dependency detected involving variable"):
+    with pytest.raises(ValuaScriptError, match="Recursive function call detected: recursive -> recursive"):
         validate_valuascript(script)
 
 
@@ -254,7 +255,7 @@ def test_mutual_recursion_error():
     func f2(x: scalar) -> scalar { return f1(x) }
     let result = f1(10)
     """
-    with pytest.raises(ValuaScriptError, match="Circular dependency detected involving variable"):
+    with pytest.raises(ValuaScriptError, match="Recursive function call detected: f1 -> f2 -> f1"):
         validate_valuascript(script)
 
 
@@ -355,15 +356,15 @@ def test_function_with_only_return():
     script = """
     @iterations=1
     @output=result
-    func identity(v: vector) -> vector {
+    func my_identity(v: vector) -> vector {
         return v
     }
     let my_vec = [1, 2]
-    let result = identity(my_vec)
+    let result = my_identity(my_vec)
     """
     recipe = validate_valuascript(script)
     assert recipe is not None
-    assert any("__identity_1__v" in step["result"] for step in recipe["pre_trial_steps"])
+    assert any("__my_identity_1__v" in step["result"] for step in recipe["pre_trial_steps"])
 
 
 def test_function_with_complex_return_expression():
@@ -378,3 +379,104 @@ def test_function_with_complex_return_expression():
     recipe = validate_valuascript(script)
     assert recipe is not None
     assert recipe["output_variable"] == "result"
+
+
+# --- 10. ADVANCED NESTING AND EDGE CASES ---
+
+
+def test_deeply_nested_udf_calls():
+    script = """
+    @iterations=1
+    @output=result
+    func f1(x: scalar) -> scalar { return x + 1 }
+    func f2(x: scalar) -> scalar { return f1(x) * 2 }
+    func f3(x: scalar) -> scalar { return f2(x) + 3 }
+    let result = f3(10)
+    """
+    recipe = validate_valuascript(script)
+    assert recipe is not None
+    all_vars = {step["result"] for step in recipe["pre_trial_steps"]}
+    assert "result" in all_vars
+    assert any(key.startswith("__f1_") for key in all_vars)
+    assert any(key.startswith("__f2_") for key in all_vars)
+    assert any(key.startswith("__f3_") for key in all_vars)
+
+
+def test_multiple_nested_udf_arguments():
+    script = """
+    @iterations=1
+    @output=result
+    func double(x: scalar) -> scalar { return x * 2 }
+    func triple(x: scalar) -> scalar { return x * 3 }
+    let result = double(5) + triple(10)
+    """
+    recipe = validate_valuascript(script)
+    assert recipe is not None
+    # Check that temporary variables for the flattened calls were created
+    all_vars = {step["result"] for step in recipe["pre_trial_steps"]}
+    assert any(key.startswith("__temp_") for key in all_vars)
+
+
+def test_udf_returning_literal():
+    script = """
+    @iterations=1
+    @output=result
+    func get_magic_number() -> scalar { return 42 }
+    let result = get_magic_number()
+    """
+    recipe = validate_valuascript(script)
+    assert recipe is not None
+    result_step = next(step for step in recipe["pre_trial_steps"] if step["result"] == "result")
+    # The call should be inlined to a direct literal assignment
+    assert result_step["type"] == "literal_assignment"
+    assert result_step["value"] == 42
+
+
+def test_dce_on_unused_local_vars_in_udf():
+    script = """
+    @iterations=1
+    @output=result
+    func my_func(x: scalar) -> scalar {
+        let unused_local = x * 1000
+        return x + 1
+    }
+    let result = my_func(10)
+    """
+    recipe = validate_valuascript(script, optimize=True)
+    assert recipe is not None
+    all_vars = {step["result"] for step in recipe["pre_trial_steps"]}
+    # The mangled variable for the unused local should have been eliminated
+    assert "__my_func_1__unused_local" not in all_vars
+    # The used parameter and the final result should still be present
+    assert "__my_func_1__x" in all_vars
+    assert "result" in all_vars
+
+
+def test_stochasticity_through_deep_nesting():
+    script = """
+    @iterations=1
+    @output=result
+    func f1() -> scalar { return Normal(100, 1) }
+    func f2() -> scalar { return f1() * 2 }
+    func f3() -> scalar { return f2() + 3 }
+    let result = f3()
+    """
+    recipe = validate_valuascript(script)
+    assert recipe is not None
+    # After full inlining, the crucial part is that ALL variables should be
+    # stochastic because the chain starts with Normal().
+    all_vars_in_recipe = {step["result"] for step in recipe["pre_trial_steps"]} | {step["result"] for step in recipe["per_trial_steps"]}
+    per_trial_vars = {step["result"] for step in recipe["per_trial_steps"]}
+    # Assert that the final output variable is correctly marked as stochastic.
+    assert "result" in per_trial_vars
+    # Assert that there are NO pre-trial steps.
+    assert not recipe["pre_trial_steps"]
+    # Assert that all variables created during compilation are in the per-trial set.
+    # This proves the "taint" propagated correctly through the entire chain.
+    assert all_vars_in_recipe == per_trial_vars
+
+
+def test_script_with_only_uncalled_udf_fails():
+    script = "func uncalled(x: scalar) -> scalar { return x }"
+    with pytest.raises(ValuaScriptError, match="The @iterations directive is mandatory"):
+        validate_valuascript(script)

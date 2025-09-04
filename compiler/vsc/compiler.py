@@ -139,6 +139,50 @@ class ValuaScriptTransformer(Transformer):
 # ==============================================================================
 
 
+def _check_for_recursive_calls(user_functions):
+    """Builds a call graph and detects cycles to prevent infinite recursion during inlining."""
+    call_graph = {name: set() for name in user_functions}
+
+    for func_name, func_def in user_functions.items():
+        queue = deque(func_def["body"])
+        while queue:
+            item = queue.popleft()
+            if isinstance(item, dict):
+                if "function" in item and item["function"] in user_functions:
+                    call_graph[func_name].add(item["function"])
+                for value in item.values():
+                    if isinstance(value, list):
+                        queue.extend(value)
+                    elif isinstance(value, dict):
+                        queue.append(value)
+
+    visiting = set()
+    visited = set()
+
+    def has_cycle(node, path):
+        visiting.add(node)
+        path.append(node)
+        for neighbor in sorted(list(call_graph.get(node, []))):
+            if neighbor in visiting:
+                path.append(neighbor)
+                return True, path
+            if neighbor not in visited:
+                is_cyclic, final_path = has_cycle(neighbor, path)
+                if is_cyclic:
+                    return True, final_path
+        visiting.remove(node)
+        visited.add(node)
+        path.pop()
+        return False, []
+
+    for func_name in sorted(list(user_functions.keys())):
+        if func_name not in visited:
+            is_cyclic, path = has_cycle(func_name, [])
+            if is_cyclic:
+                cycle_path_str = " -> ".join(path)
+                raise ValuaScriptError(f"Recursive function call detected: {cycle_path_str}")
+
+
 def _find_live_variables(output_var, dependencies):
     live_vars = set()
     queue = deque([output_var])
@@ -186,23 +230,20 @@ def _find_stochastic_variables(execution_steps, dependents):
     stochastic_vars = set()
     queue = deque()
 
-    def _expression_is_stochastic(expression_dict, all_signatures):
+    def _expression_is_stochastic(expression_dict):
         if not isinstance(expression_dict, dict):
             return False
         func_name = expression_dict.get("function")
-        if func_name and all_signatures.get(func_name, {}).get("is_stochastic", False):
+        if func_name and FUNCTION_SIGNATURES.get(func_name, {}).get("is_stochastic", False):
             return True
         for arg in expression_dict.get("args", []):
-            if _expression_is_stochastic(arg, all_signatures):
+            if _expression_is_stochastic(arg):
                 return True
         return False
 
-    # This check needs to happen on the inlined code to correctly propagate stochasticity
-    all_temp_signatures = {**FUNCTION_SIGNATURES}  # UDFs are inlined, so no need to add them here
-
     for step in execution_steps:
         if step.get("type") == "execution_assignment":
-            if _expression_is_stochastic(step, all_temp_signatures):
+            if _expression_is_stochastic(step):
                 var_name = step["result"]
                 if var_name not in stochastic_vars:
                     stochastic_vars.add(var_name)
@@ -244,74 +285,92 @@ def _topological_sort_steps(steps, dependencies):
 
 
 def _inline_and_mangle_functions(execution_steps, user_functions):
-    inlined_steps = []
+    inlined_code = execution_steps
     call_count = 0
+    temp_var_count = 0
 
-    for step in execution_steps:
-        if step.get("type") == "execution_assignment" and step.get("function") in user_functions:
-            call_count += 1
-            func_name = step["function"]
-            func_def = user_functions[func_name]
-            mangling_prefix = f"__{func_name}_{call_count}__"
+    while True:
+        contains_udf_call = any(s.get("type") == "execution_assignment" and s.get("function") in user_functions for s in inlined_code)
+        contains_nested_udf_call = any(isinstance(arg, dict) and arg.get("function") in user_functions for s in inlined_code if s.get("type") == "execution_assignment" for arg in s.get("args", []))
 
-            param_names = {p["name"] for p in func_def["params"]}
-            local_var_names = {s["result"] for s in func_def["body"] if "result" in s}
+        if not contains_udf_call and not contains_nested_udf_call:
+            break
 
-            arg_map = {}
-            # Create assignments for the arguments, mapping original param name to the mangled var holding the arg
-            for i, param in enumerate(func_def["params"]):
-                mangled_param_name = f"{mangling_prefix}{param['name']}"
-                inlined_steps.append(
-                    {
-                        "result": mangled_param_name,
-                        "type": "execution_assignment",
-                        "function": "identity",
-                        "args": [step["args"][i]],
-                        "line": step["line"],
-                    }
-                )
-                arg_map[param["name"]] = Token("CNAME", mangled_param_name)
+        # --- FLATTENING PASS: Hoist nested UDF calls into their own 'let' statements ---
+        flattened_steps = []
+        for step in inlined_code:
+            if step.get("type") != "execution_assignment" or not any(isinstance(arg, dict) and arg.get("function") in user_functions for arg in step.get("args", [])):
+                flattened_steps.append(step)
+                continue
 
-            def mangle_expression(expr):
-                if isinstance(expr, Token):
-                    var_name = str(expr)
-                    if var_name in param_names:
-                        return arg_map[var_name]
-                    if var_name in local_var_names:
-                        return Token("CNAME", f"{mangling_prefix}{var_name}")
-                elif isinstance(expr, dict) and "args" in expr:
-                    new_expr = expr.copy()
-                    new_expr["args"] = [mangle_expression(a) for a in expr["args"]]
-                    return new_expr
-                return expr
+            modified_args = []
+            for arg in step.get("args", []):
+                if isinstance(arg, dict) and arg.get("function") in user_functions:
+                    temp_var_count += 1
+                    temp_var_name = f"__temp_{temp_var_count}"
+                    nested_call_step = {"result": temp_var_name, "line": step["line"], "type": "execution_assignment", **arg}
+                    flattened_steps.append(nested_call_step)
+                    modified_args.append(Token("CNAME", temp_var_name))
+                else:
+                    modified_args.append(arg)
+            modified_step = step.copy()
+            modified_step["args"] = modified_args
+            flattened_steps.append(modified_step)
+        inlined_code = flattened_steps
 
-            # Mangle and add the function body
-            for body_step in func_def["body"]:
-                if body_step.get("type") == "return_statement":
-                    mangled_return_value = mangle_expression(body_step["value"])
-                    inlined_steps.append(
-                        {
-                            "result": step["result"],
-                            "type": "execution_assignment",
-                            "function": "identity",
-                            "args": [mangled_return_value],
-                            "line": step["line"],
-                        }
-                    )
-                else:  # It's an assignment statement
-                    mangled_step = body_step.copy()
-                    mangled_step["result"] = f"{mangling_prefix}{mangled_step['result']}"
+        # --- INLINING PASS: Expand top-level UDF calls ---
+        next_pass_steps = []
+        for step in inlined_code:
+            if step.get("type") == "execution_assignment" and step.get("function") in user_functions:
+                call_count += 1
+                func_name = step["function"]
+                func_def = user_functions[func_name]
+                mangling_prefix = f"__{func_name}_{call_count}__"
+                param_names = {p["name"] for p in func_def["params"]}
+                local_var_names = {s["result"] for s in func_def["body"] if "result" in s}
+                arg_map = {}
+                for i, param in enumerate(func_def["params"]):
+                    mangled_param_name = f"{mangling_prefix}{param['name']}"
+                    next_pass_steps.append({"result": mangled_param_name, "type": "execution_assignment", "function": "identity", "args": [step["args"][i]], "line": step["line"]})
+                    arg_map[param["name"]] = Token("CNAME", mangled_param_name)
 
-                    if mangled_step.get("type") == "execution_assignment":
-                        mangled_step["args"] = [mangle_expression(arg) for arg in mangled_step.get("args", [])]
-                    elif mangled_step.get("type") == "literal_assignment":
-                        if isinstance(mangled_step.get("value"), list):
+                def mangle_expression(expr):
+                    if isinstance(expr, Token):
+                        var_name = str(expr)
+                        if var_name in param_names:
+                            return arg_map[var_name]
+                        if var_name in local_var_names:
+                            return Token("CNAME", f"{mangling_prefix}{var_name}")
+                    elif isinstance(expr, dict) and "args" in expr:
+                        new_expr = expr.copy()
+                        new_expr["args"] = [mangle_expression(a) for a in expr["args"]]
+                        return new_expr
+                    return expr
+
+                for body_step in func_def["body"]:
+                    if body_step.get("type") == "return_statement":
+                        mangled_return_value = mangle_expression(body_step["value"])
+                        final_assignment = {"result": step["result"], "line": step["line"]}
+                        if isinstance(mangled_return_value, dict):
+                            final_assignment.update({"type": "execution_assignment", **mangled_return_value})
+                        elif isinstance(mangled_return_value, Token):
+                            final_assignment.update({"type": "execution_assignment", "function": "identity", "args": [mangled_return_value]})
+                        else:
+                            final_assignment.update({"type": "literal_assignment", "value": mangled_return_value})
+                        next_pass_steps.append(final_assignment)
+                    else:
+                        mangled_step = body_step.copy()
+                        mangled_step["result"] = f"{mangling_prefix}{mangled_step['result']}"
+                        if mangled_step.get("type") == "execution_assignment":
+                            mangled_step["args"] = [mangle_expression(arg) for arg in mangled_step.get("args", [])]
+                        elif mangled_step.get("type") == "literal_assignment" and isinstance(mangled_step.get("value"), list):
                             mangled_step["value"] = [mangle_expression(item) for item in mangled_step["value"]]
+                        next_pass_steps.append(mangled_step)
+            else:
+                next_pass_steps.append(step)
+        inlined_code = next_pass_steps
 
-                    inlined_steps.append(mangled_step)
-        else:
-            inlined_steps.append(step)
-    return inlined_steps
+    return inlined_code
 
 
 def validate_valuascript(script_content: str, context="cli", optimize=False, verbose=False, preview_variable=None):
@@ -334,14 +393,14 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
             if len(clean_line.split()) > 0 and clean_line.split()[0] == "let":
                 raise ValuaScriptError(f"L{i+1}: Syntax Error: Incomplete assignment.")
 
-    # 1. Parse the script
     parse_tree = LARK_PARSER.parse(script_content)
     raw_recipe = ValuaScriptTransformer().transform(parse_tree)
 
     user_functions = {f["name"]: f for f in raw_recipe.get("function_definitions", [])}
     execution_steps = raw_recipe.get("execution_steps", [])
 
-    # 2. Build a complete map of all function signatures (built-in and user-defined)
+    _check_for_recursive_calls(user_functions)
+
     udf_signatures = {}
     for func_name, func_def in user_functions.items():
         if func_name in FUNCTION_SIGNATURES:
@@ -349,7 +408,6 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
         udf_signatures[func_name] = {"variadic": False, "arg_types": [p["type"] for p in func_def["params"]], "return_type": func_def["return_type"]}
     all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
 
-    # 3. Validate the internal logic of each user-defined function
     for func_name, func_def in user_functions.items():
         local_vars = {p["name"]: {"type": p["type"], "line": func_def["line"]} for p in func_def["params"]}
         has_return = False
@@ -368,7 +426,6 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
         if not has_return:
             raise ValuaScriptError(f"L{func_def['line']}: Function '{func_name}' is missing a return statement.")
 
-    # 4. Validate the main script body using the original, un-inlined steps and all signatures
     defined_vars = {}
     for step in execution_steps:
         line, result_var = step["line"], step["result"]
@@ -377,7 +434,6 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
         rhs_type = _infer_expression_type(step, defined_vars, set(), line, result_var, all_signatures)
         defined_vars[result_var] = {"type": rhs_type, "line": line}
 
-    # 5. Process directives and check the final output variable
     raw_directives_list = raw_recipe.get("directives", [])
     seen_directives, directives = set(), {}
     for d in raw_directives_list:
@@ -422,11 +478,9 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
     if output_var not in defined_vars:
         raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined.")
 
-    # 6. Once all validation is complete, inline the functions
     inlined_steps = _inline_and_mangle_functions(execution_steps, user_functions)
     raw_recipe["execution_steps"] = inlined_steps
 
-    # 7. Proceed with optimization and recipe generation using the inlined code
     all_original_vars = {step["result"] for step in raw_recipe["execution_steps"]}
     dependencies, dependents = _build_dependency_graph(raw_recipe["execution_steps"])
 
@@ -444,11 +498,8 @@ def validate_valuascript(script_content: str, context="cli", optimize=False, ver
             print("Optimization complete: No unused variables found to remove.")
         dependencies, dependents = _build_dependency_graph(raw_recipe["execution_steps"])
     else:
-        # Warnings for unused variables should be based on the inlined code
         unused_vars = all_original_vars - _find_live_variables(output_var, dependencies)
         if unused_vars and context != "lsp":
-            # This check is more complex now with mangled vars, so we omit it for now
-            # to avoid showing confusing warnings to the user.
             pass
 
     if verbose:
@@ -502,7 +553,6 @@ def _infer_expression_type(expression_dict, defined_vars, used_vars, line_num, c
             return "scalar"
         if isinstance(value, list):
             for item in value:
-                # In a literal vector, items must be numbers, not variables
                 if not isinstance(item, (int, float)):
                     error_val = f'"{item.value}"' if isinstance(item, _StringLiteral) else str(item)
                     raise ValuaScriptError(f"L{line_num}: Invalid item {error_val} in vector literal for '{current_result_var}'.")
