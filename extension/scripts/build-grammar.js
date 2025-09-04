@@ -1,5 +1,3 @@
-// In file: extension/scripts/build-grammar.js
-
 const fs = require("fs");
 const path = require("path");
 
@@ -37,11 +35,15 @@ try {
   const functionsRegex = languageSpec.functions
     .sort((a, b) => b.length - a.length)
     .join("|");
+  const typesRegex = languageSpec.types
+    .sort((a, b) => b.length - a.length)
+    .join("|");
 
   // --- Replace Placeholders in Template ---
   templateContent = templateContent.replace(/__DIRECTIVES__/g, directivesRegex);
   templateContent = templateContent.replace(/__KEYWORDS__/g, keywordsRegex);
   templateContent = templateContent.replace(/__FUNCTIONS__/g, functionsRegex);
+  templateContent = templateContent.replace(/__TYPES__/g, typesRegex);
 
   // --- Write Final Grammar File ---
   fs.writeFileSync(outputPath, templateContent);

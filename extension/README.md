@@ -112,6 +112,33 @@ After installation, **you must open a new terminal window** for the `vsc` and `v
 
 ---
 
+## ✨ Interactive Development with the VS Code Extension
+
+ValuaScript comes with a powerful VS Code extension that provides a rich, interactive development experience, turning the editor into a live modeling environment.
+
+### Live Value Preview (Hover-for-Value)
+
+The flagship feature of the extension is the live value preview. Simply hover your mouse over any variable in your script to see its calculated value instantly.
+
+**How it Works:**
+When you hover over a variable, the extension communicates with the `vsc` language server, which:
+
+1.  Performs a rapid, in-memory compilation of your script in **"preview mode"**.
+2.  Generates a temporary, optimized JSON recipe focused _only_ on the code needed to calculate that specific variable.
+3.  Invokes the high-performance C++ engine (`vse`) in the background with this recipe.
+4.  Receives the result from the engine and displays it directly in the hover tooltip.
+
+This entire process is seamless and typically completes in milliseconds.
+
+- For **deterministic** variables, it shows the exact calculated `Value`.
+- For **stochastic** variables (those depending on a distribution like `Normal`), it runs a small number of trials (e.g., 100) and displays the `Mean Value`.
+
+### Real-time Diagnostics and Hover-for-Help
+
+The extension provides immediate feedback as you type, underlining errors and providing descriptive messages. You can also hover over any built-in function to see its full signature, a summary of what it does, and details about its parameters and return value.
+
+---
+
 ## ⚙️ The Automation Pipeline: Professional CI/CD
 
 This project is built and delivered using a professional Continuous Integration and Continuous Delivery (CI/CD) pipeline powered by GitHub Actions. This ensures that every release is reliable, portable, and trustworthy. Our process is transparent and fully automated.

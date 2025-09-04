@@ -4,22 +4,31 @@ import sys
 import subprocess
 import json
 import tempfile
+from collections import deque
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
 from pygls.server import LanguageServer
-from lsprotocol.types import Diagnostic, Position, Range, DiagnosticSeverity
 from lsprotocol.types import (
-    TEXT_DOCUMENT_HOVER,
-    Hover,
+    Diagnostic,
+    Position,
+    Range,
+    DiagnosticSeverity,
     MarkupContent,
     MarkupKind,
-    Position,
+    TEXT_DOCUMENT_HOVER,
+    Hover,
 )
 from pygls.workspace import Document
-from vsc.config import FUNCTION_SIGNATURES
 
 # Ensure the server can find its own modules when packaged
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from vsc.compiler import validate_valuascript, ValuaScriptTransformer, _build_dependency_graph, _find_stochastic_variables, LARK_PARSER
+from vsc.compiler import (
+    ValuaScriptTransformer,
+    _build_dependency_graph,
+    _infer_expression_type,
+    LARK_PARSER,
+    validate_valuascript,
+)
+from vsc.config import FUNCTION_SIGNATURES
 from vsc.exceptions import ValuaScriptError
 from vsc.utils import format_lark_error, find_engine_executable
 
@@ -34,7 +43,7 @@ def _format_number_with_separators(n):
         parts = str(n).split(".")
         integer_part = f"{int(parts[0]):,}".replace(",", "_")
         return f"{integer_part}.{parts[1]}"
-    return n  # Return as is if not a number
+    return n
 
 
 def _validate(ls, params):
@@ -88,25 +97,77 @@ def _get_word_at_position(document: Document, position: Position) -> str:
     return line[start:end]
 
 
+def _is_udf_stochastic(func_def, user_functions, checked_functions=None):
+    if checked_functions is None:
+        checked_functions = set()
+    if func_def["name"] in checked_functions:
+        return False
+
+    checked_functions.add(func_def["name"])
+
+    for item in func_def.get("body", []):
+        queue = deque([item])
+        while queue:
+            current = queue.popleft()
+            if isinstance(current, dict):
+                func_name = current.get("function")
+                if func_name and FUNCTION_SIGNATURES.get(func_name, {}).get("is_stochastic"):
+                    return True
+                if func_name in user_functions:
+                    if _is_udf_stochastic(user_functions[func_name], user_functions, checked_functions):
+                        return True
+                for value in current.values():
+                    if isinstance(value, list):
+                        queue.extend(value)
+                    elif isinstance(value, dict):
+                        queue.append(value)
+    return False
+
+
 def _get_script_analysis(source: str):
     try:
         parse_tree = LARK_PARSER.parse(source)
         raw_recipe = ValuaScriptTransformer().transform(parse_tree)
         execution_steps = raw_recipe.get("execution_steps", [])
-        from vsc.compiler import _infer_expression_type
+        user_functions = {f["name"]: f for f in raw_recipe.get("function_definitions", [])}
+
+        udf_signatures = {}
+        for name, definition in user_functions.items():
+            udf_signatures[name] = {
+                "variadic": False,
+                "arg_types": [p["type"] for p in definition["params"]],
+                "return_type": definition["return_type"],
+                "is_stochastic": _is_udf_stochastic(definition, user_functions),
+            }
+        all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
 
         defined_vars = {}
         for step in execution_steps:
             try:
-                rhs_type = _infer_expression_type(step, defined_vars, set(), step["line"], step["result"])
+                rhs_type = _infer_expression_type(step, defined_vars, set(), step["line"], step["result"], all_signatures)
                 defined_vars[step["result"]] = {"type": rhs_type}
             except ValuaScriptError:
                 defined_vars[step["result"]] = {"type": "error"}
+
         dependencies, dependents = _build_dependency_graph(execution_steps)
-        stochastic_vars = _find_stochastic_variables(execution_steps, dependents)
-        return defined_vars, stochastic_vars
+        stochastic_vars = set()
+        queue = deque()
+        for step in execution_steps:
+            if step.get("type") == "execution_assignment":
+                func_name = step.get("function")
+                if all_signatures.get(func_name, {}).get("is_stochastic"):
+                    stochastic_vars.add(step["result"])
+                    queue.append(step["result"])
+        while queue:
+            current = queue.popleft()
+            for dep in dependents.get(current, []):
+                if dep not in stochastic_vars:
+                    stochastic_vars.add(dep)
+                    queue.append(dep)
+
+        return defined_vars, stochastic_vars, user_functions
     except Exception:
-        return {}, set()
+        return {}, set(), {}
 
 
 @server.feature(TEXT_DOCUMENT_HOVER)
@@ -114,6 +175,7 @@ def hover(params):
     document = server.workspace.get_document(params.text_document.uri)
     word = _get_word_at_position(document, params.position)
     source = document.source
+    defined_vars, stochastic_vars, user_functions = _get_script_analysis(source)
 
     if word in FUNCTION_SIGNATURES:
         sig = FUNCTION_SIGNATURES[word]
@@ -135,7 +197,16 @@ def hover(params):
             contents.append(f"\n**Returns**: `{return_type_str}` — {returns_doc}")
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
 
-    defined_vars, stochastic_vars = _get_script_analysis(source)
+    if word in user_functions:
+        func_def = user_functions[word]
+        params_str = ", ".join([f"{p['name']}: {p['type']}" for p in func_def["params"]])
+        signature = f"(user defined function) {func_def['name']}({params_str}) -> {func_def['return_type']}"
+        contents = [f"```valuascript\n{signature}\n```"]
+        if func_def.get("docstring"):
+            contents.append("---")
+            contents.append(func_def["docstring"])
+        return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
+
     if word in defined_vars:
         var_info = defined_vars[word]
         var_type = var_info.get("type", "unknown")

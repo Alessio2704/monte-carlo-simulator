@@ -77,8 +77,6 @@ def main():
 
                 if is_preview_mode:
                     proc = subprocess.run([engine_executable, "--preview", output_file_path], capture_output=True, text=True, check=True)
-                    # THE FIX: Use print() for more reliable output flushing in subprocesses.
-                    # The `end=''` prevents an extra newline from being added.
                     print(proc.stdout, end="")
                 else:
                     print(f"\n--- Running Simulation ---")

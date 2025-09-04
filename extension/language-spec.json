@@ -1,6 +1,7 @@
 {
   "directives": ["iterations", "output", "output_file"],
-  "keywords": ["let"],
+  "keywords": ["let", "func", "return"],
+  "types": ["scalar", "vector", "string"],
   "functions": [
     "add",
     "subtract",

@@ -6,10 +6,12 @@
     { "include": "#comments" },
     { "include": "#directives" },
     { "include": "#keywords" },
+    { "include": "#storage_types" },
     { "include": "#strings" },
     { "include": "#functions" },
     { "include": "#numbers" },
-    { "include": "#operators" }
+    { "include": "#operators" },
+    { "include": "#punctuation" }
   ],
   "repository": {
     "comments": {
@@ -27,7 +29,26 @@
     },
     "keywords": {
       "patterns": [
-        { "name": "keyword.other.valuascript", "match": "\\b(__KEYWORDS__)\\b" }
+        {
+          "name": "keyword.other.valuascript",
+          "match": "\\b(let)\\b"
+        },
+        {
+          "name": "storage.type.function.valuascript",
+          "match": "\\b(func)\\b"
+        },
+        {
+          "name": "keyword.control.flow.valuascript",
+          "match": "\\b(return)\\b"
+        }
+      ]
+    },
+    "storage_types": {
+      "patterns": [
+        {
+          "name": "storage.type.valuascript",
+          "match": "\\b(__TYPES__)\\b"
+        }
       ]
     },
     "strings": {
@@ -48,8 +69,12 @@
     "functions": {
       "patterns": [
         {
-          "name": "support.function.valuascript",
+          "name": "support.function.built-in.valuascript",
           "match": "\\b(__FUNCTIONS__)\\b(?=\\s*\\()"
+        },
+        {
+          "name": "entity.name.function.valuascript",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*\\()"
         }
       ]
     },
@@ -67,6 +92,19 @@
         {
           "name": "keyword.operator.arithmetic.valuascript",
           "match": "[\\+\\-\\*\\/\\^]"
+        },
+        { "name": "keyword.operator.arrow.valuascript", "match": "->" }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.definition.brace.curly.begin.valuascript",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.definition.brace.curly.end.valuascript",
+          "match": "\\}"
         }
       ]
     }
