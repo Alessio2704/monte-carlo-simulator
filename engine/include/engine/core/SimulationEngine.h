@@ -17,24 +17,24 @@ public:
     std::string get_output_file_path() const;
 
 private:
-    void parse_recipe(const std::string &path);
-    void build_variable_registry();
+    void parse_and_build(const std::string &path);
     void run_pre_trial_phase();
-    void build_per_trial_steps();
     void run_batch(int num_trials, std::vector<TrialValue> &results, std::exception_ptr &out_exception);
-
     void build_executable_factory();
+
+    // --- Configuration ---
+    int m_num_trials;
+    std::string m_output_variable;
+    std::string m_output_file_path;
+    bool m_is_preview;
+
+    // --- Core Engine Components ---
     std::unordered_map<std::string, std::function<std::unique_ptr<IExecutable>()>> m_executable_factory;
-
-    SimulationRecipe m_recipe;
-
     std::unordered_map<std::string, size_t> m_variable_registry;
-
-    std::vector<TrialValue> m_preloaded_context_vector;
-
     size_t m_output_variable_index;
 
+    // --- Execution State ---
+    std::vector<TrialValue> m_preloaded_context_vector;
+    std::vector<std::unique_ptr<IExecutionStep>> m_pre_trial_steps;
     std::vector<std::unique_ptr<IExecutionStep>> m_per_trial_steps;
-
-    bool m_is_preview;
 };

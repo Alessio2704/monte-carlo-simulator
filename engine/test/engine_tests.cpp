@@ -312,8 +312,20 @@ TEST_F(EngineSamplerTest, Lognormal)
 TEST_F(EngineErrorTests, ThrowsOnUndefinedVariable)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable":"C","per_trial_steps":[{"type":"execution_assignment","result":"C","function":"add","args":["A","B"]}]})");
-    SimulationEngine engine("err.json");
-    ASSERT_THROW(engine.run(), std::runtime_error);
+    try
+    {
+        SimulationEngine engine("err.json");
+        engine.run();
+        FAIL() << "Expected std::runtime_error for undefined function in recipe";
+    }
+    catch (const std::runtime_error &e)
+    {
+        EXPECT_STREQ(e.what(), "Argument 'A' is not a known variable.");
+    }
+    catch (...)
+    {
+        FAIL() << "Expected std::runtime_error for undefined function in recipe";
+    }
 }
 
 TEST_F(EngineErrorTests, ThrowsOnDivisionByZero)

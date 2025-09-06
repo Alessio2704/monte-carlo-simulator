@@ -34,32 +34,3 @@ enum class OpCode
     CAPITALIZE_EXPENSE,
     IDENTITY // For variable-to-variable assignment
 };
-
-// Represents a step like: `let x = 123.45` or `let y = [1, 2]`
-struct LiteralAssignmentDef
-{
-    std::string result_name;
-    TrialValue value;
-    int line = -1;
-};
-
-// Represents a step like: `let x = add(y, z)` or `let s = Normal(m, s)`
-struct ExecutionAssignmentDef
-{
-    std::string result_name;
-    std::string function_name;
-    std::vector<json> args;
-    int line = -1;
-};
-
-// A definition for any step in the execution sequence
-using ExecutionStepDef = std::variant<LiteralAssignmentDef, ExecutionAssignmentDef>;
-
-struct SimulationRecipe
-{
-    int num_trials = 1000;
-    std::string output_variable;
-    std::vector<ExecutionStepDef> pre_trial_steps; // Steps to run once before simulation.
-    std::vector<ExecutionStepDef> per_trial_steps; // Steps to run for each trial.
-    std::string output_file_path;
-};
