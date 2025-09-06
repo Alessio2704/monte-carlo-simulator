@@ -18,7 +18,6 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForDeterministicScalar)
     })";
     create_test_recipe("preview_test.json", recipe);
 
-    // ** THE FIX IS HERE **
     // Use the path provided by the build system instead of a hardcoded relative path.
     std::string command = std::string(VSE_EXECUTABLE_PATH) + " --preview preview_test.json";
 
