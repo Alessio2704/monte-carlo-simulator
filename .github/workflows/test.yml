@@ -54,7 +54,7 @@ jobs:
         shell: bash
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
-      # --- Consolidated Build and Test for Linux  ---
+      # --- Consolidated Build and Test for Linux ---
       - name: Build and Test C++ Engine (Linux via Docker)
         if: runner.os == 'Linux'
         run: |
@@ -62,7 +62,15 @@ jobs:
             ubuntu:22.04 \
             bash -c "
               set -e
-              apt-get update && apt-get install -y build-essential cmake git
+              # --- Install Prerequisites & Latest CMake from Kitware ---
+              apt-get update
+              apt-get install -y build-essential git wget gpg
+              wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+              echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main' | tee /etc/apt/sources.list.d/kitware.list >/dev/null
+              apt-get update
+              apt-get install -y cmake
+              
+              # --- Configure, Build, and Test ---
               cd /workspace
               echo '--- Configuring CMake inside container ---'
               cmake -B build -DCMAKE_BUILD_TYPE=Release
