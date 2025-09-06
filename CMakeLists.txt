@@ -4,6 +4,11 @@ cmake_minimum_required(VERSION 3.14)
 # Define the project
 project(ValuaScriptProject)
 
+# --- Enable Testing for the Entire Project ---
+# This MUST be in the top-level CMakeLists.txt for ctest to work correctly.
+enable_testing()
+include(CTest)
+
 # --- Set MSVC Runtime Library Policy ---
 # This is critical for ensuring that our code and all dependencies (like GoogleTest)
 # are compiled and linked with the same dynamic runtime library (/MD or /MDd) on Windows.

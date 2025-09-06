@@ -99,10 +99,6 @@ jobs:
         run: cmake --build build --config Release
 
       # --- Run C++ Engine Tests ---
-      - name: Run Engine Tests (macOS)
-        if: runner.os == 'macOS'
-        run: ./build/bin/run_tests
-
       - name: Run C++ Engine Tests (Linux via Docker)
         if: runner.os == 'Linux'
         run: |
@@ -110,14 +106,17 @@ jobs:
             ubuntu:22.04 \
             bash -c "
               set -e
-              cd /workspace
+              cd /workspace/build
               echo '--- Running C++ tests inside container ---'
-              ./build/bin/run_tests
+              ctest --verbose --output-on-failure
             "
 
-      - name: Run Engine Tests (Windows)
-        if: runner.os == 'Windows'
-        run: .\build\bin\Release\run_tests.exe
+      - name: Run C++ Engine Tests (macOS & Windows)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          cd build
+          ctest --verbose --output-on-failure
 
       # --- Install Python dependencies and Run Compiler Tests ---
       - name: Install Python Dependencies & Run Tests
