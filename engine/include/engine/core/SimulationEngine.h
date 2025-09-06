@@ -24,14 +24,12 @@ private:
 
     // --- Configuration ---
     int m_num_trials;
-    std::string m_output_variable;
+    size_t m_output_variable_index;
     std::string m_output_file_path;
     bool m_is_preview;
 
     // --- Core Engine Components ---
     std::unordered_map<std::string, std::function<std::unique_ptr<IExecutable>()>> m_executable_factory;
-    std::unordered_map<std::string, size_t> m_variable_registry;
-    size_t m_output_variable_index;
 
     // --- Execution State ---
     std::vector<TrialValue> m_preloaded_context_vector;

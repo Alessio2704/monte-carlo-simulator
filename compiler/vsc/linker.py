@@ -42,6 +42,8 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
             return {"type": "variable_index", "value": name_to_index_map[var_name]}
         if isinstance(arg, dict) and "args" in arg:  # This is a nested function call
             new_arg = arg.copy()
+            # We must explicitly add the 'type' to the nested call object.
+            new_arg["type"] = "execution_assignment"
             new_arg["args"] = [_resolve_expression_to_bytecode(a) for a in new_arg["args"]]
             return new_arg
         return arg  # It's a literal (number, _StringLiteral, etc.)

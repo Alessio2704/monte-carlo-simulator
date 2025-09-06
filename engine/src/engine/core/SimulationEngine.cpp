@@ -21,9 +21,6 @@ SimulationEngine::SimulationEngine(const std::string &json_recipe_path, bool is_
 
 void SimulationEngine::build_executable_factory()
 {
-    // It stores functions (lambdas) that create the objects.
-
-    // Operations
     m_executable_factory["add"] = []
     { return std::make_unique<AddOperation>(); };
     m_executable_factory["subtract"] = []
@@ -68,13 +65,10 @@ void SimulationEngine::build_executable_factory()
     { return std::make_unique<InterpolateSeriesOperation>(); };
     m_executable_factory["capitalize_expense"] = []
     { return std::make_unique<CapitalizeExpenseOperation>(); };
-
     m_executable_factory["read_csv_scalar"] = []
     { return std::make_unique<ReadCsvScalarOperation>(); };
     m_executable_factory["read_csv_vector"] = []
     { return std::make_unique<ReadCsvVectorOperation>(); };
-
-    // Distribution Samplers
     m_executable_factory["Normal"] = []
     { return std::make_unique<NormalSampler>(); };
     m_executable_factory["Uniform"] = []
@@ -107,57 +101,31 @@ void SimulationEngine::parse_and_build(const std::string &path)
     json recipe_json = json::parse(file_stream);
     const auto &config = recipe_json["simulation_config"];
     m_num_trials = config["num_trials"];
-    m_output_variable = recipe_json["output_variable"];
+    m_output_variable_index = recipe_json["output_variable_index"];
     if (config.contains("output_file") && config["output_file"].is_string())
     {
         m_output_file_path = config["output_file"].get<std::string>();
     }
 
-    // --- 2. Build Variable Registry by pre-scanning all steps ---
-    size_t current_index = 0;
-    auto register_variable_if_new = [&](const std::string &name)
+    // --- 2. Get the size of the context from the registry ---
+    // The registry itself is only used for debugging and is not stored in the engine.
+    const size_t num_variables = recipe_json["variable_registry"].size();
+    if (m_output_variable_index >= num_variables)
     {
-        if (m_variable_registry.find(name) == m_variable_registry.end())
-        {
-            m_variable_registry[name] = current_index++;
-        }
-    };
-
-    if (recipe_json.contains("pre_trial_steps"))
-    {
-        for (const auto &step_json : recipe_json["pre_trial_steps"])
-        {
-            register_variable_if_new(step_json["result"].get<std::string>());
-        }
+        throw std::runtime_error("Output variable index is out of bounds of the variable registry.");
     }
-    if (recipe_json.contains("per_trial_steps"))
-    {
-        for (const auto &step_json : recipe_json["per_trial_steps"])
-        {
-            register_variable_if_new(step_json["result"].get<std::string>());
-        }
-    }
+    m_preloaded_context_vector.resize(num_variables);
 
-    // Find the index for the final output variable and pre-allocate context vector
-    auto it = m_variable_registry.find(m_output_variable);
-    if (it == m_variable_registry.end())
-    {
-        throw std::runtime_error("Output variable '" + m_output_variable + "' is not defined in any step.");
-    }
-    m_output_variable_index = it->second;
-    m_preloaded_context_vector.resize(m_variable_registry.size());
-
-    // --- 3. Build Executable Step objects directly from JSON ---
+    // --- 3. Build Executable Step objects directly from JSON bytecode ---
     auto build_step_from_json = [&](const json &step_json) -> std::unique_ptr<IExecutionStep>
     {
-        std::string type = step_json["type"];
-        std::string result_name = step_json["result"];
+        std::string type = step_json.at("type");
+        size_t result_index = step_json.at("result_index");
         int line = step_json.value("line", -1);
-        size_t result_index = m_variable_registry.at(result_name);
 
         if (type == "literal_assignment")
         {
-            const auto &val_json = step_json["value"];
+            const auto &val_json = step_json.at("value");
             TrialValue value;
             if (val_json.is_array())
             {
@@ -175,7 +143,7 @@ void SimulationEngine::parse_and_build(const std::string &path)
         }
         else if (type == "execution_assignment")
         {
-            std::string function_name = step_json["function"];
+            std::string function_name = step_json.at("function");
             auto factory_it = m_executable_factory.find(function_name);
             if (factory_it == m_executable_factory.end())
             {
@@ -184,7 +152,7 @@ void SimulationEngine::parse_and_build(const std::string &path)
             auto executable_logic = factory_it->second();
             return std::make_unique<ExecutionAssignmentStep>(
                 result_index, function_name, line,
-                std::move(executable_logic), step_json["args"], m_executable_factory, m_variable_registry);
+                std::move(executable_logic), step_json.at("args"), m_executable_factory);
         }
         else
         {

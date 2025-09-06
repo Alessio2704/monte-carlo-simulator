@@ -143,6 +143,47 @@ def test_all_function_arities(base_script, func, provided_argc):
 
 
 # ==============================================================================
+# TESTS FOR LINKER AND BYTECODE GENERATION
+# ==============================================================================
+
+
+def test_linker_handles_nested_function_calls():
+    """
+    This is a regression test. It ensures that nested function calls in the AST
+    are correctly typed in the final bytecode, preventing the
+    'Argument object is missing 'type' field' error in the C++ engine.
+    """
+    script = """
+    @iterations=1
+    @output=result
+    let base = 10
+    let result = log(exp(base)) 
+    """
+    recipe = compile_valuascript(script)
+    assert recipe is not None
+
+    # Find the 'result' step in the bytecode
+    registry = recipe["variable_registry"]
+    result_index = registry.index("result")
+
+    # ** THE FIX IS HERE **
+    # The step could be in pre_trial or per_trial, so we search both.
+    all_steps = recipe["pre_trial_steps"] + recipe["per_trial_steps"]
+    result_step = next(s for s in all_steps if s["result_index"] == result_index)
+
+    assert result_step is not None
+    assert result_step["function"] == "log"
+    assert len(result_step["args"]) == 1
+
+    # The crucial assertion: check the nested argument
+    nested_arg = result_step["args"][0]
+    assert isinstance(nested_arg, dict)
+    assert nested_arg.get("type") == "execution_assignment"
+    assert nested_arg.get("function") == "exp"
+    assert len(nested_arg.get("args", [])) == 1
+
+
+# ==============================================================================
 # TESTS FOR LOOP-INVARIANT CODE MOTION OPTIMIZATION
 # ==============================================================================
 

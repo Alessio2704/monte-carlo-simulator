@@ -421,13 +421,17 @@ TrialValue GrowSeriesOperation::execute(const std::vector<TrialValue> &args) con
     double growth_rate = std::get<double>(args[1]);
     int num_years = static_cast<int>(std::get<double>(args[2]));
 
-    std::vector<double> series(num_years); // Pre-allocate
+    std::vector<double> series;
+    if (num_years < 1)
+        return series;
+
+    series.reserve(num_years);
     double current_val = base_val;
     double growth_factor = 1.0 + growth_rate;
     for (int i = 0; i < num_years; ++i)
     {
         current_val *= growth_factor;
-        series[i] = current_val;
+        series.push_back(current_val);
     }
     return series;
 }
