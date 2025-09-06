@@ -8,13 +8,13 @@ from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedTok
 
 try:
     # This must be the first import to set up the path correctly
-    from .compiler import validate_valuascript
+    from .compiler import compile_valuascript
     from .exceptions import ValuaScriptError
     from .utils import TerminalColors, format_lark_error, find_engine_executable, generate_and_show_plot
 except ImportError:
     # If run directly, this might fail, so we add the parent dir to the path
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-    from vsc.compiler import validate_valuascript
+    from vsc.compiler import compile_valuascript
     from vsc.exceptions import ValuaScriptError
     from vsc.utils import TerminalColors, format_lark_error, find_engine_executable, generate_and_show_plot
 
@@ -60,7 +60,7 @@ def main():
             if not is_preview_mode:
                 print(f"--- Compiling {script_path} -> {output_file_path} ---")
 
-            final_recipe = validate_valuascript(script_content, optimize=is_preview_mode or args.optimize, verbose=args.verbose and not is_preview_mode, preview_variable=args.preview_var)
+            final_recipe = compile_valuascript(script_content, optimize=args.optimize, verbose=args.verbose and not is_preview_mode, preview_variable=args.preview_var)
 
             with open(output_file_path, "w") as f:
                 f.write(json.dumps(final_recipe, indent=2))

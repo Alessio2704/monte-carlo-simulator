@@ -1,5 +1,8 @@
 #include "include/engine/core/ExecutionSteps.h"
 #include <stdexcept>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 LiteralAssignmentStep::LiteralAssignmentStep(size_t result_index, TrialValue value)
     : m_result_index(result_index), m_value(std::move(value)) {}
@@ -14,9 +17,8 @@ ExecutionAssignmentStep::ExecutionAssignmentStep(
     std::string function_name,
     int line_num,
     std::unique_ptr<IExecutable> logic,
-    const std::vector<json> &args,
-    const ExecutableFactory &factory,
-    const std::unordered_map<std::string, size_t> &variable_registry)
+    const json &args,
+    const ExecutableFactory &factory)
     : m_result_index(result_index),
       m_function_name(std::move(function_name)),
       m_line_num(line_num),
@@ -26,7 +28,7 @@ ExecutionAssignmentStep::ExecutionAssignmentStep(
     m_resolved_args.reserve(args.size());
     for (const auto &arg_json : args)
     {
-        m_resolved_args.push_back(build_argument_plan(arg_json, factory, variable_registry));
+        m_resolved_args.push_back(build_argument_plan(arg_json, factory));
     }
 }
 
@@ -68,8 +70,8 @@ TrialValue ExecutionAssignmentStep::resolve_runtime_value(const ResolvedArgument
             }
             else if constexpr (std::is_same_v<T, size_t>)
             {
-                // The plan is an index. Perform a fast lookup in the current trial's context.
-                return context[plan];
+                // The plan is an index. Perform a bounds-checked lookup in the current trial's context.
+                return context.at(plan);
             }
             else if constexpr (std::is_same_v<T, std::unique_ptr<NestedFunctionCall>>)
             {
@@ -102,58 +104,55 @@ TrialValue ExecutionAssignmentStep::resolve_runtime_value(const ResolvedArgument
 // This function runs ONCE AT CONSTRUCTION to build the execution plan. It's called recursively for nested functions.
 ExecutionAssignmentStep::ResolvedArgument ExecutionAssignmentStep::build_argument_plan(
     const json &arg,
-    const ExecutableFactory &factory,
-    const std::unordered_map<std::string, size_t> &variable_registry)
+    const ExecutableFactory &factory)
 {
-    if (arg.is_string())
-    {
-        const std::string &arg_str = arg.get<std::string>();
-        auto it = variable_registry.find(arg_str);
-        if (it != variable_registry.end())
-        {
-            // It's a variable. The plan is to look up its index at runtime.
-            return it->second;
-        }
-        throw std::runtime_error("Argument '" + arg_str + "' is not a known variable.");
-    }
     if (arg.is_number())
     {
-        // It's a literal number. The plan is to simply return this value.
         return arg.get<double>();
     }
     if (arg.is_array())
     {
-        // It's a literal array. The plan is to return this value.
         return arg.get<std::vector<double>>();
     }
     if (arg.is_object())
     {
-        if (arg.contains("type") && arg.at("type") == "string_literal")
+        const auto &type_it = arg.find("type");
+        if (type_it == arg.end())
         {
-            // It's a literal string. The plan is to return this value.
+            throw std::runtime_error("Argument object is missing 'type' field.");
+        }
+
+        const std::string &type = type_it->get<std::string>();
+        if (type == "string_literal")
+        {
             return arg.at("value").get<std::string>();
         }
-
-        // It's a nested function call. The plan is to create a NestedFunctionCall object.
-        auto nested_call = std::make_unique<NestedFunctionCall>();
-        nested_call->function_name = arg.at("function");
-        nested_call->line_num = arg.value("line", -1);
-
-        auto it = factory.find(nested_call->function_name);
-        if (it == factory.end())
+        if (type == "variable_index")
         {
-            throw std::runtime_error("Unknown nested function: " + nested_call->function_name);
+            return arg.at("value").get<size_t>();
         }
-        nested_call->logic = it->second();
-
-        // Recursively build the plan for the nested function's arguments.
-        const auto &nested_args_json = arg.at("args");
-        nested_call->args.reserve(nested_args_json.size());
-        for (const auto &nested_arg_json : nested_args_json)
+        if (type == "execution_assignment") // A nested function call
         {
-            nested_call->args.push_back(build_argument_plan(nested_arg_json, factory, variable_registry));
+            auto nested_call = std::make_unique<NestedFunctionCall>();
+            nested_call->function_name = arg.at("function");
+            nested_call->line_num = arg.value("line", -1);
+
+            auto it = factory.find(nested_call->function_name);
+            if (it == factory.end())
+            {
+                throw std::runtime_error("Unknown nested function: " + nested_call->function_name);
+            }
+            nested_call->logic = it->second();
+
+            // Recursively build the plan for the nested function's arguments.
+            const auto &nested_args_json = arg.at("args");
+            nested_call->args.reserve(nested_args_json.size());
+            for (const auto &nested_arg_json : nested_args_json)
+            {
+                nested_call->args.push_back(build_argument_plan(nested_arg_json, factory));
+            }
+            return nested_call;
         }
-        return nested_call;
     }
-    throw std::runtime_error("Invalid argument type. Expected string, number, array, or object.");
+    throw std::runtime_error("Invalid argument type. Expected number, array, or a typed object.");
 }

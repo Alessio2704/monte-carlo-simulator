@@ -65,7 +65,7 @@ target_link_libraries(vse PRIVATE engine_core)
 
 
 # --- Testing Configuration ---
-enable_testing()
+# Note: enable_testing() is now in the top-level CMakeLists.txt
 
 # This is CRITICAL for Windows builds. It forces gtest to be built with the
 # same dynamic runtime library (/MD or /MDd) as our main project, which prevents
@@ -80,19 +80,26 @@ FetchContent_Declare(
   GIT_TAG "v1.14.0"
 )
 FetchContent_MakeAvailable(googletest)
-
-# Define our test executable.
-add_executable(run_tests
-    test/engine_tests.cpp
-)
-
-# Link the test executable against our core library, GoogleTest, and GoogleMock.
-# Linking gmock is necessary to use matchers like HasSubstr.
-target_link_libraries(run_tests PRIVATE
-    engine_core
-    gtest_main
-    gmock
-)
-
 include(GoogleTest)
-gtest_discover_tests(run_tests)
+
+# Helper macro to reduce boilerplate when adding new test files
+macro(add_engine_test test_name)
+  add_executable(${test_name} "test/${test_name}.cpp")
+  target_link_libraries(${test_name} PRIVATE
+      engine_core
+      gtest_main
+      gmock
+  )
+  gtest_discover_tests(${test_name})
+endmacro()
+
+# Define all our test executables using the macro
+add_engine_test(test_operations)
+add_engine_test(test_samplers)
+add_engine_test(test_errors)
+add_engine_test(test_io)
+add_engine_test(test_preview)
+
+# Pass the location of the 'vse' executable to the 'test_preview' compile definitions.
+# $<TARGET_FILE:vse> is a CMake "generator expression" that resolves to the full path of the executable.
+target_compile_definitions(test_preview PRIVATE VSE_EXECUTABLE_PATH="$<TARGET_FILE:vse>")

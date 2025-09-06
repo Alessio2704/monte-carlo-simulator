@@ -21,13 +21,10 @@ from pygls.workspace import Document
 
 # Ensure the server can find its own modules when packaged
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from vsc.compiler import (
-    ValuaScriptTransformer,
-    _build_dependency_graph,
-    _infer_expression_type,
-    LARK_PARSER,
-    validate_valuascript,
-)
+from vsc.compiler import compile_valuascript
+from vsc.parser import parse_valuascript
+from vsc.validator import validate_semantics, _infer_expression_type
+from vsc.optimizer import _build_dependency_graph, _find_stochastic_variables
 from vsc.config import FUNCTION_SIGNATURES
 from vsc.exceptions import ValuaScriptError
 from vsc.utils import format_lark_error, find_engine_executable
@@ -58,7 +55,8 @@ def _validate(ls, params):
     original_stdout = sys.stdout
     try:
         sys.stdout = open(os.devnull, "w")
-        validate_valuascript(source, context="lsp")
+        # Use the full compiler pipeline for validation
+        compile_valuascript(source, context="lsp")
     except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
         line, col = e.line - 1, e.column - 1
         msg = strip_ansi(format_lark_error(e, source).splitlines()[-1])
@@ -125,46 +123,16 @@ def _is_udf_stochastic(func_def, user_functions, checked_functions=None):
 
 
 def _get_script_analysis(source: str):
+    """
+    Performs a partial compilation to get semantic info needed for hover tooltips.
+    This is more efficient than a full compile-and-link for every hover.
+    """
     try:
-        parse_tree = LARK_PARSER.parse(source)
-        raw_recipe = ValuaScriptTransformer().transform(parse_tree)
-        execution_steps = raw_recipe.get("execution_steps", [])
-        user_functions = {f["name"]: f for f in raw_recipe.get("function_definitions", [])}
-
-        udf_signatures = {}
-        for name, definition in user_functions.items():
-            udf_signatures[name] = {
-                "variadic": False,
-                "arg_types": [p["type"] for p in definition["params"]],
-                "return_type": definition["return_type"],
-                "is_stochastic": _is_udf_stochastic(definition, user_functions),
-            }
-        all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
-
-        defined_vars = {}
-        for step in execution_steps:
-            try:
-                rhs_type = _infer_expression_type(step, defined_vars, set(), step["line"], step["result"], all_signatures)
-                defined_vars[step["result"]] = {"type": rhs_type}
-            except ValuaScriptError:
-                defined_vars[step["result"]] = {"type": "error"}
-
-        dependencies, dependents = _build_dependency_graph(execution_steps)
-        stochastic_vars = set()
-        queue = deque()
-        for step in execution_steps:
-            if step.get("type") == "execution_assignment":
-                func_name = step.get("function")
-                if all_signatures.get(func_name, {}).get("is_stochastic"):
-                    stochastic_vars.add(step["result"])
-                    queue.append(step["result"])
-        while queue:
-            current = queue.popleft()
-            for dep in dependents.get(current, []):
-                if dep not in stochastic_vars:
-                    stochastic_vars.add(dep)
-                    queue.append(dep)
-
+        high_level_ast = parse_valuascript(source)
+        inlined_steps, defined_vars, _, _ = validate_semantics(high_level_ast, is_preview_mode=True)
+        dependencies, dependents = _build_dependency_graph(inlined_steps)
+        stochastic_vars = _find_stochastic_variables(inlined_steps, dependents)
+        user_functions = {f["name"]: f for f in high_level_ast.get("function_definitions", [])}
         return defined_vars, stochastic_vars, user_functions
     except Exception:
         return {}, set(), {}
@@ -221,7 +189,7 @@ def hover(params):
 
         tmp_recipe_file = None
         try:
-            recipe, engine_path = validate_valuascript(source, context="lsp", optimize=True, preview_variable=word), find_engine_executable(None)
+            recipe, engine_path = compile_valuascript(source, context="lsp", preview_variable=word), find_engine_executable(None)
             if not engine_path:
                 return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error: Simulation engine 'vse' not found.*"))
 

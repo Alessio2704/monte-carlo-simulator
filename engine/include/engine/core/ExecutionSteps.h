@@ -50,9 +50,8 @@ public:
         std::string function_name,
         int line_num,
         std::unique_ptr<IExecutable> logic,
-        const std::vector<json> &args,
-        const ExecutableFactory &factory,
-        const std::unordered_map<std::string, size_t> &variable_registry);
+        const nlohmann::json &args,
+        const ExecutableFactory &factory);
 
     void execute(TrialContext &context) const override;
 
@@ -65,9 +64,8 @@ private:
 
     // Helper to build the execution plan during construction (runs once).
     static ResolvedArgument build_argument_plan(
-        const json &arg,
-        const ExecutableFactory &factory,
-        const std::unordered_map<std::string, size_t> &variable_registry);
+        const nlohmann::json &arg,
+        const ExecutableFactory &factory);
 
     // Helper to execute the plan at runtime (runs millions of times).
     TrialValue resolve_runtime_value(const ResolvedArgument &arg, const TrialContext &context) const;
