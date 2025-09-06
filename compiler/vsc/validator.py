@@ -166,8 +166,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures):
                 func_name = step["function"]
                 func_def = user_functions[func_name]
 
-                # ** THE FIX IS HERE **
-                # Perform arity check BEFORE attempting to inline the function call.
                 expected_argc = len(func_def["params"])
                 provided_argc = len(step["args"])
                 if provided_argc != expected_argc:
@@ -235,16 +233,30 @@ def validate_semantics(high_level_ast, is_preview_mode):
         udf_signatures[func_name] = {"variadic": False, "arg_types": [p["type"] for p in func_def["params"]], "return_type": func_def["return_type"]}
     all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
 
-    inlined_steps = validate_and_inline_udfs(execution_steps, user_functions, all_signatures)
+    # ** THE FIX IS HERE: Reordered logic **
+    # PASS 1: Validate UDF bodies and the main script body BEFORE inlining.
+    # This ensures that calls to UDFs are type-checked against their signatures.
+    validate_and_inline_udfs([], user_functions, all_signatures)  # Validates UDF bodies
 
-    # Validate main body semantics
     defined_vars = {}
-    for step in inlined_steps:
+    for step in execution_steps:
         line, result_var = step["line"], step["result"]
         if result_var in defined_vars:
             raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once.")
         rhs_type = _infer_expression_type(step, defined_vars, line, result_var, all_signatures)
         defined_vars[result_var] = {"type": rhs_type, "line": line}
+
+    # PASS 2: Now that the original script is validated, perform inlining.
+    inlined_steps = validate_and_inline_udfs(execution_steps, user_functions, all_signatures)
+
+    # PASS 3: A quick re-inference pass to define the new, mangled variables.
+    # We don't need to re-validate function calls here, just establish the types.
+    final_defined_vars = {}
+    for step in inlined_steps:
+        line, result_var = step["line"], step["result"]
+        # Mangling prevents re-declarations, so we don't need to check for that here.
+        rhs_type = _infer_expression_type(step, final_defined_vars, line, result_var, all_signatures)
+        final_defined_vars[result_var] = {"type": rhs_type, "line": line}
 
     # Validate directives
     raw_directives_list = high_level_ast.get("directives", [])
@@ -265,17 +277,13 @@ def validate_semantics(high_level_ast, is_preview_mode):
         if name in directives:
             d = directives[name]
             raw_value = d["value"]
-            # Perform type checking on directive values
             if config["type"] is str and name == "output_file" and not isinstance(raw_value, _StringLiteral):
                 raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
             elif config["type"] is str and name == "output" and not isinstance(raw_value, Token):
                 raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
-
             value_for_validation = raw_value.value if isinstance(raw_value, _StringLiteral) else (str(raw_value) if isinstance(raw_value, Token) else raw_value)
             if config["type"] is int and not isinstance(value_for_validation, int):
                 raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
-
-            # Store validated directive values
             if name == "iterations":
                 sim_config["num_trials"] = value_for_validation
             elif name == "output":
@@ -286,7 +294,7 @@ def validate_semantics(high_level_ast, is_preview_mode):
     if not is_preview_mode and not output_var:
         raise ValuaScriptError(DIRECTIVE_CONFIG["output"]["error_missing"])
 
-    if not is_preview_mode and output_var not in defined_vars:
+    if not is_preview_mode and output_var not in final_defined_vars:
         raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined.")
 
-    return inlined_steps, defined_vars, sim_config, output_var
+    return inlined_steps, final_defined_vars, sim_config, output_var
