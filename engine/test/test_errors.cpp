@@ -124,3 +124,35 @@ TEST_F(EngineErrorTests, AllOperationsThrowOnIncorrectArgCount)
     TEST_ARITY("capitalize_expense", "[1, [2,3]]", "Function 'capitalize_expense' requires 3 arguments.");
     TEST_ARITY("read_csv_scalar", R"([{"type": "string_literal", "value": "f.csv"}, {"type": "string_literal", "value": "c"}])", "Function 'read_csv_scalar' requires 3 arguments.");
 }
+
+TEST_F(EngineErrorTests, ThrowsOnOutputVariableIndexOutOfBounds)
+{
+    // The variable registry only has 2 slots (0 and 1), but we ask for slot 5.
+    create_test_recipe("err.json", R"({
+        "simulation_config": {"num_trials": 1},
+        "output_variable_index": 5, 
+        "variable_registry": ["A", "B"], 
+        "per_trial_steps": []
+    })");
+
+    // The error should happen during construction/parsing, not during run().
+    ASSERT_THROW(SimulationEngine engine("err.json"), std::runtime_error);
+}
+
+TEST_F(EngineErrorTests, ThrowsOnStepVariableIndexOutOfBounds)
+{
+    // The registry has one slot (0), but a step tries to access slot 1.
+    create_test_recipe("err.json", R"({
+        "simulation_config": {"num_trials": 1},
+        "output_variable_index": 0,
+        "variable_registry": ["A"],
+        "per_trial_steps": [
+            {"type": "execution_assignment", "result_index": 0, "function": "identity", "args": [
+                {"type": "variable_index", "value": 1}
+            ]}
+        ]
+    })");
+    
+    SimulationEngine engine("err.json"); 
+    ASSERT_THROW(engine.run(), std::runtime_error);
+}

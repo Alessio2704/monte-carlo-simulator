@@ -70,8 +70,8 @@ TrialValue ExecutionAssignmentStep::resolve_runtime_value(const ResolvedArgument
             }
             else if constexpr (std::is_same_v<T, size_t>)
             {
-                // The plan is an index. Perform a fast lookup in the current trial's context.
-                return context[plan];
+                // The plan is an index. Perform a bounds-checked lookup in the current trial's context.
+                return context.at(plan);
             }
             else if constexpr (std::is_same_v<T, std::unique_ptr<NestedFunctionCall>>)
             {
