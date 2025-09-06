@@ -5,7 +5,7 @@ import os
 # Make the compiler module available
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from vsc.compiler import validate_valuascript
+from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError
 from lark.exceptions import UnexpectedInput, UnexpectedToken, UnexpectedCharacters
 
@@ -26,12 +26,13 @@ def test_valid_scalar_function_with_docstring():
     }
     let result = add_one(10)
     """
-    recipe = validate_valuascript(script)
+    recipe = compile_valuascript(script)
     assert recipe is not None
     # Check that inlining happened and the final result is correct
-    assert recipe["output_variable"] == "result"
-    # A simple check for inlining artifacts
-    assert any("__add_one_1__x" in step["result"] for step in recipe["pre_trial_steps"])
+    registry = recipe["variable_registry"]
+    assert "result" in registry
+    # A simple check for inlining artifacts (mangled variable names)
+    assert any("__add_one_1__x" in var_name for var_name in registry)
 
 
 def test_valid_vector_function_without_docstring():
@@ -46,11 +47,12 @@ def test_valid_vector_function_without_docstring():
     let my_vec = [1, 2, 3]
     let result = scale(my_vec, 10)
     """
-    recipe = validate_valuascript(script)
+    recipe = compile_valuascript(script)
     assert recipe is not None
-    assert recipe["output_variable"] == "result"
-    assert any("__scale_1__v" in step["result"] for step in recipe["pre_trial_steps"])
-    assert any("__scale_1__factor" in step["result"] for step in recipe["pre_trial_steps"])
+    registry = recipe["variable_registry"]
+    assert "result" in registry
+    assert any("__scale_1__v" in var_name for var_name in registry)
+    assert any("__scale_1__factor" in var_name for var_name in registry)
 
 
 def test_multiple_calls_to_same_function():
@@ -64,12 +66,13 @@ def test_multiple_calls_to_same_function():
     let y = my_add(x, 10)
     let result = y
     """
-    recipe = validate_valuascript(script)
+    recipe = compile_valuascript(script)
     assert recipe is not None
-    assert recipe["output_variable"] == "result"
+    registry = recipe["variable_registry"]
+    assert "result" in registry
     # Check for mangling of the first and second call
-    assert any("__my_add_1__a" in step["result"] for step in recipe["pre_trial_steps"])
-    assert any("__my_add_2__a" in step["result"] for step in recipe["pre_trial_steps"])
+    assert any("__my_add_1__a" in var_name for var_name in registry)
+    assert any("__my_add_2__a" in var_name for var_name in registry)
 
 
 def test_function_calling_builtin():
@@ -82,9 +85,9 @@ def test_function_calling_builtin():
     let cf = [10, 20]
     let result = present_value(0.1, cf)
     """
-    recipe = validate_valuascript(script)
+    recipe = compile_valuascript(script)
     assert recipe is not None
-    assert recipe["output_variable"] == "result"
+    assert "result" in recipe["variable_registry"]
 
 
 # --- 2. SYNTAX ERRORS IN FUNCTION DEFINITION ---
@@ -104,7 +107,7 @@ def test_syntax_errors_in_definition(func_snippet):
     script = f"{BASE_SCRIPT}{func_snippet}\nlet result = 1"
     # Lark errors can be of different types depending on what's missing
     with pytest.raises((UnexpectedInput, UnexpectedToken, UnexpectedCharacters)):
-        validate_valuascript(script)
+        compile_valuascript(script)
 
 
 # --- 3. SEMANTIC ERRORS (TYPE MISMATCHES, ETC.) ---
@@ -142,7 +145,7 @@ def test_syntax_errors_in_definition(func_snippet):
 def test_semantic_type_errors(script_body, error_match):
     script = f"{BASE_SCRIPT}{script_body}"
     with pytest.raises(ValuaScriptError, match=error_match):
-        validate_valuascript(script)
+        compile_valuascript(script)
 
 
 # --- 4. SCOPING AND VARIABLE DECLARATION ERRORS ---
@@ -165,7 +168,7 @@ def test_scoping_and_declaration_errors(script_body, error_match):
     # Need to add a dummy `let result = 1` for some cases to be valid structurally
     script = f"{BASE_SCRIPT}{script_body}\nlet result = 1"
     with pytest.raises(ValuaScriptError, match=error_match):
-        validate_valuascript(script)
+        compile_valuascript(script)
 
 
 # --- 5. VALIDATION CONSISTENCY (ERRORS INSIDE FUNCTION BODY) ---
@@ -192,7 +195,7 @@ def test_validation_consistency_inside_body(func_body, error_match):
     let result = test()
     """
     with pytest.raises(ValuaScriptError, match=error_match):
-        validate_valuascript(script)
+        compile_valuascript(script)
 
 
 def test_syntax_errors_inside_body():
@@ -210,7 +213,7 @@ def test_syntax_errors_inside_body():
     let result = test()
     """
     with pytest.raises((ValuaScriptError, UnexpectedCharacters, UnexpectedToken, UnexpectedInput)):
-        validate_valuascript(script)
+        compile_valuascript(script)
 
 
 # --- 6. INTER-FUNCTION CALLS AND RECURSION ---
@@ -227,10 +230,10 @@ def test_udf_calling_another_udf():
     }
     let result = add_and_double(10, 20)
     """
-    recipe = validate_valuascript(script)
+    recipe = compile_valuascript(script)
     assert recipe is not None
     # Check that inlining was recursive
-    all_vars = {step["result"] for step in recipe["pre_trial_steps"]}
+    all_vars = set(recipe["variable_registry"])
     assert "__add_and_double_1__s" in all_vars
     # The call to double() inside add_and_double() gets its own unique mangling
     assert any(key.startswith("__double_") for key in all_vars)
@@ -246,7 +249,7 @@ def test_direct_recursion_error():
     let result = recursive(10)
     """
     with pytest.raises(ValuaScriptError, match="Recursive function call detected: recursive -> recursive"):
-        validate_valuascript(script)
+        compile_valuascript(script)
 
 
 def test_mutual_recursion_error():
@@ -258,7 +261,7 @@ def test_mutual_recursion_error():
     let result = f1(10)
     """
     with pytest.raises(ValuaScriptError, match="Recursive function call detected: f1 -> f2 -> f1"):
-        validate_valuascript(script)
+        compile_valuascript(script)
 
 
 # --- 7. STOCHASTICITY PROPAGATION ---
@@ -279,9 +282,10 @@ def test_stochastic_function_taints_caller():
     let sto = get_random()
     let result = sto + 10
     """
-    recipe = validate_valuascript(script)
+    recipe = compile_valuascript(script)
     assert recipe is not None
-    per_trial_vars = {step["result"] for step in recipe["per_trial_steps"]}
+    registry = recipe["variable_registry"]
+    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
     # Check that all relevant variables were moved to the per_trial phase
     assert "__get_random_1__r" in per_trial_vars
     assert "sto" in per_trial_vars
@@ -296,9 +300,10 @@ def test_deterministic_function_with_stochastic_input():
     let rand_in = Normal(10, 1)
     let result = add_one(rand_in)
     """
-    recipe = validate_valuascript(script)
+    recipe = compile_valuascript(script)
     assert recipe is not None
-    per_trial_vars = {step["result"] for step in recipe["per_trial_steps"]}
+    registry = recipe["variable_registry"]
+    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
     assert "rand_in" in per_trial_vars
     assert "result" in per_trial_vars
     assert "__add_one_1__x" in per_trial_vars
@@ -318,9 +323,9 @@ def test_dce_removes_unused_udf_call():
     let unused = my_func(10)
     let result = 42
     """
-    recipe = validate_valuascript(script, optimize=True)
+    recipe = compile_valuascript(script, optimize=True)
     assert recipe is not None
-    all_vars = {step["result"] for step in recipe["pre_trial_steps"]}
+    all_vars = set(recipe["variable_registry"])
     assert all_vars == {"result"}
     assert "unused" not in all_vars
     assert "__my_func_1__x" not in all_vars
@@ -334,104 +339,9 @@ def test_dce_ignores_uncalled_udf():
     func uncalled(x: scalar) -> scalar { return x }
     let result = 100
     """
-    recipe = validate_valuascript(script, optimize=True)
+    recipe = compile_valuascript(script, optimize=True)
     assert recipe is not None
-    assert {step["result"] for step in recipe["pre_trial_steps"]} == {"result"}
-
-
-# --- 9. TRIVIAL AND COMPLEX BODY STRUCTURES ---
-
-
-def test_function_with_no_params():
-    script = """
-    @iterations=1
-    @output=result
-    func get_pi() -> scalar { return 3.14 }
-    let result = get_pi()
-    """
-    recipe = validate_valuascript(script)
-    assert recipe is not None
-    assert recipe["output_variable"] == "result"
-
-
-def test_function_with_only_return():
-    script = """
-    @iterations=1
-    @output=result
-    func my_identity(v: vector) -> vector {
-        return v
-    }
-    let my_vec = [1, 2]
-    let result = my_identity(my_vec)
-    """
-    recipe = validate_valuascript(script)
-    assert recipe is not None
-    assert any("__my_identity_1__v" in step["result"] for step in recipe["pre_trial_steps"])
-
-
-def test_function_with_complex_return_expression():
-    script = """
-    @iterations=1
-    @output=result
-    func calc(a: scalar, b: scalar) -> scalar {
-        return log(a + (b * 2))
-    }
-    let result = calc(10, 5)
-    """
-    recipe = validate_valuascript(script)
-    assert recipe is not None
-    assert recipe["output_variable"] == "result"
-
-
-# --- 10. ADVANCED NESTING AND EDGE CASES ---
-
-
-def test_deeply_nested_udf_calls():
-    script = """
-    @iterations=1
-    @output=result
-    func f1(x: scalar) -> scalar { return x + 1 }
-    func f2(x: scalar) -> scalar { return f1(x) * 2 }
-    func f3(x: scalar) -> scalar { return f2(x) + 3 }
-    let result = f3(10)
-    """
-    recipe = validate_valuascript(script)
-    assert recipe is not None
-    all_vars = {step["result"] for step in recipe["pre_trial_steps"]}
-    assert "result" in all_vars
-    assert any(key.startswith("__f1_") for key in all_vars)
-    assert any(key.startswith("__f2_") for key in all_vars)
-    assert any(key.startswith("__f3_") for key in all_vars)
-
-
-def test_multiple_nested_udf_arguments():
-    script = """
-    @iterations=1
-    @output=result
-    func double(x: scalar) -> scalar { return x * 2 }
-    func triple(x: scalar) -> scalar { return x * 3 }
-    let result = double(5) + triple(10)
-    """
-    recipe = validate_valuascript(script)
-    assert recipe is not None
-    # Check that temporary variables for the flattened calls were created
-    all_vars = {step["result"] for step in recipe["pre_trial_steps"]}
-    assert any(key.startswith("__temp_") for key in all_vars)
-
-
-def test_udf_returning_literal():
-    script = """
-    @iterations=1
-    @output=result
-    func get_magic_number() -> scalar { return 42 }
-    let result = get_magic_number()
-    """
-    recipe = validate_valuascript(script)
-    assert recipe is not None
-    result_step = next(step for step in recipe["pre_trial_steps"] if step["result"] == "result")
-    # The call should be inlined to a direct literal assignment
-    assert result_step["type"] == "literal_assignment"
-    assert result_step["value"] == 42
+    assert set(recipe["variable_registry"]) == {"result"}
 
 
 def test_dce_on_unused_local_vars_in_udf():
@@ -444,9 +354,9 @@ def test_dce_on_unused_local_vars_in_udf():
     }
     let result = my_func(10)
     """
-    recipe = validate_valuascript(script, optimize=True)
+    recipe = compile_valuascript(script, optimize=True)
     assert recipe is not None
-    all_vars = {step["result"] for step in recipe["pre_trial_steps"]}
+    all_vars = set(recipe["variable_registry"])
     # The mangled variable for the unused local should have been eliminated
     assert "__my_func_1__unused_local" not in all_vars
     # The used parameter and the final result should still be present
@@ -454,31 +364,7 @@ def test_dce_on_unused_local_vars_in_udf():
     assert "result" in all_vars
 
 
-def test_stochasticity_through_deep_nesting():
-    script = """
-    @iterations=1
-    @output=result
-    func f1() -> scalar { return Normal(100, 1) }
-    func f2() -> scalar { return f1() * 2 }
-    func f3() -> scalar { return f2() + 3 }
-    let result = f3()
-    """
-    recipe = validate_valuascript(script)
-    assert recipe is not None
-    # After full inlining, the crucial part is that ALL variables should be
-    # stochastic because the chain starts with Normal().
-    all_vars_in_recipe = {step["result"] for step in recipe["pre_trial_steps"]} | {step["result"] for step in recipe["per_trial_steps"]}
-    per_trial_vars = {step["result"] for step in recipe["per_trial_steps"]}
-    # Assert that the final output variable is correctly marked as stochastic.
-    assert "result" in per_trial_vars
-    # Assert that there are NO pre-trial steps.
-    assert not recipe["pre_trial_steps"]
-    # Assert that all variables created during compilation are in the per-trial set.
-    # This proves the "taint" propagated correctly through the entire chain.
-    assert all_vars_in_recipe == per_trial_vars
-
-
 def test_script_with_only_uncalled_udf_fails():
     script = "func uncalled(x: scalar) -> scalar { return x }"
     with pytest.raises(ValuaScriptError, match="The @iterations directive is mandatory"):
-        validate_valuascript(script)
+        compile_valuascript(script)

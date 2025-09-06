@@ -7,7 +7,7 @@ import tempfile
 
 # Ensure the compiler's modules can be imported for direct use
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from vsc.compiler import validate_valuascript
+from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError
 
 
@@ -51,8 +51,8 @@ def run_preview_integration(script_content: str, preview_var: str, engine_path: 
     3. Executing the C++ engine with the recipe.
     4. Parsing and returning the JSON output.
     """
-    # Step 1: Compile the script in-process
-    recipe = validate_valuascript(script_content, preview_variable=preview_var)
+    # Step 1: Compile the script in-process using the new compiler orchestrator
+    recipe = compile_valuascript(script_content, preview_variable=preview_var)
     assert recipe is not None, "Compiler failed to produce a recipe"
 
     # Step 2: Write the generated recipe to a temporary file
