@@ -22,7 +22,7 @@ from pygls.workspace import Document
 
 # Ensure the server can find its own modules when packaged
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from vsc.compiler import compile_valuascript
+from vsc.compiler import compile_valuascript, resolve_imports_and_functions
 from vsc.parser import parse_valuascript
 from vsc.validator import validate_semantics
 from vsc.optimizer import _build_dependency_graph, _find_stochastic_variables
@@ -63,7 +63,6 @@ def _validate(ls, params):
     original_stdout = sys.stdout
     try:
         sys.stdout = open(os.devnull, "w")
-        # ** THE FIX IS HERE (1/3): Provide the file path for validation **
         file_path = _uri_to_path(params.text_document.uri)
         compile_valuascript(source, context="lsp", file_path=file_path)
     except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
@@ -134,31 +133,12 @@ def _is_udf_stochastic(func_def, user_functions, checked_functions=None):
 def _get_script_analysis(source: str, file_path: str):
     """
     Performs a partial compilation to get semantic info needed for hover tooltips.
-    This is more efficient than a full compile-and-link for every hover.
     """
     try:
-        # We need to run the full compiler up to the validation stage to resolve imports
         high_level_ast = parse_valuascript(source)
+        all_user_functions = resolve_imports_and_functions(high_level_ast, file_path)
 
-        # Manually resolve imports to build the full function map
-        all_user_functions = {}
-        processed_files = {os.path.abspath(file_path)} if file_path else set()
-        base_dir = os.path.dirname(file_path) if file_path else ""
-
-        for imp in high_level_ast.get("imports", []):
-            module_path = os.path.abspath(os.path.join(base_dir, imp["path"]))
-            # A simplified module load for analysis only; we can skip deep validation for speed
-            if module_path not in processed_files:
-                with open(module_path, "r") as f:
-                    module_ast = parse_valuascript(f.read())
-                    for func_def in module_ast.get("function_definitions", []):
-                        if func_def["name"] not in all_user_functions:
-                            all_user_functions[func_def["name"]] = func_def
-
-        for func_def in high_level_ast.get("function_definitions", []):
-            if func_def["name"] not in all_user_functions:
-                all_user_functions[func_def["name"]] = func_def
-
+        # Run validation and optimization analysis to get variable types and stochasticity.
         inlined_steps, defined_vars, _, _ = validate_semantics(high_level_ast, all_user_functions, is_preview_mode=True)
         dependencies, dependents = _build_dependency_graph(inlined_steps)
         stochastic_vars = _find_stochastic_variables(inlined_steps, dependents)
@@ -173,7 +153,6 @@ def hover(params):
     document = server.workspace.get_document(params.text_document.uri)
     word = _get_word_at_position(document, params.position)
     source = document.source
-    # ** THE FIX IS HERE (2/3): Get the file path and pass it to the analysis function **
     file_path = _uri_to_path(params.text_document.uri)
     defined_vars, stochastic_vars, user_functions = _get_script_analysis(source, file_path)
 
@@ -221,7 +200,6 @@ def hover(params):
 
         tmp_recipe_file = None
         try:
-            # ** THE FIX IS HERE (3/3): Provide the file path for preview compilation **
             recipe = compile_valuascript(source, context="lsp", preview_variable=word, file_path=file_path)
             engine_path = find_engine_executable(None)
 

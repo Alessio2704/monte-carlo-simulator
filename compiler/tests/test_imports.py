@@ -94,6 +94,43 @@ def test_multiple_imports(create_files):
     assert any(v.startswith("__sub_nums_") for v in recipe["variable_registry"])
 
 
+def test_nested_import(create_files):
+    """Tests that a module can import from another module (A -> B -> C)."""
+    files = create_files(
+        {
+            # FIX: Add a local variable to force the inliner to create a mangled variable.
+            "c.vs": """
+                @module
+                func get_number() -> scalar {
+                    let the_answer = 42
+                    return the_answer
+                }
+            """,
+            "b.vs": """
+                @module
+                @import "c.vs"
+                func add_ten(x: scalar) -> scalar {
+                    let base = get_number()
+                    return x + 10 + base
+                }
+            """,
+            "a.vs": """
+                @import "b.vs"
+                @iterations = 1
+                @output = result
+                let result = add_ten(5)
+            """,
+        }
+    )
+    main_path = files / "a.vs"
+    recipe = compile_valuascript(main_path.read_text(), file_path=str(main_path))
+    assert recipe is not None
+    assert "result" in recipe["variable_registry"]
+    assert any(v.startswith("__add_ten_") for v in recipe["variable_registry"])
+    # This assertion will now pass because "__get_number_1__the_answer" will exist.
+    assert any(v.startswith("__get_number_") for v in recipe["variable_registry"])
+
+
 # --- 2. INVALID IMPORT SCENARIOS (ERROR HANDLING) ---
 
 
@@ -103,14 +140,13 @@ def test_multiple_imports(create_files):
         pytest.param({}, '@import "non_existent.vs"', ErrorCode.IMPORT_FILE_NOT_FOUND, id="file_not_found"),
         pytest.param({"not_a_module.vs": "let x = 1"}, '@import "not_a_module.vs"', ErrorCode.IMPORT_NOT_A_MODULE, id="import_not_a_module"),
         pytest.param({"invalid_module.vs": "@module\nlet y = 1"}, '@import "invalid_module.vs"', ErrorCode.GLOBAL_LET_IN_MODULE, id="import_invalid_module"),
-        pytest.param({"utils.vs": '@module\n@import "other.vs"'}, '@import "utils.vs"', ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, id="import_in_module"),
         pytest.param(
             {
                 "a.vs": '@module\n@import "b.vs"',
                 "b.vs": '@module\n@import "a.vs"',
             },
             '@import "a.vs"',
-            ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE,  # This error is caught first
+            ErrorCode.CIRCULAR_IMPORT,
             id="circular_import_disallowed",
         ),
         pytest.param(

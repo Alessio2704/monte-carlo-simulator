@@ -23,7 +23,7 @@
       "patterns": [
         {
           "name": "keyword.control.directive.valuascript",
-          "match": "@\\b(output_file|iterations|output|module)\\b"
+          "match": "@\\b(output_file|iterations|output|module|import)\\b"
         }
       ]
     },

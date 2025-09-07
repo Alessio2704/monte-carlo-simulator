@@ -224,7 +224,6 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode):
     """Performs all semantic validation for a runnable script or a module file."""
     execution_steps = main_ast.get("execution_steps", [])
 
-    # --- Validate directives ---
     directives = {}
     is_module = False
     for d in main_ast.get("directives", []):
@@ -235,41 +234,35 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode):
             raise ValuaScriptError(ErrorCode.UNKNOWN_DIRECTIVE, line=d["line"], name=name)
         if name in directives and not is_preview_mode:
             raise ValuaScriptError(ErrorCode.DUPLICATE_DIRECTIVE, line=d["line"], name=name)
-
         config = DIRECTIVE_CONFIG[name]
         if not config["value_allowed"] and d["value"] is not True:
             raise ValuaScriptError(ErrorCode.MODULE_WITH_VALUE, line=d["line"])
         directives[name] = d
 
-    # --- Branch validation based on file type ---
     if is_module:
         if execution_steps:
             raise ValuaScriptError(ErrorCode.GLOBAL_LET_IN_MODULE, line=execution_steps[0]["line"])
-        if main_ast.get("imports"):
-            raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=main_ast.get("imports")[0]["line"], name="import")
         for name, d in directives.items():
             if not DIRECTIVE_CONFIG[name]["allowed_in_module"]:
                 raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=d["line"], name=name)
 
-        # FIX: Extract functions defined within this module and validate them fully.
-        module_internal_functions = {}
-        for func_def in main_ast.get("function_definitions", []):
-            if func_def["name"] in module_internal_functions:
-                raise ValuaScriptError(ErrorCode.DUPLICATE_FUNCTION, line=func_def["line"], name=func_def["name"])
-            module_internal_functions[func_def["name"]] = func_def
-
+        # FIX: This block is now simplified. It only validates the *logic* within the module's
+        # functions, using the globally collected function map for context.
+        # It no longer checks for duplicates, as the compiler orchestrator has already done that.
         RESERVED_NAMES = set(FUNCTION_SIGNATURES.keys()) | set(OPERATOR_MAP.values())
-        for name, func_def in module_internal_functions.items():
+        for name, func_def in all_user_functions.items():
             if name in RESERVED_NAMES:
                 raise ValuaScriptError(ErrorCode.REDEFINE_BUILTIN_FUNCTION, line=func_def["line"], name=name)
 
-        _check_for_recursive_calls(module_internal_functions)
-        udf_signatures = {name: {"variadic": False, "arg_types": [p["type"] for p in fdef["params"]], "return_type": fdef["return_type"]} for name, fdef in module_internal_functions.items()}
-        all_signatures_for_module = {**FUNCTION_SIGNATURES, **udf_signatures}
+        _check_for_recursive_calls(all_user_functions)
 
-        # Validate the bodies of the module's own functions.
-        validate_and_inline_udfs([], module_internal_functions, all_signatures_for_module)
-        return [], {}, {}, None  # Return module indicators
+        udf_signatures = {name: {"variadic": False, "arg_types": [p["type"] for p in fdef["params"]], "return_type": fdef["return_type"]} for name, fdef in all_user_functions.items()}
+        all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
+
+        # Validate the bodies of this module's functions, using the full context.
+        module_functions = {f["name"]: f for f in main_ast.get("function_definitions", [])}
+        validate_and_inline_udfs([], module_functions, all_signatures)
+        return [], {}, {}, None
 
     # --- Continue validation for a runnable script ---
     if not is_preview_mode:
@@ -287,8 +280,10 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode):
             raise ValuaScriptError(ErrorCode.REDEFINE_BUILTIN_FUNCTION, line=func_def["line"], name=name)
 
     _check_for_recursive_calls(all_user_functions)
+
     udf_signatures = {name: {"variadic": False, "arg_types": [p["type"] for p in fdef["params"]], "return_type": fdef["return_type"]} for name, fdef in all_user_functions.items()}
     all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
+
     validate_and_inline_udfs([], all_user_functions, all_signatures)
 
     defined_vars = {}

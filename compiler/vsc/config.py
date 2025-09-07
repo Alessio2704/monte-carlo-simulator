@@ -38,7 +38,7 @@ DIRECTIVE_CONFIG = {
         "required": False,
         "value_type": str,
         "value_allowed": True,
-        "allowed_in_module": False,
+        "allowed_in_module": True,
         "error_type": 'The @import directive expects a string literal path (e.g., @import "my_module.vs").',
     },
 }
