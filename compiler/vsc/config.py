@@ -17,6 +17,11 @@ DIRECTIVE_CONFIG = {
         "error_type": "The value for @output must be a variable name (e.g., 'final_result').",
     },
     "output_file": {"required": False, "type": str, "error_type": 'The value for @output_file must be a string literal (e.g., "path/to/results.csv").'},
+    "module": {
+        "required": False,
+        "type": bool,
+        "error_type": "The @module directive does not accept a value. It should be used as '@module'.",
+    },
 }
 
 # Each function is now tagged with 'is_stochastic':

@@ -233,32 +233,7 @@ def validate_semantics(high_level_ast, is_preview_mode):
         udf_signatures[func_name] = {"variadic": False, "arg_types": [p["type"] for p in func_def["params"]], "return_type": func_def["return_type"]}
     all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
 
-    # ** THE FIX IS HERE: Reordered logic **
-    # PASS 1: Validate UDF bodies and the main script body BEFORE inlining.
-    # This ensures that calls to UDFs are type-checked against their signatures.
-    validate_and_inline_udfs([], user_functions, all_signatures)  # Validates UDF bodies
-
-    defined_vars = {}
-    for step in execution_steps:
-        line, result_var = step["line"], step["result"]
-        if result_var in defined_vars:
-            raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once.")
-        rhs_type = _infer_expression_type(step, defined_vars, line, result_var, all_signatures)
-        defined_vars[result_var] = {"type": rhs_type, "line": line}
-
-    # PASS 2: Now that the original script is validated, perform inlining.
-    inlined_steps = validate_and_inline_udfs(execution_steps, user_functions, all_signatures)
-
-    # PASS 3: A quick re-inference pass to define the new, mangled variables.
-    # We don't need to re-validate function calls here, just establish the types.
-    final_defined_vars = {}
-    for step in inlined_steps:
-        line, result_var = step["line"], step["result"]
-        # Mangling prevents re-declarations, so we don't need to check for that here.
-        rhs_type = _infer_expression_type(step, final_defined_vars, line, result_var, all_signatures)
-        final_defined_vars[result_var] = {"type": rhs_type, "line": line}
-
-    # Validate directives
+    # Validate directives and determine if the file is a module
     raw_directives_list = high_level_ast.get("directives", [])
     seen_directives, directives = set(), {}
     for d in raw_directives_list:
@@ -270,8 +245,52 @@ def validate_semantics(high_level_ast, is_preview_mode):
         seen_directives.add(name)
         directives[name] = d
 
+    is_module = "module" in directives
+
+    if is_module:
+        # --- MODULE VALIDATION ---
+        # 1. Check for invalid value on @module directive itself
+        if not isinstance(directives["module"]["value"], bool) or directives["module"]["value"] is not True:
+            d = directives["module"]
+            raise ValuaScriptError(f"L{d['line']}: {DIRECTIVE_CONFIG['module']['error_type']}")
+
+        # 2. Check for disallowed directives
+        if "iterations" in directives or "output" in directives:
+            disallowed_d = directives.get("iterations", directives.get("output"))
+            raise ValuaScriptError(f"L{disallowed_d['line']}: The @iterations and @output directives are not allowed when @module is declared.")
+
+        # 3. Check for disallowed global 'let' statements
+        if execution_steps:
+            first_step = execution_steps[0]
+            raise ValuaScriptError(f"L{first_step['line']}: Global 'let' statements are not allowed in a module file. Only function definitions are permitted.")
+
+        # 4. A module must still have its UDFs validated
+        validate_and_inline_udfs([], user_functions, all_signatures)
+        return [], {}, {}, None  # Return empty/null values as it's not a runnable script
+
+    # --- STANDARD SCRIPT VALIDATION ---
+    validate_and_inline_udfs([], user_functions, all_signatures)
+
+    defined_vars = {}
+    for step in execution_steps:
+        line, result_var = step["line"], step["result"]
+        if result_var in defined_vars:
+            raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once.")
+        rhs_type = _infer_expression_type(step, defined_vars, line, result_var, all_signatures)
+        defined_vars[result_var] = {"type": rhs_type, "line": line}
+
+    inlined_steps = validate_and_inline_udfs(execution_steps, user_functions, all_signatures)
+
+    final_defined_vars = {}
+    for step in inlined_steps:
+        line, result_var = step["line"], step["result"]
+        rhs_type = _infer_expression_type(step, final_defined_vars, line, result_var, all_signatures)
+        final_defined_vars[result_var] = {"type": rhs_type, "line": line}
+
     sim_config, output_var = {}, ""
     for name, config in DIRECTIVE_CONFIG.items():
+        if name == "module":
+            continue
         if not is_preview_mode and config["required"] and name not in directives:
             raise ValuaScriptError(config["error_missing"])
         if name in directives:

@@ -78,6 +78,9 @@ class ValuaScriptTransformer(Transformer):
 
     def arg(self, i):
         return i[0]
+        
+    def directive(self, items):
+        return items[0]
 
     # --- Terminal transformations ---
     def SIGNED_NUMBER(self, n):
@@ -106,6 +109,12 @@ class ValuaScriptTransformer(Transformer):
 
     def directive_setting(self, items):
         return {"type": "directive", "name": str(items[0]), "value": items[1], "line": items[0].line}
+
+    def valueless_directive(self, items):
+        # This handles directives like @module that don't have a value.
+        # We assign `True` as the value for consistency.
+        directive_token = items[0]
+        return {"type": "directive", "name": str(directive_token), "value": True, "line": directive_token.line}
 
     def assignment(self, items):
         _let_token, var_token, expression = items

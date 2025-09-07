@@ -1,7 +1,12 @@
 // A script is a sequence of directives and assignments in any order.
 start: (directive | assignment | function_def)*
 
-directive: "@" CNAME "=" expression -> directive_setting
+// A directive can be a setting with a value or a valueless flag.
+directive: directive_setting | valueless_directive
+
+directive_setting: "@" CNAME "=" expression
+valueless_directive: "@" CNAME
+
 assignment: LET CNAME "=" expression -> assignment
 
 // --- FUNCTION DEFINITION ---
