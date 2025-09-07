@@ -1,5 +1,5 @@
 {
-  "directives": ["iterations", "output", "output_file"],
+  "directives": ["iterations", "output", "output_file", "module"],
   "keywords": ["let", "func", "return"],
   "types": ["scalar", "vector", "string"],
   "functions": [
