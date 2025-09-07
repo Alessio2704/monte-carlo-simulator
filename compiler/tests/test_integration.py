@@ -43,7 +43,7 @@ def find_engine_path():
     )
 
 
-def run_preview_integration(script_content: str, preview_var: str, engine_path: str):
+def run_preview_integration(script_content: str, preview_var: str, engine_path: str, file_path: str = None):
     """
     Performs a direct integration test by:
     1. Calling the compiler function to generate a recipe.
@@ -52,7 +52,8 @@ def run_preview_integration(script_content: str, preview_var: str, engine_path: 
     4. Parsing and returning the JSON output.
     """
     # Step 1: Compile the script in-process using the new compiler orchestrator
-    recipe = compile_valuascript(script_content, preview_variable=preview_var)
+    # The file_path is now passed to the compiler to resolve imports.
+    recipe = compile_valuascript(script_content, preview_variable=preview_var, file_path=file_path)
     assert recipe is not None, "Compiler failed to produce a recipe"
 
     # Step 2: Write the generated recipe to a temporary file
@@ -71,19 +72,74 @@ def run_preview_integration(script_content: str, preview_var: str, engine_path: 
         os.remove(recipe_path)
 
 
-def test_deterministic_preview_integration(find_engine_path):
-    script = "@output=b\n@iterations=1\nlet a = 100\nlet b = a * 2"
-    result = run_preview_integration(script, "b", find_engine_path)
+@pytest.mark.parametrize(
+    "script, preview_var, expected_type, expected_value",
+    [
+        pytest.param("@output=b\n@iterations=1\nlet a=100\nlet b=a*2", "b", "scalar", 200.0, id="deterministic_scalar"),
+        pytest.param("@output=x\n@iterations=100\nlet x=Normal(100,0)", "x", "scalar", 100.0, id="stochastic_scalar"),
+        pytest.param(
+            """
+            @output=v
+            @iterations=1
+            func my_vec() -> vector { return [10, 20, 30] }
+            let v = my_vec()
+            """,
+            "v",
+            "vector",
+            [10.0, 20.0, 30.0],
+            id="udf_returning_vector",
+        ),
+        pytest.param(
+            """
+            @output=z
+            @iterations=1
+            func my_add(a: scalar, b: scalar) -> scalar { return a + b }
+            let x = 10
+            let y = 20
+            let z = my_add(x, y)
+            """,
+            "z",
+            "scalar",
+            30.0,
+            id="udf_with_params",
+        ),
+    ],
+)
+def test_preview_integration(find_engine_path, script, preview_var, expected_type, expected_value):
+    """
+    A comprehensive suite of end-to-end tests for the preview feature,
+    covering various language constructs from simple literals to UDFs.
+    """
+    result = run_preview_integration(script, preview_var, find_engine_path)
 
     assert result.get("status") == "success"
-    assert result.get("type") == "scalar"
-    assert result.get("value") == 200.0
+    assert result.get("type") == expected_type
+    # Use pytest.approx for floating point comparisons
+    if isinstance(expected_value, list):
+        assert all(pytest.approx(a) == b for a, b in zip(result.get("value"), expected_value))
+    else:
+        assert pytest.approx(result.get("value")) == expected_value
 
 
-def test_stochastic_preview_integration(find_engine_path):
-    script = "@output=revenue\n@iterations=100\nlet revenue = Normal(100, 0)"  # StdDev 0 for a predictable mean
-    result = run_preview_integration(script, "revenue", find_engine_path)
+def test_preview_integration_with_deeply_nested_imports(create_manual_test_structure, find_engine_path):
+    """
+    Automates the most critical manual test: previewing a variable that
+    depends on a complex, multi-level, diamond-shaped import graph.
+    This validates that the compiler and engine work together seamlessly
+    to resolve and compute values across the entire project structure.
+    """
+    # ARRANGE: The fixture sets up the complex file structure.
+    test_dir = create_manual_test_structure
+    main_script_path = test_dir / "main.vs"
+    script_content = main_script_path.read_text()
 
+    # ACT: Call the integration helper to preview 'dcf_value'.
+    # This variable's calculation requires resolving the entire import chain.
+    result = run_preview_integration(script_content=script_content, preview_var="dcf_value", engine_path=find_engine_path, file_path=str(main_script_path))
+
+    # ASSERT
     assert result.get("status") == "success"
     assert result.get("type") == "scalar"
-    assert result.get("value") == 100.0
+    # This asserts the final, calculated value is correct, proving the entire
+    # compiler -> engine toolchain worked across all imported modules.
+    assert pytest.approx(result.get("value"), abs=1e-2) == 186.90

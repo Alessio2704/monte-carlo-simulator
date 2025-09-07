@@ -1,7 +1,7 @@
 import os
 from lark import Lark, Transformer, Token
 from textwrap import dedent
-from .exceptions import ValuaScriptError
+from .exceptions import ValuaScriptError, ErrorCode
 
 LARK_PARSER = None
 
@@ -21,8 +21,9 @@ except Exception:
 
 # A simple wrapper class to distinguish parsed strings from variable names
 class _StringLiteral:
-    def __init__(self, value):
+    def __init__(self, value, line=-1):
         self.value = value
+        self.line = line
 
     def __repr__(self):
         return f'StringLiteral("{self.value}")'
@@ -35,7 +36,7 @@ class ValuaScriptTransformer(Transformer):
     """
 
     def STRING(self, s):
-        return _StringLiteral(s.value[1:-1])
+        return _StringLiteral(s.value[1:-1], s.line)
 
     def DOCSTRING(self, s):
         # Remove the triple quotes and dedent the string
@@ -79,6 +80,9 @@ class ValuaScriptTransformer(Transformer):
     def arg(self, i):
         return i[0]
 
+    def directive(self, items):
+        return items[0]
+
     # --- Terminal transformations ---
     def SIGNED_NUMBER(self, n):
         val = n.value.replace("_", "")
@@ -106,6 +110,14 @@ class ValuaScriptTransformer(Transformer):
 
     def directive_setting(self, items):
         return {"type": "directive", "name": str(items[0]), "value": items[1], "line": items[0].line}
+
+    def valueless_directive(self, items):
+        directive_token = items[0]
+        return {"type": "directive", "name": str(directive_token), "value": True, "line": directive_token.line}
+
+    def import_directive(self, items):
+        import_token, path_literal = items
+        return {"type": "import", "path": path_literal.value, "line": import_token.line}
 
     def assignment(self, items):
         _let_token, var_token, expression = items
@@ -146,10 +158,13 @@ class ValuaScriptTransformer(Transformer):
         return {"type": "return_statement", "value": items[0]}
 
     def start(self, children):
+        # Filter out None values that can appear from empty rules
+        safe_children = [c for c in children if c]
         return {
-            "directives": [i for i in children if i.get("type") == "directive"],
-            "execution_steps": [i for i in children if i.get("type") in ("execution_assignment", "literal_assignment")],
-            "function_definitions": [i for i in children if i.get("type") == "function_definition"],
+            "imports": [i for i in safe_children if i.get("type") == "import"],
+            "directives": [i for i in safe_children if i.get("type") == "directive"],
+            "execution_steps": [i for i in safe_children if i.get("type") in ("execution_assignment", "literal_assignment")],
+            "function_definitions": [i for i in safe_children if i.get("type") == "function_definition"],
         }
 
 
@@ -161,14 +176,14 @@ def parse_valuascript(script_content: str):
         if not clean_line:
             continue
         if clean_line.count("(") != clean_line.count(")"):
-            raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening parenthesis.")
+            raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
         if clean_line.count("[") != clean_line.count("]"):
-            raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening bracket.")
+            raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
         if (clean_line.startswith("let") or clean_line.startswith("@")) and clean_line.endswith("="):
-            raise ValuaScriptError(f"L{i+1}: Syntax Error: Missing value after '='.")
+            raise ValuaScriptError(ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS, line=i + 1)
         if clean_line.startswith("let") and "=" not in clean_line:
             if len(clean_line.split()) > 0 and clean_line.split()[0] == "let":
-                raise ValuaScriptError(f"L{i+1}: Syntax Error: Incomplete assignment.")
+                raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
 
     parse_tree = LARK_PARSER.parse(script_content)
     return ValuaScriptTransformer().transform(parse_tree)

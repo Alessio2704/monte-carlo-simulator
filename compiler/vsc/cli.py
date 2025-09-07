@@ -46,21 +46,35 @@ def main():
         if not args.input_file and sys.stdin.isatty() and not is_preview_mode:
             parser.error("input_file is required when not reading from a pipe or in preview mode.")
 
-        output_file_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json" if args.input_file else "stdin.json"
+        # Determine the absolute path for the output file
+        raw_output_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json" if args.input_file else "stdin.json"
+        output_file_path = os.path.abspath(raw_output_path)
 
         script_path = args.input_file or "stdin"
 
         try:
             if not args.input_file:
                 script_content = sys.stdin.read()
+                # When reading from stdin, file_path should be None to prevent import errors
+                input_file_path_abs = None
             else:
-                with open(args.input_file, "r") as f:
+                input_file_path_abs = os.path.abspath(args.input_file)
+                with open(input_file_path_abs, "r") as f:
                     script_content = f.read()
 
             if not is_preview_mode:
                 print(f"--- Compiling {script_path} -> {output_file_path} ---")
 
-            final_recipe = compile_valuascript(script_content, optimize=args.optimize, verbose=args.verbose and not is_preview_mode, preview_variable=args.preview_var)
+            final_recipe = compile_valuascript(
+                script_content,
+                optimize=args.optimize,
+                verbose=args.verbose and not is_preview_mode,
+                preview_variable=args.preview_var,
+                file_path=input_file_path_abs,
+            )
+
+            # Ensure the output directory exists before writing the recipe
+            os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
 
             with open(output_file_path, "w") as f:
                 f.write(json.dumps(final_recipe, indent=2))
@@ -75,18 +89,28 @@ def main():
                     print(f"\n{TerminalColors.RED}--- Execution Failed: Could not find the simulation engine. ---{TerminalColors.RESET}", file=sys.stderr)
                     sys.exit(1)
 
+                # The engine's working directory should be where the recipe is,
+                # so that relative paths in @output_file are handled correctly.
+                engine_cwd = os.path.dirname(output_file_path)
+
+                # We pass the absolute path of the recipe to the engine.
+                command_args = [engine_executable, output_file_path]
                 if is_preview_mode:
-                    proc = subprocess.run([engine_executable, "--preview", output_file_path], capture_output=True, text=True, check=True)
+                    command_args.insert(1, "--preview")
+                    proc = subprocess.run(command_args, capture_output=True, text=True, check=True, cwd=engine_cwd)
                     print(proc.stdout, end="")
                 else:
                     print(f"\n--- Running Simulation ---")
-                    subprocess.run([engine_executable, output_file_path], check=True)
+                    subprocess.run(command_args, check=True, cwd=engine_cwd)
                     print(f"{TerminalColors.GREEN}--- Simulation Finished Successfully ---{TerminalColors.RESET}")
 
                 if args.plot and not is_preview_mode:
                     output_file_from_recipe = final_recipe.get("simulation_config", {}).get("output_file")
-                    if output_file_from_recipe and os.path.exists(output_file_from_recipe):
-                        generate_and_show_plot(output_file_from_recipe)
+                    if output_file_from_recipe:
+                        # Construct the full path to the output file relative to the engine's CWD
+                        full_output_path = os.path.join(engine_cwd, output_file_from_recipe)
+                        if os.path.exists(full_output_path):
+                            generate_and_show_plot(full_output_path)
 
         except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
             script_content = script_content or ""

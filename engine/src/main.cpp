@@ -51,7 +51,6 @@ void run_preview_mode(const std::string &recipe_path)
                     sum += std::get<double>(res);
                 }
                 double mean = sum / results.size();
-                // THE FIX: Round the mean to 2 decimal places before assigning to JSON
                 output_json["value"] = std::round(mean * 10000.0) / 10000.0;
             }
             else if constexpr (std::is_same_v<T, std::vector<double>>)
@@ -60,7 +59,6 @@ void run_preview_mode(const std::string &recipe_path)
                 const auto &original_vec = std::get<std::vector<double>>(results[0]);
                 std::vector<double> rounded_vec;
                 rounded_vec.reserve(original_vec.size());
-                // THE FIX: Round each element of the vector to 2 decimal places
                 for (const auto &val : original_vec)
                 {
                     rounded_vec.push_back(std::round(val * 10000.0) / 10000.0);

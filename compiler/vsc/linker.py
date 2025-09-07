@@ -31,9 +31,11 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
     name_to_index_map = {name: i for i, name in enumerate(variable_registry_list)}
 
     # 2. Resolve the output variable string name to its index.
-    if output_var and output_var not in name_to_index_map:
-        raise ValuaScriptError(f"The final @output variable '{output_var}' was not found in the final execution plan. It may have been eliminated as dead code.")
-    output_variable_index = name_to_index_map.get(output_var)
+    output_variable_index = None
+    if output_var:  # This will be None for a module file, skipping the block
+        if output_var not in name_to_index_map:
+            raise ValuaScriptError(f"The final @output variable '{output_var}' was not found in the final execution plan. It may have been eliminated as dead code.")
+        output_variable_index = name_to_index_map.get(output_var)
 
     # 3. Define recursive helper to rewrite expressions into bytecode format
     def _resolve_expression_to_bytecode(arg):
