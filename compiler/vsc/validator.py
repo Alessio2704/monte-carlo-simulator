@@ -3,7 +3,7 @@ from collections import deque
 
 from .exceptions import ValuaScriptError, ErrorCode
 from .parser import _StringLiteral
-from .config import FUNCTION_SIGNATURES, DIRECTIVE_CONFIG
+from .config import FUNCTION_SIGNATURES, DIRECTIVE_CONFIG, OPERATOR_MAP
 
 
 def _check_for_recursive_calls(user_functions):
@@ -15,6 +15,7 @@ def _check_for_recursive_calls(user_functions):
         while queue:
             item = queue.popleft()
             if isinstance(item, dict):
+                # The function call is only a dependency if it's a User-Defined Function
                 if "function" in item and item["function"] in user_functions:
                     call_graph[func_name].add(item["function"])
                 for value in item.values():
@@ -219,67 +220,76 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures):
     return inlined_code
 
 
-def validate_semantics(high_level_ast, is_preview_mode):
-    """Performs all semantic validation and returns the final, inlined execution steps."""
-    execution_steps = high_level_ast.get("execution_steps", [])
+def validate_semantics(main_ast, all_user_functions, is_preview_mode):
+    """Performs all semantic validation for a runnable script or a module file."""
+    execution_steps = main_ast.get("execution_steps", [])
 
-    user_functions = {}
-    for func_def in high_level_ast.get("function_definitions", []):
-        func_name = func_def["name"]
-        if func_name in user_functions:
-            raise ValuaScriptError(ErrorCode.DUPLICATE_FUNCTION, line=func_def["line"], name=func_name)
-        user_functions[func_name] = func_def
-
-    _check_for_recursive_calls(user_functions)
-
-    udf_signatures = {}
-    for func_name, func_def in user_functions.items():
-        if func_name in FUNCTION_SIGNATURES:
-            raise ValuaScriptError(ErrorCode.REDEFINE_BUILTIN_FUNCTION, line=func_def["line"], name=func_name)
-        udf_signatures[func_name] = {"variadic": False, "arg_types": [p["type"] for p in func_def["params"]], "return_type": func_def["return_type"]}
-    all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
-
-    # --- 1. Process and perform universal validation on all directives ---
-    raw_directives_list = high_level_ast.get("directives", [])
-    seen_directives, directives = set(), {}
-    for d in raw_directives_list:
+    # --- Validate directives ---
+    directives = {}
+    is_module = False
+    for d in main_ast.get("directives", []):
         name = d["name"]
-        config = DIRECTIVE_CONFIG.get(name)
-
-        if not config:
+        if name == "module":
+            is_module = True
+        if name not in DIRECTIVE_CONFIG:
             raise ValuaScriptError(ErrorCode.UNKNOWN_DIRECTIVE, line=d["line"], name=name)
-        if name in seen_directives and not is_preview_mode:
+        if name in directives and not is_preview_mode:
             raise ValuaScriptError(ErrorCode.DUPLICATE_DIRECTIVE, line=d["line"], name=name)
 
+        config = DIRECTIVE_CONFIG[name]
         if not config["value_allowed"] and d["value"] is not True:
             raise ValuaScriptError(ErrorCode.MODULE_WITH_VALUE, line=d["line"])
-
-        seen_directives.add(name)
         directives[name] = d
 
-    is_module = "module" in directives
-
-    # --- 2. Check for required directives based on the mode ---
-    if not is_preview_mode:
-        for name, config in DIRECTIVE_CONFIG.items():
-            is_req = config["required"](directives) if callable(config["required"]) else config["required"]
-            if is_req and name not in directives:
-                error_code = ErrorCode.MISSING_ITERATIONS_DIRECTIVE if name == "iterations" else ErrorCode.MISSING_OUTPUT_DIRECTIVE
-                raise ValuaScriptError(error_code)
-
-    # --- 3. Validate the file's structure and contents based on the mode ---
+    # --- Branch validation based on file type ---
     if is_module:
+        if execution_steps:
+            raise ValuaScriptError(ErrorCode.GLOBAL_LET_IN_MODULE, line=execution_steps[0]["line"])
+        if main_ast.get("imports"):
+            raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=main_ast.get("imports")[0]["line"], name="import")
         for name, d in directives.items():
             if not DIRECTIVE_CONFIG[name]["allowed_in_module"]:
                 raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=d["line"], name=name)
-        if execution_steps:
-            first_step = execution_steps[0]
-            raise ValuaScriptError(ErrorCode.GLOBAL_LET_IN_MODULE, line=first_step["line"])
-        validate_and_inline_udfs([], user_functions, all_signatures)
-        return [], {}, {}, None
 
-    # --- 4. Full validation for a standard, runnable script ---
-    validate_and_inline_udfs([], user_functions, all_signatures)
+        # FIX: Extract functions defined within this module and validate them fully.
+        module_internal_functions = {}
+        for func_def in main_ast.get("function_definitions", []):
+            if func_def["name"] in module_internal_functions:
+                raise ValuaScriptError(ErrorCode.DUPLICATE_FUNCTION, line=func_def["line"], name=func_def["name"])
+            module_internal_functions[func_def["name"]] = func_def
+
+        RESERVED_NAMES = set(FUNCTION_SIGNATURES.keys()) | set(OPERATOR_MAP.values())
+        for name, func_def in module_internal_functions.items():
+            if name in RESERVED_NAMES:
+                raise ValuaScriptError(ErrorCode.REDEFINE_BUILTIN_FUNCTION, line=func_def["line"], name=name)
+
+        _check_for_recursive_calls(module_internal_functions)
+        udf_signatures = {name: {"variadic": False, "arg_types": [p["type"] for p in fdef["params"]], "return_type": fdef["return_type"]} for name, fdef in module_internal_functions.items()}
+        all_signatures_for_module = {**FUNCTION_SIGNATURES, **udf_signatures}
+
+        # Validate the bodies of the module's own functions.
+        validate_and_inline_udfs([], module_internal_functions, all_signatures_for_module)
+        return [], {}, {}, None  # Return module indicators
+
+    # --- Continue validation for a runnable script ---
+    if not is_preview_mode:
+        for name, config in DIRECTIVE_CONFIG.items():
+            if name in ["import", "module"]:
+                continue
+            is_req = config["required"](directives) if callable(config["required"]) else config["required"]
+            if is_req and name not in directives:
+                code = ErrorCode.MISSING_ITERATIONS_DIRECTIVE if name == "iterations" else ErrorCode.MISSING_OUTPUT_DIRECTIVE
+                raise ValuaScriptError(code)
+
+    RESERVED_NAMES = set(FUNCTION_SIGNATURES.keys()) | set(OPERATOR_MAP.values())
+    for name, func_def in all_user_functions.items():
+        if name in RESERVED_NAMES:
+            raise ValuaScriptError(ErrorCode.REDEFINE_BUILTIN_FUNCTION, line=func_def["line"], name=name)
+
+    _check_for_recursive_calls(all_user_functions)
+    udf_signatures = {name: {"variadic": False, "arg_types": [p["type"] for p in fdef["params"]], "return_type": fdef["return_type"]} for name, fdef in all_user_functions.items()}
+    all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
+    validate_and_inline_udfs([], all_user_functions, all_signatures)
 
     defined_vars = {}
     for step in execution_steps:
@@ -289,7 +299,7 @@ def validate_semantics(high_level_ast, is_preview_mode):
         rhs_type = _infer_expression_type(step, defined_vars, line, result_var, all_signatures)
         defined_vars[result_var] = {"type": rhs_type, "line": line}
 
-    inlined_steps = validate_and_inline_udfs(execution_steps, user_functions, all_signatures)
+    inlined_steps = validate_and_inline_udfs(execution_steps, all_user_functions, all_signatures)
 
     final_defined_vars = {}
     for step in inlined_steps:
@@ -297,26 +307,25 @@ def validate_semantics(high_level_ast, is_preview_mode):
         rhs_type = _infer_expression_type(step, final_defined_vars, line, result_var, all_signatures)
         final_defined_vars[result_var] = {"type": rhs_type, "line": line}
 
-    # --- 5. Extract final configuration from type-checked directives ---
     sim_config, output_var = {}, ""
     for name, d in directives.items():
-        config = DIRECTIVE_CONFIG[name]
-        if config["value_allowed"]:
+        config = DIRECTIVE_CONFIG.get(name)
+        if config and config["value_allowed"]:
             raw_value = d["value"]
-            value_for_validation = raw_value.value if isinstance(raw_value, _StringLiteral) else (str(raw_value) if isinstance(raw_value, Token) else raw_value)
+            value = raw_value.value if isinstance(raw_value, _StringLiteral) else (str(raw_value) if isinstance(raw_value, Token) else raw_value)
 
-            if config["value_type"] is str:
+            if config.get("value_type") is int and not isinstance(value, int):
+                raise ValuaScriptError(ErrorCode.INVALID_DIRECTIVE_VALUE, line=d["line"], error_msg=config["error_type"])
+            if config.get("value_type") is str:
                 if (name == "output_file" and not isinstance(raw_value, _StringLiteral)) or (name == "output" and not isinstance(raw_value, Token)):
                     raise ValuaScriptError(ErrorCode.INVALID_DIRECTIVE_VALUE, line=d["line"], error_msg=config["error_type"])
-            elif config["value_type"] is int and not isinstance(value_for_validation, int):
-                raise ValuaScriptError(ErrorCode.INVALID_DIRECTIVE_VALUE, line=d["line"], error_msg=config["error_type"])
 
             if name == "iterations":
-                sim_config["num_trials"] = value_for_validation
+                sim_config["num_trials"] = value
             elif name == "output":
-                output_var = value_for_validation
+                output_var = value
             elif name == "output_file":
-                sim_config["output_file"] = value_for_validation
+                sim_config["output_file"] = value
 
     if not is_preview_mode and output_var not in final_defined_vars:
         raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=output_var)

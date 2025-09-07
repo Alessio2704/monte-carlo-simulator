@@ -21,8 +21,9 @@ except Exception:
 
 # A simple wrapper class to distinguish parsed strings from variable names
 class _StringLiteral:
-    def __init__(self, value):
+    def __init__(self, value, line=-1):
         self.value = value
+        self.line = line
 
     def __repr__(self):
         return f'StringLiteral("{self.value}")'
@@ -35,7 +36,7 @@ class ValuaScriptTransformer(Transformer):
     """
 
     def STRING(self, s):
-        return _StringLiteral(s.value[1:-1])
+        return _StringLiteral(s.value[1:-1], s.line)
 
     def DOCSTRING(self, s):
         # Remove the triple quotes and dedent the string
@@ -114,6 +115,10 @@ class ValuaScriptTransformer(Transformer):
         directive_token = items[0]
         return {"type": "directive", "name": str(directive_token), "value": True, "line": directive_token.line}
 
+    def import_directive(self, items):
+        import_token, path_literal = items
+        return {"type": "import", "path": path_literal.value, "line": import_token.line}
+
     def assignment(self, items):
         _let_token, var_token, expression = items
         base_step = {"result": str(var_token), "line": var_token.line}
@@ -153,10 +158,13 @@ class ValuaScriptTransformer(Transformer):
         return {"type": "return_statement", "value": items[0]}
 
     def start(self, children):
+        # Filter out None values that can appear from empty rules
+        safe_children = [c for c in children if c]
         return {
-            "directives": [i for i in children if i.get("type") == "directive"],
-            "execution_steps": [i for i in children if i.get("type") in ("execution_assignment", "literal_assignment")],
-            "function_definitions": [i for i in children if i.get("type") == "function_definition"],
+            "imports": [i for i in safe_children if i.get("type") == "import"],
+            "directives": [i for i in safe_children if i.get("type") == "directive"],
+            "execution_steps": [i for i in safe_children if i.get("type") in ("execution_assignment", "literal_assignment")],
+            "function_definitions": [i for i in safe_children if i.get("type") == "function_definition"],
         }
 
 

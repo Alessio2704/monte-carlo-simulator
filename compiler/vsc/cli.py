@@ -60,7 +60,13 @@ def main():
             if not is_preview_mode:
                 print(f"--- Compiling {script_path} -> {output_file_path} ---")
 
-            final_recipe = compile_valuascript(script_content, optimize=args.optimize, verbose=args.verbose and not is_preview_mode, preview_variable=args.preview_var)
+            final_recipe = compile_valuascript(
+                script_content,
+                optimize=args.optimize,
+                verbose=args.verbose and not is_preview_mode,
+                preview_variable=args.preview_var,
+                file_path=args.input_file,
+            )
 
             with open(output_file_path, "w") as f:
                 f.write(json.dumps(final_recipe, indent=2))

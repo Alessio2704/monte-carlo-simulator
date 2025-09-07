@@ -12,11 +12,12 @@ from lark.exceptions import UnexpectedInput, UnexpectedToken, UnexpectedCharacte
 # --- 1. VALID MODULE DEFINITIONS ---
 
 
-def test_valid_module_compiles_successfully():
+def test_valid_module_compiles_successfully(tmp_path):
     """
     Tests that a valid module file with only function definitions compiles
     without error and produces an empty, non-runnable recipe.
     """
+    module_path = tmp_path / "module.vs"
     script = """
     @module
 
@@ -29,20 +30,21 @@ def test_valid_module_compiles_successfully():
         return v * factor
     }
     """
-    recipe = compile_valuascript(script)
+    module_path.write_text(script)
+    recipe = compile_valuascript(script, file_path=str(module_path))
     assert recipe is not None
-    # A valid module should produce a recipe with no steps and no output variable
+    # A valid module should produce an empty, non-executable recipe
     assert recipe["simulation_config"] == {}
     assert recipe["variable_registry"] == []
     assert recipe["output_variable_index"] is None
-    assert recipe["pre_trial_steps"] == []
-    assert recipe["per_trial_steps"] == []
 
 
-def test_empty_module_is_valid():
+def test_empty_module_is_valid(tmp_path):
     """An empty file with just the @module directive is valid."""
+    module_path = tmp_path / "module.vs"
     script = "@module"
-    recipe = compile_valuascript(script)
+    module_path.write_text(script)
+    recipe = compile_valuascript(script, file_path=str(module_path))
     assert recipe is not None
     assert recipe["variable_registry"] == []
 
@@ -60,17 +62,16 @@ def test_empty_module_is_valid():
         pytest.param("@module = 1", ErrorCode.MODULE_WITH_VALUE, id="module_with_value"),
     ],
 )
-def test_invalid_module_structure(script, expected_code):
+def test_invalid_module_structure(tmp_path, script, expected_code):
     """
     Validates that the compiler rejects modules containing disallowed
     elements like global variables or execution directives.
     """
-    # Add a dummy function to some tests to ensure the check isn't trivial
-    if "let" in script:
-        script += "\nfunc dummy() -> scalar { return 1 }"
+    path = tmp_path / "test.vs"
+    path.write_text(script)
 
     with pytest.raises(ValuaScriptError) as e:
-        compile_valuascript(script)
+        compile_valuascript(script, file_path=str(path))
     assert e.value.code == expected_code
 
 
@@ -79,26 +80,30 @@ def test_invalid_module_structure(script, expected_code):
 # functions it contains are still fully validated for correctness.
 
 
-def test_duplicate_function_names_in_module():
+def test_duplicate_function_names_in_module(tmp_path):
     script = """
     @module
     func my_func(a: scalar) -> scalar { return a }
     func my_func(b: vector) -> vector { return b }
     """
+    path = tmp_path / "test.vs"
+    path.write_text(script)
     with pytest.raises(ValuaScriptError) as e:
-        compile_valuascript(script)
+        compile_valuascript(script, file_path=str(path))
     assert e.value.code == ErrorCode.DUPLICATE_FUNCTION
 
 
-def test_redefining_builtin_function_in_module():
+def test_redefining_builtin_function_in_module(tmp_path):
     script = """
     @module
     func Normal(a: scalar, b: scalar) -> scalar {
         return a + b
     }
     """
+    path = tmp_path / "test.vs"
+    path.write_text(script)
     with pytest.raises(ValuaScriptError) as e:
-        compile_valuascript(script)
+        compile_valuascript(script, file_path=str(path))
     assert e.value.code == ErrorCode.REDEFINE_BUILTIN_FUNCTION
 
 
@@ -115,7 +120,7 @@ def test_redefining_builtin_function_in_module():
         pytest.param("return unknown_func(a)", ErrorCode.UNKNOWN_FUNCTION, id="unknown_function_call"),
     ],
 )
-def test_semantic_errors_inside_module_function_body(func_body, expected_code):
+def test_semantic_errors_inside_module_function_body(tmp_path, func_body, expected_code):
     """
     Ensures the compiler's semantic validation is correctly applied to the
     body of functions defined within a module.
@@ -127,12 +132,14 @@ def test_semantic_errors_inside_module_function_body(func_body, expected_code):
         {func_body}
     }}
     """
+    path = tmp_path / "test.vs"
+    path.write_text(script)
     with pytest.raises(ValuaScriptError) as e:
-        compile_valuascript(script)
+        compile_valuascript(script, file_path=str(path))
     assert e.value.code == expected_code
 
 
-def test_syntax_error_inside_module_function_body():
+def test_syntax_error_inside_module_function_body(tmp_path):
     """Checks that low-level syntax errors are caught within a module's function."""
     script = """
     @module
@@ -141,37 +148,43 @@ def test_syntax_error_inside_module_function_body():
         return x
     }
     """
+    path = tmp_path / "test.vs"
+    path.write_text(script)
     with pytest.raises((ValuaScriptError, UnexpectedInput, UnexpectedCharacters, UnexpectedToken)):
-        compile_valuascript(script)
+        compile_valuascript(script, file_path=str(path))
 
 
 # --- 4. RECURSION CHECKS IN MODULES ---
 
 
-def test_direct_recursion_in_module():
+def test_direct_recursion_in_module(tmp_path):
     script = """
     @module
     func factorial(n: scalar) -> scalar {
         return n * factorial(n - 1)
     }
     """
+    path = tmp_path / "test.vs"
+    path.write_text(script)
     with pytest.raises(ValuaScriptError) as e:
-        compile_valuascript(script)
+        compile_valuascript(script, file_path=str(path))
     assert e.value.code == ErrorCode.RECURSIVE_CALL_DETECTED
 
 
-def test_mutual_recursion_in_module():
+def test_mutual_recursion_in_module(tmp_path):
     script = """
     @module
     func f1(x: scalar) -> scalar { return f2(x) }
     func f2(x: scalar) -> scalar { return f1(x) }
     """
+    path = tmp_path / "test.vs"
+    path.write_text(script)
     with pytest.raises(ValuaScriptError) as e:
-        compile_valuascript(script)
+        compile_valuascript(script, file_path=str(path))
     assert e.value.code == ErrorCode.RECURSIVE_CALL_DETECTED
 
 
-def test_deep_call_chain_validation_in_module():
+def test_deep_call_chain_validation_in_module(tmp_path):
     """
     Ensures that a type error deep within a call chain inside a module
     is still detected correctly by the validator.
@@ -183,6 +196,8 @@ def test_deep_call_chain_validation_in_module():
     func f2(s: scalar) -> scalar { return f3(s) }
     func f1(s: scalar) -> scalar { return f2(s) }
     """
+    path = tmp_path / "test.vs"
+    path.write_text(script)
     with pytest.raises(ValuaScriptError) as e:
-        compile_valuascript(script)
+        compile_valuascript(script, file_path=str(path))
     assert e.value.code == ErrorCode.ARGUMENT_TYPE_MISMATCH

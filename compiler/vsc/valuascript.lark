@@ -2,10 +2,11 @@
 start: (directive | assignment | function_def)*
 
 // A directive can be a setting with a value or a valueless flag.
-directive: directive_setting | valueless_directive
+directive: directive_setting | valueless_directive | import_directive
 
 directive_setting: "@" CNAME "=" expression
 valueless_directive: "@" CNAME
+import_directive: IMPORT_KEYWORD STRING
 
 assignment: LET CNAME "=" expression -> assignment
 
@@ -37,6 +38,7 @@ delete_element_vector: CNAME "[" ":" expression "]"
 ?arg: expression
 
 // --- Terminal Definitions ---
+IMPORT_KEYWORD: "@import"
 LET: "let" /\b/
 ADD: "+"
 SUB: "-"

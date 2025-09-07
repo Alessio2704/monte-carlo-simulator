@@ -168,7 +168,6 @@ def test_linker_handles_nested_function_calls():
     registry = recipe["variable_registry"]
     result_index = registry.index("result")
 
-    # ** THE FIX IS HERE **
     # The step could be in pre_trial or per_trial, so we search both.
     all_steps = recipe["pre_trial_steps"] + recipe["per_trial_steps"]
     result_step = next(s for s in all_steps if s["result_index"] == result_index)

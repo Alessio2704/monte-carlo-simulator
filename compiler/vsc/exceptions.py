@@ -1,6 +1,7 @@
 """
 Custom exception types for the ValuaScript compiler.
 """
+
 from enum import Enum
 
 
@@ -24,6 +25,7 @@ class ErrorCode(Enum):
     DUPLICATE_VARIABLE_IN_FUNC = "L{line}: Variable '{name}' is defined more than once in function '{func_name}'."
     DUPLICATE_FUNCTION = "L{line}: Function '{name}' is defined more than once."
     REDEFINE_BUILTIN_FUNCTION = "L{line}: Cannot redefine built-in function '{name}'."
+    FUNCTION_NAME_COLLISION = "L{line}: Function '{name}' from '{path}' conflicts with another function of the same name."
 
     # --- Function Call & Type Errors ---
     UNKNOWN_FUNCTION = "L{line}: Unknown function '{name}'."
@@ -39,6 +41,12 @@ class ErrorCode(Enum):
     # --- Syntax Pre-Parsing Errors ---
     SYNTAX_MISSING_VALUE_AFTER_EQUALS = "L{line}: Syntax Error: Missing value after '='."
     SYNTAX_INCOMPLETE_ASSIGNMENT = "L{line}: Syntax Error: Incomplete assignment."
+
+    # --- Import Errors ---
+    IMPORT_FILE_NOT_FOUND = "L{line}: Imported file not found: '{path}'"
+    IMPORT_NOT_A_MODULE = "L{line}: Imported file '{path}' is not a valid module. It must contain the @module directive."
+    CIRCULAR_IMPORT = "L{line}: Circular import detected. The file '{path}' is already part of the import chain."
+    CANNOT_IMPORT_FROM_STDIN = "L{line}: @import is not supported when reading from stdin because file paths cannot be resolved."
 
 
 class ValuaScriptError(Exception):
