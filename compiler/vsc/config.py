@@ -5,21 +5,33 @@ This includes directive rules, function signatures, and operator mappings.
 
 DIRECTIVE_CONFIG = {
     "iterations": {
-        "required": True,
-        "type": int,
+        "required": lambda d: "module" not in d,  # Required only if not a module
+        "value_type": int,
+        "value_allowed": True,
+        "allowed_in_module": False,
         "error_missing": "The @iterations directive is mandatory (e.g., '@iterations = 10000').",
         "error_type": "The value for @iterations must be a whole number (e.g., 10000).",
     },
     "output": {
-        "required": True,
-        "type": str,
+        "required": lambda d: "module" not in d,  # Required only if not a module
+        "value_type": str,
+        "value_allowed": True,
+        "allowed_in_module": False,
         "error_missing": "The @output directive is mandatory (e.g., '@output = final_result').",
         "error_type": "The value for @output must be a variable name (e.g., 'final_result').",
     },
-    "output_file": {"required": False, "type": str, "error_type": 'The value for @output_file must be a string literal (e.g., "path/to/results.csv").'},
+    "output_file": {
+        "required": False,
+        "value_type": str,
+        "value_allowed": True,
+        "allowed_in_module": False,
+        "error_type": 'The value for @output_file must be a string literal (e.g., "path/to/results.csv").',
+    },
     "module": {
         "required": False,
-        "type": bool,
+        "value_type": bool,
+        "value_allowed": False,  # This is a flag, not a setting
+        "allowed_in_module": True,
         "error_type": "The @module directive does not accept a value. It should be used as '@module'.",
     },
 }
