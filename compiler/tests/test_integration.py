@@ -71,19 +71,50 @@ def run_preview_integration(script_content: str, preview_var: str, engine_path: 
         os.remove(recipe_path)
 
 
-def test_deterministic_preview_integration(find_engine_path):
-    script = "@output=b\n@iterations=1\nlet a = 100\nlet b = a * 2"
-    result = run_preview_integration(script, "b", find_engine_path)
+@pytest.mark.parametrize(
+    "script, preview_var, expected_type, expected_value",
+    [
+        pytest.param("@output=b\n@iterations=1\nlet a=100\nlet b=a*2", "b", "scalar", 200.0, id="deterministic_scalar"),
+        pytest.param("@output=x\n@iterations=100\nlet x=Normal(100,0)", "x", "scalar", 100.0, id="stochastic_scalar"),
+        pytest.param(
+            """
+            @output=v
+            @iterations=1
+            func my_vec() -> vector { return [10, 20, 30] }
+            let v = my_vec()
+            """,
+            "v",
+            "vector",
+            [10.0, 20.0, 30.0],
+            id="udf_returning_vector",
+        ),
+        pytest.param(
+            """
+            @output=z
+            @iterations=1
+            func my_add(a: scalar, b: scalar) -> scalar { return a + b }
+            let x = 10
+            let y = 20
+            let z = my_add(x, y)
+            """,
+            "z",
+            "scalar",
+            30.0,
+            id="udf_with_params",
+        ),
+    ],
+)
+def test_preview_integration(find_engine_path, script, preview_var, expected_type, expected_value):
+    """
+    A comprehensive suite of end-to-end tests for the preview feature,
+    covering various language constructs from simple literals to UDFs.
+    """
+    result = run_preview_integration(script, preview_var, find_engine_path)
 
     assert result.get("status") == "success"
-    assert result.get("type") == "scalar"
-    assert result.get("value") == 200.0
-
-
-def test_stochastic_preview_integration(find_engine_path):
-    script = "@output=revenue\n@iterations=100\nlet revenue = Normal(100, 0)"  # StdDev 0 for a predictable mean
-    result = run_preview_integration(script, "revenue", find_engine_path)
-
-    assert result.get("status") == "success"
-    assert result.get("type") == "scalar"
-    assert result.get("value") == 100.0
+    assert result.get("type") == expected_type
+    # Use pytest.approx for floating point comparisons
+    if isinstance(expected_value, list):
+        assert all(pytest.approx(a) == b for a, b in zip(result.get("value"), expected_value))
+    else:
+        assert pytest.approx(result.get("value")) == expected_value

@@ -98,7 +98,6 @@ def test_nested_import(create_files):
     """Tests that a module can import from another module (A -> B -> C)."""
     files = create_files(
         {
-            # FIX: Add a local variable to force the inliner to create a mangled variable.
             "c.vs": """
                 @module
                 func get_number() -> scalar {
@@ -127,8 +126,45 @@ def test_nested_import(create_files):
     assert recipe is not None
     assert "result" in recipe["variable_registry"]
     assert any(v.startswith("__add_ten_") for v in recipe["variable_registry"])
-    # This assertion will now pass because "__get_number_1__the_answer" will exist.
     assert any(v.startswith("__get_number_") for v in recipe["variable_registry"])
+
+
+def test_diamond_dependency_import(create_files):
+    """
+    Tests the "diamond dependency" graph (A->B, A->C, B->D, C->D).
+    This ensures that the shared dependency (D) is resolved correctly and
+    its functions are available to all dependents.
+    """
+    files = create_files(
+        {
+            "d_common.vs": "@module\nfunc get_base() -> scalar { return 100 }",
+            "b_module.vs": """
+                @module
+                @import "d_common.vs"
+                func process_b(x: scalar) -> scalar { return x + get_base() }
+            """,
+            "c_module.vs": """
+                @module
+                @import "d_common.vs"
+                func process_c(y: scalar) -> scalar { return y * get_base() }
+            """,
+            "a_main.vs": """
+                @import "b_module.vs"
+                @import "c_module.vs"
+                @iterations = 1
+                @output = final
+                let val_b = process_b(10)
+                let val_c = process_c(2)
+                let final = val_b + val_c
+            """,
+        }
+    )
+    main_path = files / "a_main.vs"
+    recipe = compile_valuascript(main_path.read_text(), file_path=str(main_path))
+    assert recipe is not None
+    assert "final" in recipe["variable_registry"]
+    assert any(v.startswith("__process_b_") for v in recipe["variable_registry"])
+    assert any(v.startswith("__process_c_") for v in recipe["variable_registry"])
 
 
 # --- 2. INVALID IMPORT SCENARIOS (ERROR HANDLING) ---
@@ -147,7 +183,17 @@ def test_nested_import(create_files):
             },
             '@import "a.vs"',
             ErrorCode.CIRCULAR_IMPORT,
-            id="circular_import_disallowed",
+            id="circular_import_direct",
+        ),
+        pytest.param(
+            {
+                "a.vs": '@module\n@import "b.vs"',
+                "b.vs": '@module\n@import "c.vs"',
+                "c.vs": '@module\n@import "a.vs"',
+            },
+            '@import "a.vs"',
+            ErrorCode.CIRCULAR_IMPORT,
+            id="circular_import_deep",
         ),
         pytest.param(
             {
@@ -159,27 +205,38 @@ def test_nested_import(create_files):
             id="collision_between_modules",
         ),
         pytest.param(
-            {"utils.vs": "@module\nfunc my_func() -> scalar { return 1 }"},
-            '@import "utils.vs"\nfunc my_func() -> scalar { return 2 }',
+            {
+                "nested.vs": "@module\nfunc conflict() -> scalar { return 1 }",
+                "importer.vs": '@module\n@import "nested.vs"',
+                "main.vs": '@import "importer.vs"\nfunc conflict() -> scalar { return 2 }',
+            },
+            # This main_script is a placeholder; the file content is what matters.
+            '@import "main.vs"',
             ErrorCode.FUNCTION_NAME_COLLISION,
-            id="collision_main_and_module",
+            id="collision_main_and_nested_module",
         ),
     ],
 )
 def test_import_errors(create_files, files, main_script, expected_error_code):
     """A comprehensive test for various import-related compiler errors."""
-    file_structure = create_files(files)
-    main_content = f"""
-    @iterations=1
-    @output=x
-    let x = 1
-    {main_script}
-    """
-    main_path = file_structure / "main.vs"
-    main_path.write_text(main_content)
+    # Special handling for tests defined by file content
+    if "main.vs" in files:
+        file_structure = create_files(files)
+        main_path = file_structure / "main.vs"
+        script_content = main_path.read_text()
+    else:
+        file_structure = create_files(files)
+        main_path = file_structure / "main.vs"
+        script_content = f"""
+        @iterations=1
+        @output=x
+        let x = 1
+        {main_script}
+        """
+        main_path.write_text(script_content)
 
     with pytest.raises(ValuaScriptError) as e:
-        compile_valuascript(main_path.read_text(), file_path=str(main_path))
+        compile_valuascript(script_content, file_path=str(main_path))
     assert e.value.code == expected_error_code
 
 
@@ -187,6 +244,5 @@ def test_import_from_stdin_fails():
     """Ensures the compiler correctly forbids imports when compiling from stdin."""
     script = '@import "some_module.vs"\n@iterations=1\n@output=x\nlet x=1'
     with pytest.raises(ValuaScriptError) as e:
-        # file_path is not provided, simulating stdin
         compile_valuascript(script)
     assert e.value.code == ErrorCode.CANNOT_IMPORT_FROM_STDIN

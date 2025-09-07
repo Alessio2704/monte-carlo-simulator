@@ -246,9 +246,6 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode):
             if not DIRECTIVE_CONFIG[name]["allowed_in_module"]:
                 raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=d["line"], name=name)
 
-        # FIX: This block is now simplified. It only validates the *logic* within the module's
-        # functions, using the globally collected function map for context.
-        # It no longer checks for duplicates, as the compiler orchestrator has already done that.
         RESERVED_NAMES = set(FUNCTION_SIGNATURES.keys()) | set(OPERATOR_MAP.values())
         for name, func_def in all_user_functions.items():
             if name in RESERVED_NAMES:
