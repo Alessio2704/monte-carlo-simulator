@@ -1,5 +1,6 @@
 from lark import Token
 from collections import deque
+import os
 
 from .exceptions import ValuaScriptError, ErrorCode
 from .parser import _StringLiteral
@@ -220,7 +221,7 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures):
     return inlined_code
 
 
-def validate_semantics(main_ast, all_user_functions, is_preview_mode):
+def validate_semantics(main_ast, all_user_functions, is_preview_mode, file_path=None):
     """Performs all semantic validation for a runnable script or a module file."""
     execution_steps = main_ast.get("execution_steps", [])
 
@@ -317,7 +318,14 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode):
             elif name == "output":
                 output_var = value
             elif name == "output_file":
-                sim_config["output_file"] = value
+                # If the script being compiled has a path, resolve the output file
+                # relative to that script's directory and make it absolute.
+                if file_path:
+                    base_dir = os.path.dirname(file_path)
+                    sim_config["output_file"] = os.path.abspath(os.path.join(base_dir, value))
+                else:
+                    # For stdin, the path remains relative to the CWD.
+                    sim_config["output_file"] = value
 
     if not is_preview_mode and output_var not in final_defined_vars:
         raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=output_var)

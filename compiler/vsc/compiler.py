@@ -107,10 +107,10 @@ def compile_valuascript(script_content: str, optimize=False, verbose=False, prev
     all_user_function_defs = {k: v["definition"] for k, v in all_user_functions_with_meta.items()}
 
     if any(d["name"] == "module" for d in main_ast.get("directives", [])):
-        validate_semantics(main_ast, all_user_function_defs, is_preview_mode=True)
+        validate_semantics(main_ast, all_user_function_defs, is_preview_mode=True, file_path=file_path)
         return {"simulation_config": {}, "variable_registry": [], "output_variable_index": None, "pre_trial_steps": [], "per_trial_steps": []}
 
-    inlined_steps, defined_vars, sim_config, output_var = validate_semantics(main_ast, all_user_function_defs, is_preview_mode)
+    inlined_steps, defined_vars, sim_config, output_var = validate_semantics(main_ast, all_user_function_defs, is_preview_mode, file_path=file_path)
 
     if is_preview_mode:
         output_var = preview_variable

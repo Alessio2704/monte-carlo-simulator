@@ -6,46 +6,18 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from vsc.server import _get_script_analysis
-from lsprotocol.types import MarkupContent, MarkupKind
-
-# We reuse the fixture from test_imports to create file structures
-from test_imports import create_files
 
 
-def test_script_analysis_handles_nested_imports(create_files):
+def test_script_analysis_with_manual_structure(create_manual_test_structure):
     """
     Validates that the language server's core analysis function can
-    correctly traverse a complex, nested import graph (the diamond dependency)
-    and discover all user-defined functions. This is a critical integration
-    test for the live preview feature.
+    correctly traverse the complex, multi-level, diamond-dependency import graph
+    from the manual test plan and discover all user-defined functions.
+    This is the automated test for the logic behind manual test #1.
     """
-    # ARRANGE: Create a complex file structure
-    files = create_files(
-        {
-            "d_common.vs": "@module\nfunc get_base() -> scalar { return 100 }",
-            "b_module.vs": """
-                @module
-                @import "d_common.vs"
-                func process_b(x: scalar) -> scalar { return x + get_base() }
-            """,
-            "c_module.vs": """
-                @module
-                @import "d_common.vs"
-                func process_c(y: scalar) -> scalar { return y * get_base() }
-            """,
-            "a_main.vs": """
-                @import "b_module.vs"
-                @import "c_module.vs"
-                @iterations = 1
-                @output = final
-                func main_func() -> scalar { return 1 }
-                let val_b = process_b(10)
-                let val_c = process_c(2)
-                let final = val_b + val_c
-            """,
-        }
-    )
-    main_path = files / "a_main.vs"
+    # ARRANGE: Create the complex file structure from the manual test plan.
+    test_dir = create_manual_test_structure
+    main_path = test_dir / "main.vs"
     main_content = main_path.read_text()
 
     # ACT: Run the analysis function on the main script
@@ -53,12 +25,24 @@ def test_script_analysis_handles_nested_imports(create_files):
 
     # ASSERT: Check that the analysis was successful and complete
     assert defined_vars is not None
-    assert "final" in defined_vars
-    assert defined_vars["final"]["type"] == "scalar"
+    assert "dcf_after_tax" in defined_vars
+    assert defined_vars["dcf_after_tax"]["type"] == "scalar"
 
     # The most crucial assertion: verify that functions from ALL levels of
-    # the import graph were discovered and loaded.
-    expected_functions = {"main_func", "process_b", "process_c", "get_base"}
+    # the import graph were discovered and loaded correctly.
+    expected_functions = {
+        # From main.vs
+        "get_cashflows",
+        # From modules/financials.vs
+        "project_growth",
+        "calculate_dcf",
+        # From modules/tax.vs
+        "apply_tax",
+        # From modules/core/metrics.vs
+        "calculate_wacc",
+        # From modules/core/utils.vs (deepest level)
+        "get_risk_free_rate",
+    }
     assert set(user_functions.keys()) == expected_functions
 
 

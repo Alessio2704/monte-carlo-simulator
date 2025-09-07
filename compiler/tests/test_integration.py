@@ -43,7 +43,7 @@ def find_engine_path():
     )
 
 
-def run_preview_integration(script_content: str, preview_var: str, engine_path: str):
+def run_preview_integration(script_content: str, preview_var: str, engine_path: str, file_path: str = None):
     """
     Performs a direct integration test by:
     1. Calling the compiler function to generate a recipe.
@@ -52,7 +52,8 @@ def run_preview_integration(script_content: str, preview_var: str, engine_path: 
     4. Parsing and returning the JSON output.
     """
     # Step 1: Compile the script in-process using the new compiler orchestrator
-    recipe = compile_valuascript(script_content, preview_variable=preview_var)
+    # The file_path is now passed to the compiler to resolve imports.
+    recipe = compile_valuascript(script_content, preview_variable=preview_var, file_path=file_path)
     assert recipe is not None, "Compiler failed to produce a recipe"
 
     # Step 2: Write the generated recipe to a temporary file
@@ -118,3 +119,27 @@ def test_preview_integration(find_engine_path, script, preview_var, expected_typ
         assert all(pytest.approx(a) == b for a, b in zip(result.get("value"), expected_value))
     else:
         assert pytest.approx(result.get("value")) == expected_value
+
+
+def test_preview_integration_with_deeply_nested_imports(create_manual_test_structure, find_engine_path):
+    """
+    Automates the most critical manual test: previewing a variable that
+    depends on a complex, multi-level, diamond-shaped import graph.
+    This validates that the compiler and engine work together seamlessly
+    to resolve and compute values across the entire project structure.
+    """
+    # ARRANGE: The fixture sets up the complex file structure.
+    test_dir = create_manual_test_structure
+    main_script_path = test_dir / "main.vs"
+    script_content = main_script_path.read_text()
+
+    # ACT: Call the integration helper to preview 'dcf_value'.
+    # This variable's calculation requires resolving the entire import chain.
+    result = run_preview_integration(script_content=script_content, preview_var="dcf_value", engine_path=find_engine_path, file_path=str(main_script_path))
+
+    # ASSERT
+    assert result.get("status") == "success"
+    assert result.get("type") == "scalar"
+    # This asserts the final, calculated value is correct, proving the entire
+    # compiler -> engine toolchain worked across all imported modules.
+    assert pytest.approx(result.get("value"), abs=1e-2) == 186.90
