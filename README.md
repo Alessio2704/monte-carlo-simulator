@@ -5,7 +5,7 @@
 [![C++ Version](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
 [![Python Version](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-**A high-performance, multithreaded C++ engine for quantitative financial modeling, driven by ValuaScript—a simple, dedicated scripting language with an intelligent, optimizing Ahead-of-Time (AOT) compiler and support for User-Defined Functions.**
+**A high-performance, multithreaded C++ engine for quantitative financial modeling, driven by ValuaScript—a simple, dedicated scripting language with an intelligent, optimizing Ahead-of-Time (AOT) compiler and support for User-Defined Functions and Modules.**
 
 ## 📖 About The Project
 
@@ -17,18 +17,19 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 - **✨ Simple & Powerful Language:** Models are defined in **ValuaScript (`.vs`)**, a clean, declarative language with a **familiar, spreadsheet-like formula syntax**.
   - **User-Defined Functions:** Create reusable, type-safe functions with the `func` keyword, complete with docstrings, strict scoping, and recursive call detection.
+  - **📦 Code Modularity & Reusability:** Organize complex models into clean, reusable modules with `@import`. The compiler resolves the entire dependency graph, supporting nested and shared ("diamond") dependencies.
   - **Ergonomic Syntax:** Includes intuitive bracket syntax (`variable[index]`) for element access, slice-like syntax (`variable[:-1]`) for deleting elements, and numeric separators (`1_000_000`) for enhanced readability.
 - **🚀 High-Performance Backend:** A core engine written in modern C++17, fully multithreaded to leverage all available CPU cores. It acts as a lightweight, highly efficient **Virtual Machine (VM)** that executes pre-compiled bytecode.
 - **🐍 Intelligent AOT Compiler:** A robust **Ahead-of-Time (AOT)** compiler, `vsc`, that performs all semantic analysis and optimization _before_ execution. It compiles ValuaScript into a low-level JSON bytecode, performing advanced optimizations:
   - **Function Inlining:** User-defined functions are seamlessly inlined into the main execution plan, eliminating call overhead.
   - **Loop-Invariant Code Motion:** Deterministic calculations are automatically moved out of the main simulation loop.
   - **Dead Code Elimination:** Unused variables and functions are stripped from the final bytecode.
-- **🛡️ Compile-Time Safety:** Catches logical errors (type mismatches, incorrect function arguments, undefined variables, recursion) at compile time, providing instant feedback and preventing runtime failures.
+- **🛡️ Compile-Time Safety:** Catches logical errors (type mismatches, incorrect function arguments, undefined variables, circular imports, recursion) at compile time, providing instant feedback and preventing runtime failures.
 - **🛠️ Professional VS Code Extension:** A full-featured extension providing:
   - Dynamic, maintainable syntax highlighting.
   - A comprehensive set of code snippets for all language features.
   - A Python-based Language Server for real-time, as-you-type error diagnostics.
-  - **Hover-for-Help** on both built-in and user-defined functions, showing signatures and docstrings.
+  - **Hover-for-Help** on both built-in and user-defined functions, showing signatures and docstrings, with full support for imported modules.
   - A **live, hover-for-value** feature that provides instant feedback by invoking the full compiler/engine toolchain in the background.
   - A custom file icon for `.vs` files.
 - **⚙️ Streamlined Workflow:** A `--run` flag allows for a seamless, one-step compile-and-execute experience.
@@ -40,14 +41,14 @@ It is designed to execute complex, multi-year, stochastic financial models, runn
 
 The project follows a modern **Ahead-of-Time (AOT) Compiler and Virtual Machine (VM)** model. This clean separation of concerns ensures maximum performance, maintainability, and compile-time safety.
 
-1.  **`vsc` (The AOT Compiler - Python):** Performs all the "thinking." It parses the high-level `.vs` script, validates user-defined functions, performs rigorous type checking, runs optimizations like function inlining and dead code elimination, and resolves all variable names to integer indices. Its output is a low-level, highly optimized **JSON bytecode**.
+1.  **`vsc` (The AOT Compiler - Python):** Performs all the "thinking." It parses the high-level `.vs` script, resolves the `@import` dependency graph, validates user-defined functions, performs rigorous type checking, runs optimizations like function inlining and dead code elimination, and resolves all variable names to integer indices. Its output is a low-level, highly optimized **JSON bytecode**.
 2.  **`vse` (The Virtual Machine - C++):** A "dumb, fast" execution engine. It does no analysis or string parsing. It simply loads the pre-compiled JSON bytecode and executes the instructions at maximum speed using a multithreaded simulation loop.
 
 This architecture eliminates runtime overhead, resulting in superior performance and execution stability compared to a traditional interpreter model.
 
 ```mermaid
 graph TD;
-    A["<b>ValuaScript File (.vs)</b><br/><i>Human-Readable Model with UDFs</i>"] -- "vsc my_model.vs --run -O" --> B["<b>vsc AOT Compiler (Python)</b><br/><i>Inlines functions, optimizes, validates types</i>"];
+    A["<b>ValuaScript Project (.vs files)</b><br/><i>Human-Readable Model with Modules & UDFs</i>"] -- "vsc my_model.vs --run -O" --> B["<b>vsc AOT Compiler (Python)</b><br/><i>Resolves imports, inlines functions, optimizes</i>"];
     B -- generates --> C["<b>JSON Bytecode</b><br/><i>Low-level, optimized execution plan</i>"];
     C -- consumed by --> D["<b>vse Virtual Machine (C++)</b><br/><i>High-performance, multithreaded execution</i>"];
     D -- produces --> E["<b>Simulation Results</b><br/><i>Statistical Analysis & Plot</i>"];
@@ -127,12 +128,12 @@ ValuaScript comes with a powerful VS Code extension that provides a rich, intera
 
 ### Live Value Preview (Hover-for-Value)
 
-The flagship feature of the extension is the live value preview. Simply hover your mouse over any variable in your script to see its calculated value instantly.
+The flagship feature of the extension is the live value preview. Simply hover your mouse over any variable in your script to see its calculated value instantly, even if its logic depends on functions from multiple imported files.
 
 **How it Works:**
 When you hover over a variable, the extension communicates with the `vsc` language server, which:
 
-1.  Performs a rapid, in-memory **AOT compilation** of your script in "preview mode."
+1.  Performs a rapid, in-memory **AOT compilation** of your script in "preview mode," resolving all `@import` statements.
 2.  Generates a temporary, optimized **JSON bytecode** focused _only_ on the code needed to calculate that specific variable.
 3.  Invokes the high-performance C++ **VM** (`vse`) in the background with this bytecode.
 4.  Receives the result from the engine and displays it directly in the hover tooltip.
@@ -144,7 +145,7 @@ This entire process is seamless and typically completes in milliseconds.
 
 ### Real-time Diagnostics and Hover-for-Help
 
-The extension provides immediate feedback as you type, underlining errors and providing descriptive messages. You can also hover over any built-in or user-defined function to see its full signature, a summary of what it does, and details about its parameters and return value.
+The extension provides immediate feedback as you type, underlining errors and providing descriptive messages. You can also hover over any built-in or user-defined function—whether defined locally or in an imported module—to see its full signature, a summary of what it does, and details about its parameters and return value.
 
 ---
 
@@ -158,7 +159,7 @@ The entire release lifecycle begins when a developer pushes a Git tag in the for
 
 ```mermaid
 graph TD;
-    A[<i class='fa fa-tag'></i> Git Tag Push<br/>e.g., v1.0.5] --> B{Workflow Triggered};
+    A[<i class='fa fa-tag'></i> Git Tag Push<br/>e.g., v2.1.0] --> B{Workflow Triggered};
     B --> C["<strong>Job: build-and-release-assets</strong><br/><em>Runs in Parallel on a Win, macOS, Linux Matrix</em>"];
     C --> D["<strong>Job: publish</strong><br/><em>Gated by `needs` keyword: Runs only if all builds succeed</em>"];
     D --> E[<i class='fab fa-github'></i> Published to GitHub Releases];
@@ -278,7 +279,7 @@ ValuaScript supports fully type-checked, user-defined functions. They are powerf
 - **Compile-Time Validation:** The compiler checks for correct types, argument counts, and prevents recursion.
 - **Optimization:** Functions are inlined by the compiler to eliminate call overhead.
 
-```valuascript
+````valuascript
 # Define a reusable function with typed parameters and a return type
 func calculate_cogs(sales: vector, gross_margin: scalar) -> vector {
     """Calculates Cost of Goods Sold from a sales vector and a margin."""
@@ -294,7 +295,41 @@ let revenue = grow_series(1000, 0.1, 5)
 let margin = Normal(0.4, 0.05)
 
 # Call the user-defined function
-let final_cogs = calculate_cogs(revenue, margin)
+let final_cogs = calculate_cogs(revenue, margin)```
+
+#### Modules (`@import` & `@module`)
+
+You can organize complex models into clean, reusable files called modules.
+
+A **module** is a `.vs` file that contains only the `@module` directive and one or more `func` definitions. It cannot contain global `let` statements or execution directives like `@iterations` or `@output`.
+
+A **runnable script** can then import functions from any module using the `@import` directive, which takes a relative path to the module file.
+
+**Example:**
+
+**File: `modules/utils.vs`**
+```valuascript
+@module
+
+func calculate_npv(rate: scalar, cashflows: vector) -> scalar {
+    """A reusable helper to calculate Net Present Value."""
+    return npv(rate, cashflows)
+}
+````
+
+**File: `main_model.vs`**
+
+```valuascript
+@import "modules/utils.vs"
+
+@iterations = 10_000
+@output = project_value
+
+let discount_rate = 0.08
+let future_cashflows = [100, 110, 115, 120]
+
+# Call the function imported from the module
+let project_value = calculate_npv(discount_rate, future_cashflows)
 ```
 
 ## 🔬 Development & Contribution
@@ -332,13 +367,22 @@ pytest -v
 
 ## 🗺️ Roadmap
 
-### ✅ Version 2.0.0 (Current)
+### Version History
 
-This version introduces User-Defined Functions and a more robust compiler architecture.
+#### ✅ Version 2.1.0 (Current)
+
+This version introduces **Modules**, a major new capability for organizing and reusing code.
+
+- **Language Feature:** Full support for code modularity via the `@module` and `@import` directives. The compiler can resolve complex, nested, and shared dependency graphs.
+- **Compiler:** The entire validation and compilation pipeline is now module-aware.
+- **VS Code Extension:** All features, including hover-for-help and go-to-definition, now work seamlessly across imported files.
+
+#### Version 2.0.0
+
+This version introduced User-Defined Functions and a more robust compiler architecture.
 
 - **Language Feature:** Full support for **User-Defined Functions** (`func`, `return`), including type-checking, docstrings, strict scoping, and recursion detection.
-- **Compiler:** Implemented **function inlining** as a core optimization step. The validation pipeline is now more powerful and handles complex inter-dependencies.
-- All features from previous versions are retained and enhanced by the new architecture.
+- **Compiler:** Implemented **function inlining** as a core optimization step.
 
 ---
 
@@ -360,28 +404,11 @@ This version introduces User-Defined Functions and a more robust compiler archit
   let future_price = price_sampler()
   ```
 
-### 🚀 Tier 2: Advanced Language Features
+### 🚀 Tier 2: The Performance Frontier
 
-- [ ] **Modularization (`@import`)**
-
-  - **Why:** To allow users to organize complex models into clean, encapsulated, and reusable modules, promoting a cleaner and more scalable workflow.
-  - **User-Facing Syntax (Example):**
-
-  ```valuascript
-  // In modules/my_utils.vs
-  func calculate_npv(rate: scalar, cashflows: vector) -> scalar {
-      return npv(rate, cashflows)
-  }
-
-  // In main_model.vs
-  @import "modules/my_utils.vs"
-  let final_npv = calculate_npv(0.08, [10, 12, 15])
-  ```
-
-### 🌌 V-Next: The "Blue Sky" Goal (JIT Compilation)
-
-- [ ] **Native Code Generation (JIT Compiler)**
-  - **Why:** The ultimate performance goal. A Just-In-Time (JIT) compiler would take the JSON bytecode and, at the start of the simulation, compile it _in memory_ into highly optimized, native machine code. This would eliminate all interpretation overhead, pushing execution speed to the theoretical maximum.
+- [ ] **GPU Acceleration via CUDA/OpenCL**
+  - **Why:** The ultimate performance goal. This represents a paradigm shift beyond simple multi-threading. The "embarrassingly parallel" nature of Monte Carlo simulations—where each trial is independent—is a perfect workload for the thousands of cores in a modern GPU. This would allow the engine to execute thousands of simulation trials _simultaneously_, leading to an order-of-magnitude performance increase for very large models.
+  - **User-Facing Impact:** This would likely be enabled via a simple flag (`vsc my_model.vs --run --gpu`), offloading the massive computational work to the GPU without requiring changes to the ValuaScript model itself.
 
 ## 📄 License
 
