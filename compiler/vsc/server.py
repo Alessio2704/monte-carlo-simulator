@@ -248,7 +248,9 @@ def hover(params):
                 formatted_value = [_format_number_with_separators(item) for item in value]
 
             value_str = json.dumps(formatted_value, indent=2)
-            md_value = f"**{value_label}:**\n```\n{value_str.replace('\"', '')}\n```"
+            # Perform the replacement outside the f-string for compatibility with Python < 3.12
+            clean_value_str = value_str.replace('"', "")
+            md_value = f"**{value_label}:**\n```\n{clean_value_str}\n```"
             return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n{md_value}"))
         except Exception as e:
             return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*An error occurred while fetching live value: {e}*"))
