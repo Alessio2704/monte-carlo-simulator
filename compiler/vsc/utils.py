@@ -66,7 +66,7 @@ def find_engine_executable(provided_path):
     # 4. Developer mode: look in the build directory relative to this script
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        dev_path = os.path.join(script_dir, "..", "..", "build", "bin", engine_name)
+        dev_path = os.path.join(script_dir, "..", "..", "build", "bin", "Release", engine_name) if sys.platform == "win32" else os.path.join(script_dir, "..", "..", "build", "bin", engine_name)
         if os.path.isfile(dev_path) and os.access(dev_path, os.X_OK):
             return dev_path
     except NameError:
