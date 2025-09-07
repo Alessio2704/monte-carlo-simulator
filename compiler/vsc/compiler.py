@@ -1,4 +1,4 @@
-from .exceptions import ValuaScriptError
+from .exceptions import ValuaScriptError, ErrorCode
 from .parser import parse_valuascript
 from .validator import validate_semantics
 from .optimizer import optimize_steps
@@ -28,7 +28,7 @@ def compile_valuascript(script_content: str, optimize=False, verbose=False, prev
     if is_preview_mode:
         output_var = preview_variable
         if output_var not in defined_vars:
-            raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined.")
+            raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=output_var)
 
     # 3. OPTIMIZATION: Perform DCE and partition into pre/per-trial steps
     pre_trial_steps, per_trial_steps, stochastic_vars, final_defined_vars = optimize_steps(
@@ -45,7 +45,7 @@ def compile_valuascript(script_content: str, optimize=False, verbose=False, prev
         sim_config["num_trials"] = 100 if is_stochastic else 1
         # Also need to re-check if the preview var was eliminated
         if preview_variable not in final_defined_vars:
-            raise ValuaScriptError(f"The preview variable '{preview_variable}' is not defined or was eliminated as unused code.")
+            raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=preview_variable)
 
     # 4. LINKING & CODE GENERATION: Build registry and create low-level bytecode
     final_recipe = link_and_generate_bytecode(
@@ -55,4 +55,4 @@ def compile_valuascript(script_content: str, optimize=False, verbose=False, prev
         output_var=output_var,
     )
 
-    return final_recipe 
+    return final_recipe

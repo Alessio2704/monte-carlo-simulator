@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from lark.exceptions import UnexpectedToken, UnexpectedInput, UnexpectedCharacters
 from vsc.compiler import compile_valuascript
-from vsc.exceptions import ValuaScriptError
+from vsc.exceptions import ValuaScriptError, ErrorCode
 from vsc.config import FUNCTION_SIGNATURES
 
 
@@ -73,48 +73,50 @@ def test_syntax_errors(malformed_snippet):
 
 
 @pytest.mark.parametrize(
-    "script_body, expected_error",
+    "script_body, expected_code",
     [
-        ("", "The @iterations directive is mandatory"),
-        ("@iterations=1\n@output=x", "The final @output variable 'x' is not defined"),
-        ("let a = \n@iterations=1\n@output=a", "Missing value after '='."),
-        ("@output = \n@iterations=1\nlet a=1", "Missing value after '='."),
-        ("@iterations=1\n@output=a\nlet a", "Incomplete assignment."),
-        ("@iterations=1\n@output=a\nlet", "Incomplete assignment."),
+        ("", ErrorCode.MISSING_ITERATIONS_DIRECTIVE),
+        ("@iterations=1\n@output=x", ErrorCode.UNDEFINED_VARIABLE),
+        ("let a = \n@iterations=1\n@output=a", ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS),
+        ("@output = \n@iterations=1\nlet a=1", ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS),
+        ("@iterations=1\n@output=a\nlet a", ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT),
+        ("@iterations=1\n@output=a\nlet", ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT),
     ],
 )
-def test_structural_integrity_errors(script_body, expected_error):
-    with pytest.raises(ValuaScriptError, match=expected_error):
+def test_structural_integrity_errors(script_body, expected_code):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script_body)
+    assert e.value.code == expected_code
 
 
 @pytest.mark.parametrize(
-    "script_body, expected_error",
+    "script_body, expected_code",
     [
-        ("@output=x\nlet x=1", "The @iterations directive is mandatory"),
-        ("@iterations=1.5\n@output=x\nlet x=1", "must be a whole number"),
-        ("@iterations=1\n@iterations=2\n@output=x\nlet x=1", "directive '@iterations' is defined more than once"),
-        ("@iterations=1\n@output=x\nlet x=1\n@invalid=1", "Unknown directive '@invalid'"),
-        ("@iterations=1\n@output=z\nlet x=1", "The final @output variable 'z' is not defined"),
-        ("@iterations=1\n@output=y\nlet y=x", "Variable 'x' used in function 'identity' is not defined"),
-        ("@iterations=1\n@output=y\nlet y=log(x)", "Variable 'x' used in function 'log' is not defined"),
-        ("@iterations=1\n@output=x\nlet x = unknown()", "Unknown function 'unknown'"),
-        ("@iterations=1\n@output=result\nlet v=[1]\nlet result=Normal(1,v)", "Argument 2 for 'Normal' expects a 'scalar', but got a 'vector'"),
-        ("@iterations=1\n@output=x\nlet s=1\nlet v=grow_series(s,0,1)\nlet x=log(v)", "Argument 1 for 'log' expects a 'scalar', but got a 'vector'"),
-        ("@iterations=1\n@output=x\nlet x=1\n@output_file=not_a_string", "must be a string literal"),
-        ("@iterations=1\n@output=v\nlet s=1\nlet v=delete_element(s, 0)", "Argument 1 for 'delete_element' expects a 'vector', but got a 'scalar'"),
-        ("@iterations=1\n@output=v\nlet my_vec=[1]\nlet v=delete_element(my_vec, [0])", "Argument 2 for 'delete_element' expects a 'scalar', but got a 'vector'"),
-        ("@iterations=1\n@output=v\nlet s=1\nlet v=s[0]", "Argument 1 for 'get_element' expects a 'vector', but got a 'scalar'"),
-        ("@iterations=1\n@output=v\nlet v=[1]\nlet i=[0]\nlet x=v[i]", "Argument 2 for 'get_element' expects a 'scalar', but got a 'vector'"),
-        ("@iterations=1\n@output=x\nlet s=1\nlet x=s[:-1]", "Argument 1 for 'delete_element' expects a 'vector', but got a 'scalar'"),
-        ("@iterations=1\n@output=x\nlet q=2\nlet x=[1,q]", "Invalid item q in vector literal for 'x'"),
-        ('@iterations=1\n@output=x\nlet x=[1,"hello"]', "Invalid item \"hello\" in vector literal for 'x'"),
-        ("@iterations=1\n@output=x\nlet x=[1, _3]", "Invalid item _3 in vector literal for 'x'"),
+        ("@output=x\nlet x=1", ErrorCode.MISSING_ITERATIONS_DIRECTIVE),
+        ("@iterations=1.5\n@output=x\nlet x=1", ErrorCode.INVALID_DIRECTIVE_VALUE),
+        ("@iterations=1\n@iterations=2\n@output=x\nlet x=1", ErrorCode.DUPLICATE_DIRECTIVE),
+        ("@iterations=1\n@output=x\nlet x=1\n@invalid=1", ErrorCode.UNKNOWN_DIRECTIVE),
+        ("@iterations=1\n@output=z\nlet x=1", ErrorCode.UNDEFINED_VARIABLE),
+        ("@iterations=1\n@output=y\nlet y=x", ErrorCode.UNDEFINED_VARIABLE_IN_FUNC),
+        ("@iterations=1\n@output=y\nlet y=log(x)", ErrorCode.UNDEFINED_VARIABLE_IN_FUNC),
+        ("@iterations=1\n@output=x\nlet x = unknown()", ErrorCode.UNKNOWN_FUNCTION),
+        ("@iterations=1\n@output=result\nlet v=[1]\nlet result=Normal(1,v)", ErrorCode.ARGUMENT_TYPE_MISMATCH),
+        ("@iterations=1\n@output=x\nlet s=1\nlet v=grow_series(s,0,1)\nlet x=log(v)", ErrorCode.ARGUMENT_TYPE_MISMATCH),
+        ("@iterations=1\n@output=x\nlet x=1\n@output_file=not_a_string", ErrorCode.INVALID_DIRECTIVE_VALUE),
+        ("@iterations=1\n@output=v\nlet s=1\nlet v=delete_element(s, 0)", ErrorCode.ARGUMENT_TYPE_MISMATCH),
+        ("@iterations=1\n@output=v\nlet my_vec=[1]\nlet v=delete_element(my_vec, [0])", ErrorCode.ARGUMENT_TYPE_MISMATCH),
+        ("@iterations=1\n@output=v\nlet s=1\nlet v=s[0]", ErrorCode.ARGUMENT_TYPE_MISMATCH),
+        ("@iterations=1\n@output=v\nlet v=[1]\nlet i=[0]\nlet x=v[i]", ErrorCode.ARGUMENT_TYPE_MISMATCH),
+        ("@iterations=1\n@output=x\nlet s=1\nlet x=s[:-1]", ErrorCode.ARGUMENT_TYPE_MISMATCH),
+        ("@iterations=1\n@output=x\nlet q=2\nlet x=[1,q]", ErrorCode.INVALID_ITEM_IN_VECTOR),
+        ('@iterations=1\n@output=x\nlet x=[1,"hello"]', ErrorCode.INVALID_ITEM_IN_VECTOR),
+        ("@iterations=1\n@output=x\nlet x=[1, _3]", ErrorCode.INVALID_ITEM_IN_VECTOR),
     ],
 )
-def test_semantic_errors(script_body, expected_error):
-    with pytest.raises(ValuaScriptError, match=expected_error):
+def test_semantic_errors(script_body, expected_code):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script_body)
+    assert e.value.code == expected_code
 
 
 def get_arity_test_cases():
@@ -136,10 +138,10 @@ def test_all_function_arities(base_script, func, provided_argc):
         args_list.append(f'"arg{i}"' if expected_type == "string" else "1")
     args = ", ".join(args_list) if provided_argc > 0 else ""
     script = base_script + f"let result = {func}({args})"
-    expected_argc = len(FUNCTION_SIGNATURES[func]["arg_types"])
-    expected_error = f"Function '{func}' expects {expected_argc} argument"
-    with pytest.raises(ValuaScriptError, match=expected_error):
+
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == ErrorCode.ARGUMENT_COUNT_MISMATCH
 
 
 # ==============================================================================
@@ -157,7 +159,7 @@ def test_linker_handles_nested_function_calls():
     @iterations=1
     @output=result
     let base = 10
-    let result = log(exp(base)) 
+    let result = log(exp(base))
     """
     recipe = compile_valuascript(script)
     assert recipe is not None
@@ -293,5 +295,6 @@ def test_preview_mode_compilation(script_body, preview_var, expected_output_var_
 
 def test_preview_mode_throws_on_undefined_variable():
     script = "@iterations=1\n@output=a\nlet a = 1"
-    with pytest.raises(ValuaScriptError, match="The final @output variable 'undefined_var' is not defined."):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script, preview_variable="undefined_var")
+    assert e.value.code == ErrorCode.UNDEFINED_VARIABLE

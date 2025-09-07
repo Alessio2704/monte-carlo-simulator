@@ -1,7 +1,7 @@
 import os
 from lark import Lark, Transformer, Token
 from textwrap import dedent
-from .exceptions import ValuaScriptError
+from .exceptions import ValuaScriptError, ErrorCode
 
 LARK_PARSER = None
 
@@ -78,7 +78,7 @@ class ValuaScriptTransformer(Transformer):
 
     def arg(self, i):
         return i[0]
-        
+
     def directive(self, items):
         return items[0]
 
@@ -111,8 +111,6 @@ class ValuaScriptTransformer(Transformer):
         return {"type": "directive", "name": str(items[0]), "value": items[1], "line": items[0].line}
 
     def valueless_directive(self, items):
-        # This handles directives like @module that don't have a value.
-        # We assign `True` as the value for consistency.
         directive_token = items[0]
         return {"type": "directive", "name": str(directive_token), "value": True, "line": directive_token.line}
 
@@ -170,14 +168,14 @@ def parse_valuascript(script_content: str):
         if not clean_line:
             continue
         if clean_line.count("(") != clean_line.count(")"):
-            raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening parenthesis.")
+            raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
         if clean_line.count("[") != clean_line.count("]"):
-            raise ValuaScriptError(f"L{i+1}: Syntax Error: Unmatched opening bracket.")
+            raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
         if (clean_line.startswith("let") or clean_line.startswith("@")) and clean_line.endswith("="):
-            raise ValuaScriptError(f"L{i+1}: Syntax Error: Missing value after '='.")
+            raise ValuaScriptError(ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS, line=i + 1)
         if clean_line.startswith("let") and "=" not in clean_line:
             if len(clean_line.split()) > 0 and clean_line.split()[0] == "let":
-                raise ValuaScriptError(f"L{i+1}: Syntax Error: Incomplete assignment.")
+                raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
 
     parse_tree = LARK_PARSER.parse(script_content)
     return ValuaScriptTransformer().transform(parse_tree)

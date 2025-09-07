@@ -6,7 +6,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from vsc.compiler import compile_valuascript
-from vsc.exceptions import ValuaScriptError
+from vsc.exceptions import ValuaScriptError, ErrorCode
 from lark.exceptions import UnexpectedInput, UnexpectedToken, UnexpectedCharacters
 
 # Base script setup for tests
@@ -114,74 +114,57 @@ def test_syntax_errors_in_definition(func_snippet):
 
 
 @pytest.mark.parametrize(
-    "script_body, error_match",
+    "script_body, expected_code",
     [
-        # Missing return
-        pytest.param("func test(a: scalar) -> scalar { let x = a }", "Function 'test' is missing a return statement.", id="missing_return"),
-        # Return type mismatch
-        pytest.param("func test(a: scalar) -> vector { return a }", "Function 'test' returns type 'scalar' but is defined to return 'vector'", id="return_type_mismatch_scalar_for_vector"),
-        pytest.param("func test(a: vector) -> scalar { return a }", "Function 'test' returns type 'vector' but is defined to return 'scalar'", id="return_type_mismatch_vector_for_scalar"),
-        # Argument type mismatch
-        pytest.param(
-            "func test(a: scalar) -> scalar { return a }\nlet v = [1]\nlet result = test(v)", "Argument 1 for 'test' expects a 'scalar', but got a 'vector'", id="arg_type_mismatch_vector_for_scalar"
-        ),
-        pytest.param(
-            "func test(a: vector) -> vector { return a }\nlet s = 1\nlet result = test(s)", "Argument 1 for 'test' expects a 'vector', but got a 'scalar'", id="arg_type_mismatch_scalar_for_vector"
-        ),
-        # Wrong number of arguments
-        pytest.param("func test(a: scalar) -> scalar { return a }\nlet result = test(1, 2)", "Function 'test' expects 1 argument\\(s\\), but got 2", id="too_many_args"),
-        pytest.param("func test(a: scalar, b: scalar) -> scalar { return a }\nlet result = test(1)", "Function 'test' expects 2 argument\\(s\\), but got 1", id="too_few_args"),
-        # Using result of UDF incorrectly
-        pytest.param(
-            "func get_s() -> scalar { return 1 }\nlet r = get_s()\nlet result = sum_series(r)",
-            "Argument 1 for 'sum_series' expects a 'vector', but got a 'scalar'",
-            id="udf_result_misuse_scalar_for_vector",
-        ),
-        pytest.param(
-            "func get_v() -> vector { return [1] }\nlet r = get_v()\nlet result = log(r)", "Argument 1 for 'log' expects a 'scalar', but got a 'vector'", id="udf_result_misuse_vector_for_scalar"
-        ),
+        pytest.param("func test(a: scalar) -> scalar { let x = a }", ErrorCode.MISSING_RETURN_STATEMENT, id="missing_return"),
+        pytest.param("func test(a: scalar) -> vector { return a }", ErrorCode.RETURN_TYPE_MISMATCH, id="return_type_mismatch_scalar_for_vector"),
+        pytest.param("func test(a: vector) -> scalar { return a }", ErrorCode.RETURN_TYPE_MISMATCH, id="return_type_mismatch_vector_for_scalar"),
+        pytest.param("func test(a: scalar) -> scalar { return a }\nlet v = [1]\nlet result = test(v)", ErrorCode.ARGUMENT_TYPE_MISMATCH, id="arg_type_mismatch_vector_for_scalar"),
+        pytest.param("func test(a: vector) -> vector { return a }\nlet s = 1\nlet result = test(s)", ErrorCode.ARGUMENT_TYPE_MISMATCH, id="arg_type_mismatch_scalar_for_vector"),
+        pytest.param("func test(a: scalar) -> scalar { return a }\nlet result = test(1, 2)", ErrorCode.ARGUMENT_COUNT_MISMATCH, id="too_many_args"),
+        pytest.param("func test(a: scalar, b: scalar) -> scalar { return a }\nlet result = test(1)", ErrorCode.ARGUMENT_COUNT_MISMATCH, id="too_few_args"),
+        pytest.param("func get_s() -> scalar { return 1 }\nlet r = get_s()\nlet result = sum_series(r)", ErrorCode.ARGUMENT_TYPE_MISMATCH, id="udf_result_misuse_scalar_for_vector"),
+        pytest.param("func get_v() -> vector { return [1] }\nlet r = get_v()\nlet result = log(r)", ErrorCode.ARGUMENT_TYPE_MISMATCH, id="udf_result_misuse_vector_for_scalar"),
     ],
 )
-def test_semantic_type_errors(script_body, error_match):
+def test_semantic_type_errors(script_body, expected_code):
     script = f"{BASE_SCRIPT}{script_body}"
-    with pytest.raises(ValuaScriptError, match=error_match):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == expected_code
 
 
 # --- 4. SCOPING AND VARIABLE DECLARATION ERRORS ---
 
 
 @pytest.mark.parametrize(
-    "script_body, error_match",
+    "script_body, expected_code",
     [
-        # Double declaration
-        pytest.param("func test(a: scalar) -> scalar { let a = 10\nreturn a }", "Variable 'a' is defined more than once in function 'test'", id="redeclare_param"),
-        pytest.param("func test(a: scalar) -> scalar { let x = 1\nlet x = 2\nreturn x }", "Variable 'x' is defined more than once in function 'test'", id="redeclare_local_var"),
-        # Undefined variable reference
-        pytest.param("func test(a: scalar) -> scalar { return b }", "Variable 'b' used in function 'identity' is not defined", id="reference_undefined_var"),
-        pytest.param("func test(a: scalar) -> scalar { return a + global_var }\nlet global_var=10", "Variable 'global_var' used in function 'add' is not defined", id="reference_global_var_is_error"),
-        # Redefining built-in
-        pytest.param("func log(a: scalar) -> scalar { return a }", "Cannot redefine built-in function 'log'", id="redefine_builtin_function"),
+        pytest.param("func test(a: scalar) -> scalar { let a = 10\nreturn a }", ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, id="redeclare_param"),
+        pytest.param("func test(a: scalar) -> scalar { let x = 1\nlet x = 2\nreturn x }", ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, id="redeclare_local_var"),
+        pytest.param("func test(a: scalar) -> scalar { return b }", ErrorCode.UNDEFINED_VARIABLE_IN_FUNC, id="reference_undefined_var"),
+        pytest.param("func test(a: scalar) -> scalar { return a + global_var }\nlet global_var=10", ErrorCode.UNDEFINED_VARIABLE_IN_FUNC, id="reference_global_var_is_error"),
+        pytest.param("func log(a: scalar) -> scalar { return a }", ErrorCode.REDEFINE_BUILTIN_FUNCTION, id="redefine_builtin_function"),
     ],
 )
-def test_scoping_and_declaration_errors(script_body, error_match):
-    # Need to add a dummy `let result = 1` for some cases to be valid structurally
+def test_scoping_and_declaration_errors(script_body, expected_code):
     script = f"{BASE_SCRIPT}{script_body}\nlet result = 1"
-    with pytest.raises(ValuaScriptError, match=error_match):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == expected_code
 
 
 # --- 5. VALIDATION CONSISTENCY (ERRORS INSIDE FUNCTION BODY) ---
 
 
 @pytest.mark.parametrize(
-    "func_body, error_match",
+    "func_body, expected_code",
     [
-        pytest.param("let x = unknown_func()\nreturn x", "Unknown function 'unknown_func'", id="body_unknown_function"),
-        pytest.param("let v = [1]\nlet x = log(v)\nreturn x", "Argument 1 for 'log' expects a 'scalar', but got a 'vector'", id="body_type_error_builtin"),
+        pytest.param("let x = unknown_func()\nreturn x", ErrorCode.UNKNOWN_FUNCTION, id="body_unknown_function"),
+        pytest.param("let v = [1]\nlet x = log(v)\nreturn x", ErrorCode.ARGUMENT_TYPE_MISMATCH, id="body_type_error_builtin"),
     ],
 )
-def test_validation_consistency_inside_body(func_body, error_match):
+def test_validation_consistency_inside_body(func_body, expected_code):
     """
     Ensures that the semantic validation logic for the main script is also applied
     identically inside a function's body.
@@ -194,8 +177,9 @@ def test_validation_consistency_inside_body(func_body, error_match):
     }}
     let result = test()
     """
-    with pytest.raises(ValuaScriptError, match=error_match):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == expected_code
 
 
 def test_syntax_errors_inside_body():
@@ -248,8 +232,9 @@ def test_direct_recursion_error():
     }
     let result = recursive(10)
     """
-    with pytest.raises(ValuaScriptError, match="Recursive function call detected: recursive -> recursive"):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == ErrorCode.RECURSIVE_CALL_DETECTED
 
 
 def test_mutual_recursion_error():
@@ -260,8 +245,9 @@ def test_mutual_recursion_error():
     func f2(x: scalar) -> scalar { return f1(x) }
     let result = f1(10)
     """
-    with pytest.raises(ValuaScriptError, match="Recursive function call detected: f1 -> f2 -> f1"):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == ErrorCode.RECURSIVE_CALL_DETECTED
 
 
 # --- 7. STOCHASTICITY PROPAGATION ---
@@ -366,8 +352,9 @@ def test_dce_on_unused_local_vars_in_udf():
 
 def test_script_with_only_uncalled_udf_fails():
     script = "func uncalled(x: scalar) -> scalar { return x }"
-    with pytest.raises(ValuaScriptError, match="The @iterations directive is mandatory"):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == ErrorCode.MISSING_ITERATIONS_DIRECTIVE
 
 
 # --- 9. COMPLEX INTERACTIONS AND NESTING ---

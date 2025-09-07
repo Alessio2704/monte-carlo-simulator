@@ -6,7 +6,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from vsc.compiler import compile_valuascript
-from vsc.exceptions import ValuaScriptError
+from vsc.exceptions import ValuaScriptError, ErrorCode
 from lark.exceptions import UnexpectedInput, UnexpectedToken, UnexpectedCharacters
 
 # --- 1. VALID MODULE DEFINITIONS ---
@@ -51,16 +51,16 @@ def test_empty_module_is_valid():
 
 
 @pytest.mark.parametrize(
-    "script, error_match",
+    "script, expected_code",
     [
-        pytest.param("@module\nlet x = 1", "Global 'let' statements are not allowed in a module file", id="global_let_statement"),
-        pytest.param("@module\n@iterations = 100", "The @iterations directive is not allowed when @module is declared", id="disallowed_iterations"),
-        pytest.param("@module\n@output = x", "The @output directive is not allowed when @module is declared", id="disallowed_output"),
-        pytest.param('@module\n@output_file = "f.csv"', "The @output_file directive is not allowed when @module is declared", id="disallowed_output_file"),
-        pytest.param("@module = 1", "The @module directive does not accept a value", id="module_with_value"),
+        pytest.param("@module\nlet x = 1", ErrorCode.GLOBAL_LET_IN_MODULE, id="global_let_statement"),
+        pytest.param("@module\n@iterations = 100", ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, id="disallowed_iterations"),
+        pytest.param("@module\n@output = x", ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, id="disallowed_output"),
+        pytest.param('@module\n@output_file = "f.csv"', ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, id="disallowed_output_file"),
+        pytest.param("@module = 1", ErrorCode.MODULE_WITH_VALUE, id="module_with_value"),
     ],
 )
-def test_invalid_module_structure(script, error_match):
+def test_invalid_module_structure(script, expected_code):
     """
     Validates that the compiler rejects modules containing disallowed
     elements like global variables or execution directives.
@@ -69,8 +69,9 @@ def test_invalid_module_structure(script, error_match):
     if "let" in script:
         script += "\nfunc dummy() -> scalar { return 1 }"
 
-    with pytest.raises(ValuaScriptError, match=error_match):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == expected_code
 
 
 # --- 3. SEMANTIC AND SYNTAX ERRORS INSIDE A MODULE'S FUNCTIONS ---
@@ -84,8 +85,9 @@ def test_duplicate_function_names_in_module():
     func my_func(a: scalar) -> scalar { return a }
     func my_func(b: vector) -> vector { return b }
     """
-    with pytest.raises(ValuaScriptError, match="Function 'my_func' is defined more than once"):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == ErrorCode.DUPLICATE_FUNCTION
 
 
 def test_redefining_builtin_function_in_module():
@@ -95,43 +97,39 @@ def test_redefining_builtin_function_in_module():
         return a + b
     }
     """
-    with pytest.raises(ValuaScriptError, match="Cannot redefine built-in function 'Normal'"):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == ErrorCode.REDEFINE_BUILTIN_FUNCTION
 
 
 @pytest.mark.parametrize(
-    "func_body, error_match",
+    "func_body, expected_code",
     [
-        # Scoping and Declaration Errors
-        pytest.param("let a = 10\nreturn a", "Variable 'a' is defined more than once in function 'test_func'", id="redeclare_param_in_body"),
-        pytest.param("let x = 1\nlet x = 2\nreturn x", "Variable 'x' is defined more than once in function 'test_func'", id="redeclare_local_var"),
-        pytest.param("return undefined_var", "Variable 'undefined_var' used in function 'identity' is not defined", id="reference_undefined_var"),
-        # Type Errors
-        pytest.param("let v = [1]\nreturn log(v)", "Argument 1 for 'log' expects a 'scalar', but got a 'vector'", id="type_mismatch_builtin"),
-        pytest.param("return 1", "Function 'test_func' returns type 'scalar' but is defined to return 'vector'", id="return_type_mismatch"),
-        # Arity Errors
-        pytest.param("return log(1, 2)", "Function 'log' expects 1 argument\\(s\\), but got 2", id="arity_mismatch_too_many"),
-        # Missing Return
-        pytest.param("let x = a + 1", "Function 'test_func' is missing a return statement", id="missing_return"),
-        # Unknown Function
-        pytest.param("return unknown_func(a)", "Unknown function 'unknown_func'", id="unknown_function_call"),
+        pytest.param("let a = 10\nreturn a", ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, id="redeclare_param_in_body"),
+        pytest.param("let x = 1\nlet x = 2\nreturn x", ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, id="redeclare_local_var"),
+        pytest.param("return undefined_var", ErrorCode.UNDEFINED_VARIABLE_IN_FUNC, id="reference_undefined_var"),
+        pytest.param("let v = [1]\nreturn log(v)", ErrorCode.ARGUMENT_TYPE_MISMATCH, id="type_mismatch_builtin"),
+        pytest.param("return 1", ErrorCode.RETURN_TYPE_MISMATCH, id="return_type_mismatch"),
+        pytest.param("return log(1, 2)", ErrorCode.ARGUMENT_COUNT_MISMATCH, id="arity_mismatch_too_many"),
+        pytest.param("let x = a + 1", ErrorCode.MISSING_RETURN_STATEMENT, id="missing_return"),
+        pytest.param("return unknown_func(a)", ErrorCode.UNKNOWN_FUNCTION, id="unknown_function_call"),
     ],
 )
-def test_semantic_errors_inside_module_function_body(func_body, error_match):
+def test_semantic_errors_inside_module_function_body(func_body, expected_code):
     """
     Ensures the compiler's semantic validation is correctly applied to the
     body of functions defined within a module.
     """
-    # The return type is set to vector for the return mismatch test
-    return_type = "vector" if "returns type 'scalar'" in error_match else "scalar"
+    return_type = "vector" if expected_code == ErrorCode.RETURN_TYPE_MISMATCH else "scalar"
     script = f"""
     @module
     func test_func(a: scalar) -> {return_type} {{
         {func_body}
     }}
     """
-    with pytest.raises(ValuaScriptError, match=error_match):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == expected_code
 
 
 def test_syntax_error_inside_module_function_body():
@@ -157,8 +155,9 @@ def test_direct_recursion_in_module():
         return n * factorial(n - 1)
     }
     """
-    with pytest.raises(ValuaScriptError, match="Recursive function call detected: factorial -> factorial"):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == ErrorCode.RECURSIVE_CALL_DETECTED
 
 
 def test_mutual_recursion_in_module():
@@ -167,8 +166,9 @@ def test_mutual_recursion_in_module():
     func f1(x: scalar) -> scalar { return f2(x) }
     func f2(x: scalar) -> scalar { return f1(x) }
     """
-    with pytest.raises(ValuaScriptError, match="Recursive function call detected: f1 -> f2 -> f1"):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == ErrorCode.RECURSIVE_CALL_DETECTED
 
 
 def test_deep_call_chain_validation_in_module():
@@ -178,10 +178,11 @@ def test_deep_call_chain_validation_in_module():
     """
     script = """
     @module
-    func f4(v: vector) -> scalar { return log(v) }
+    func f4(v: vector) -> scalar { return log(v) } # This is the error
     func f3(s: scalar) -> scalar { return f4([s]) }
     func f2(s: scalar) -> scalar { return f3(s) }
     func f1(s: scalar) -> scalar { return f2(s) }
     """
-    with pytest.raises(ValuaScriptError, match="Argument 1 for 'log' expects a 'scalar', but got a 'vector'"):
+    with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
+    assert e.value.code == ErrorCode.ARGUMENT_TYPE_MISMATCH

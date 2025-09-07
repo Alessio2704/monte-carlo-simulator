@@ -1,7 +1,7 @@
 from lark import Token
 from collections import deque
 
-from .exceptions import ValuaScriptError
+from .exceptions import ValuaScriptError, ErrorCode
 from .parser import _StringLiteral
 from .config import FUNCTION_SIGNATURES, DIRECTIVE_CONFIG
 
@@ -47,7 +47,7 @@ def _check_for_recursive_calls(user_functions):
             is_cyclic, path = has_cycle(func_name, [])
             if is_cyclic:
                 cycle_path_str = " -> ".join(path)
-                raise ValuaScriptError(f"Recursive function call detected: {cycle_path_str}")
+                raise ValuaScriptError(ErrorCode.RECURSIVE_CALL_DETECTED, path=cycle_path_str)
 
 
 def _infer_expression_type(expression_dict, defined_vars, line_num, current_result_var, all_signatures={}):
@@ -61,21 +61,21 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
             for item in value:
                 if not isinstance(item, (int, float)):
                     error_val = f'"{item.value}"' if isinstance(item, _StringLiteral) else str(item)
-                    raise ValuaScriptError(f"L{line_num}: Invalid item {error_val} in vector literal for '{current_result_var}'.")
+                    raise ValuaScriptError(ErrorCode.INVALID_ITEM_IN_VECTOR, line=line_num, value=error_val, name=current_result_var)
             return "vector"
         if isinstance(value, _StringLiteral):
             return "string"
-        raise ValuaScriptError(f"L{line_num}: Invalid value for '{current_result_var}'.")
+        raise ValuaScriptError(ErrorCode.INVALID_ITEM_IN_VECTOR, line=line_num, value=value, name=current_result_var)
 
     if expr_type == "execution_assignment":
         func_name = expression_dict["function"]
         args = expression_dict.get("args", [])
         signature = all_signatures.get(func_name)
         if not signature:
-            raise ValuaScriptError(f"L{line_num}: Unknown function '{func_name}'.")
+            raise ValuaScriptError(ErrorCode.UNKNOWN_FUNCTION, line=line_num, name=func_name)
 
         if not signature.get("variadic", False) and len(args) != len(signature["arg_types"]):
-            raise ValuaScriptError(f"L{line_num}: Function '{func_name}' expects {len(signature['arg_types'])} argument(s), but got {len(args)}.")
+            raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line_num, name=func_name, expected=len(signature["arg_types"]), provided=len(args))
 
         inferred_arg_types = []
         for arg in args:
@@ -83,7 +83,7 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
             if isinstance(arg, Token):
                 var_name = str(arg)
                 if var_name not in defined_vars:
-                    raise ValuaScriptError(f"L{line_num}: Variable '{var_name}' used in function '{func_name}' is not defined.")
+                    raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE_IN_FUNC, line=line_num, name=var_name, func_name=func_name)
                 arg_type = defined_vars[var_name]["type"]
             elif isinstance(arg, _StringLiteral):
                 arg_type = "string"
@@ -95,12 +95,12 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
         if not signature.get("variadic"):
             for i, expected_type in enumerate(signature["arg_types"]):
                 if expected_type != "any" and expected_type != inferred_arg_types[i]:
-                    raise ValuaScriptError(f"L{line_num}: Argument {i+1} for '{func_name}' expects a '{expected_type}', but got a '{inferred_arg_types[i]}'.")
+                    raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line_num, arg_num=i + 1, name=func_name, expected=expected_type, provided=inferred_arg_types[i])
 
         return_type_rule = signature["return_type"]
         return return_type_rule(inferred_arg_types) if callable(return_type_rule) else return_type_rule
 
-    raise ValuaScriptError(f"L{line_num}: Could not determine type for '{current_result_var}'.")
+    raise ValuaScriptError(ErrorCode.UNKNOWN_FUNCTION, line=line_num, name=current_result_var)
 
 
 def validate_and_inline_udfs(execution_steps, user_functions, all_signatures):
@@ -115,15 +115,15 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures):
                 return_identity_expr = {"type": "execution_assignment", "function": "identity", "args": [step["value"]]}
                 return_type = _infer_expression_type(return_identity_expr, local_vars, func_def["line"], "return", all_signatures)
                 if return_type != func_def["return_type"]:
-                    raise ValuaScriptError(f"L{func_def['line']}: Function '{func_name}' returns type '{return_type}' but is defined to return '{func_def['return_type']}'.")
+                    raise ValuaScriptError(ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=func_name, provided=return_type, expected=func_def["return_type"])
             else:
                 line, result_var = step["line"], step["result"]
                 if result_var in local_vars:
-                    raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once in function '{func_name}'.")
+                    raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, line=line, name=result_var, func_name=func_name)
                 rhs_type = _infer_expression_type(step, local_vars, line, result_var, all_signatures)
                 local_vars[result_var] = {"type": rhs_type, "line": line}
         if not has_return:
-            raise ValuaScriptError(f"L{func_def['line']}: Function '{func_name}' is missing a return statement.")
+            raise ValuaScriptError(ErrorCode.MISSING_RETURN_STATEMENT, line=func_def["line"], name=func_name)
 
     # 2. Perform Inlining
     inlined_code = list(execution_steps)
@@ -169,7 +169,7 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures):
                 expected_argc = len(func_def["params"])
                 provided_argc = len(step["args"])
                 if provided_argc != expected_argc:
-                    raise ValuaScriptError(f"L{step['line']}: Function '{func_name}' expects {expected_argc} argument(s), but got {provided_argc}.")
+                    raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=step["line"], name=func_name, expected=expected_argc, provided=provided_argc)
 
                 call_count += 1
                 mangling_prefix = f"__{func_name}_{call_count}__"
@@ -227,7 +227,7 @@ def validate_semantics(high_level_ast, is_preview_mode):
     for func_def in high_level_ast.get("function_definitions", []):
         func_name = func_def["name"]
         if func_name in user_functions:
-            raise ValuaScriptError(f"L{func_def['line']}: Function '{func_name}' is defined more than once.")
+            raise ValuaScriptError(ErrorCode.DUPLICATE_FUNCTION, line=func_def["line"], name=func_name)
         user_functions[func_name] = func_def
 
     _check_for_recursive_calls(user_functions)
@@ -235,7 +235,7 @@ def validate_semantics(high_level_ast, is_preview_mode):
     udf_signatures = {}
     for func_name, func_def in user_functions.items():
         if func_name in FUNCTION_SIGNATURES:
-            raise ValuaScriptError(f"L{func_def['line']}: Cannot redefine built-in function '{func_name}'.")
+            raise ValuaScriptError(ErrorCode.REDEFINE_BUILTIN_FUNCTION, line=func_def["line"], name=func_name)
         udf_signatures[func_name] = {"variadic": False, "arg_types": [p["type"] for p in func_def["params"]], "return_type": func_def["return_type"]}
     all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
 
@@ -247,14 +247,12 @@ def validate_semantics(high_level_ast, is_preview_mode):
         config = DIRECTIVE_CONFIG.get(name)
 
         if not config:
-            raise ValuaScriptError(f"L{d['line']}: Unknown directive '@{name}'.")
+            raise ValuaScriptError(ErrorCode.UNKNOWN_DIRECTIVE, line=d["line"], name=name)
         if name in seen_directives and not is_preview_mode:
-            raise ValuaScriptError(f"L{d['line']}: The directive '@{name}' is defined more than once.")
+            raise ValuaScriptError(ErrorCode.DUPLICATE_DIRECTIVE, line=d["line"], name=name)
 
-        # ** THE FIX IS HERE: Centralized value validation **
-        # This check now runs for all directives, regardless of script type.
         if not config["value_allowed"] and d["value"] is not True:
-            raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
+            raise ValuaScriptError(ErrorCode.MODULE_WITH_VALUE, line=d["line"])
 
         seen_directives.add(name)
         directives[name] = d
@@ -266,16 +264,17 @@ def validate_semantics(high_level_ast, is_preview_mode):
         for name, config in DIRECTIVE_CONFIG.items():
             is_req = config["required"](directives) if callable(config["required"]) else config["required"]
             if is_req and name not in directives:
-                raise ValuaScriptError(config["error_missing"])
+                error_code = ErrorCode.MISSING_ITERATIONS_DIRECTIVE if name == "iterations" else ErrorCode.MISSING_OUTPUT_DIRECTIVE
+                raise ValuaScriptError(error_code)
 
     # --- 3. Validate the file's structure and contents based on the mode ---
     if is_module:
         for name, d in directives.items():
             if not DIRECTIVE_CONFIG[name]["allowed_in_module"]:
-                raise ValuaScriptError(f"L{d['line']}: The @{name} directive is not allowed when @module is declared.")
+                raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=d["line"], name=name)
         if execution_steps:
             first_step = execution_steps[0]
-            raise ValuaScriptError(f"L{first_step['line']}: Global 'let' statements are not allowed in a module file. Only function definitions are permitted.")
+            raise ValuaScriptError(ErrorCode.GLOBAL_LET_IN_MODULE, line=first_step["line"])
         validate_and_inline_udfs([], user_functions, all_signatures)
         return [], {}, {}, None
 
@@ -286,7 +285,7 @@ def validate_semantics(high_level_ast, is_preview_mode):
     for step in execution_steps:
         line, result_var = step["line"], step["result"]
         if result_var in defined_vars:
-            raise ValuaScriptError(f"L{line}: Variable '{result_var}' is defined more than once.")
+            raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name=result_var)
         rhs_type = _infer_expression_type(step, defined_vars, line, result_var, all_signatures)
         defined_vars[result_var] = {"type": rhs_type, "line": line}
 
@@ -307,12 +306,10 @@ def validate_semantics(high_level_ast, is_preview_mode):
             value_for_validation = raw_value.value if isinstance(raw_value, _StringLiteral) else (str(raw_value) if isinstance(raw_value, Token) else raw_value)
 
             if config["value_type"] is str:
-                if name == "output_file" and not isinstance(raw_value, _StringLiteral):
-                    raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
-                if name == "output" and not isinstance(raw_value, Token):
-                    raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
+                if (name == "output_file" and not isinstance(raw_value, _StringLiteral)) or (name == "output" and not isinstance(raw_value, Token)):
+                    raise ValuaScriptError(ErrorCode.INVALID_DIRECTIVE_VALUE, line=d["line"], error_msg=config["error_type"])
             elif config["value_type"] is int and not isinstance(value_for_validation, int):
-                raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
+                raise ValuaScriptError(ErrorCode.INVALID_DIRECTIVE_VALUE, line=d["line"], error_msg=config["error_type"])
 
             if name == "iterations":
                 sim_config["num_trials"] = value_for_validation
@@ -322,6 +319,6 @@ def validate_semantics(high_level_ast, is_preview_mode):
                 sim_config["output_file"] = value_for_validation
 
     if not is_preview_mode and output_var not in final_defined_vars:
-        raise ValuaScriptError(f"The final @output variable '{output_var}' is not defined.")
+        raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=output_var)
 
     return inlined_steps, final_defined_vars, sim_config, output_var
