@@ -169,3 +169,19 @@ def test_mutual_recursion_in_module():
     """
     with pytest.raises(ValuaScriptError, match="Recursive function call detected: f1 -> f2 -> f1"):
         compile_valuascript(script)
+
+
+def test_deep_call_chain_validation_in_module():
+    """
+    Ensures that a type error deep within a call chain inside a module
+    is still detected correctly by the validator.
+    """
+    script = """
+    @module
+    func f4(v: vector) -> scalar { return log(v) }
+    func f3(s: scalar) -> scalar { return f4([s]) }
+    func f2(s: scalar) -> scalar { return f3(s) }
+    func f1(s: scalar) -> scalar { return f2(s) }
+    """
+    with pytest.raises(ValuaScriptError, match="Argument 1 for 'log' expects a 'scalar', but got a 'vector'"):
+        compile_valuascript(script)

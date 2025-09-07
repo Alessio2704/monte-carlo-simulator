@@ -368,3 +368,114 @@ def test_script_with_only_uncalled_udf_fails():
     script = "func uncalled(x: scalar) -> scalar { return x }"
     with pytest.raises(ValuaScriptError, match="The @iterations directive is mandatory"):
         compile_valuascript(script)
+
+
+# --- 9. COMPLEX INTERACTIONS AND NESTING ---
+
+
+def test_deeply_nested_udf_call_chain():
+    """
+    Tests f1 -> f2 -> f3 -> f4 call chain to ensure inlining and
+    type inference work correctly at multiple levels.
+    """
+    script = """
+    @iterations=1
+    @output=final
+    func f4(x: scalar) -> scalar { return x * 100 }
+    func f3(x: scalar) -> scalar { return f4(x) + 10 }
+    func f2(x: scalar) -> scalar { return f3(x) - 1 }
+    func f1(x: scalar) -> scalar { return f2(x) }
+    let final = f1(5)
+    """
+    recipe = compile_valuascript(script)
+    assert recipe is not None
+    registry = set(recipe["variable_registry"])
+    # Check that mangled variables from all levels of the call chain exist
+    assert any(v.startswith("__f1_") for v in registry)
+    assert any(v.startswith("__f2_") for v in registry)
+    assert any(v.startswith("__f3_") for v in registry)
+    assert any(v.startswith("__f4_") for v in registry)
+
+
+def test_udf_result_passed_to_another_udf():
+    """Tests that the result of one UDF can be used as input to another."""
+    script = """
+    @iterations=1
+    @output=result
+    func get_base() -> scalar { return 100 }
+    func process(n: scalar) -> scalar { return n * 2 }
+    let base_val = get_base()
+    let result = process(base_val)
+    """
+    recipe = compile_valuascript(script)
+    assert recipe is not None
+    registry = set(recipe["variable_registry"])
+    assert "base_val" in registry
+    assert "result" in registry
+    # Check that the parameter for `process` was correctly inlined.
+    # This is robust against the internal call count of the inliner.
+    assert any(v.startswith("__process_") and v.endswith("__n") for v in registry)
+
+
+def test_dce_on_deeply_nested_unused_chain():
+    """
+    Ensures Dead Code Elimination can remove an entire multi-level
+    UDF call chain if its final result is unused.
+    """
+    script = """
+    @iterations=1
+    @output=live_var
+    func dead3(x: scalar) -> scalar { return x * 1000 }
+    func dead2(x: scalar) -> scalar { return dead3(x) }
+    func dead1(x: scalar) -> scalar { return dead2(x) }
+
+    let dead_var = dead1(1)
+    let live_var = 100
+    """
+    recipe = compile_valuascript(script, optimize=True)
+    assert recipe is not None
+    registry = set(recipe["variable_registry"])
+    # The entire dead chain, from the initial variable to the deeply nested
+    # mangled variables, should be eliminated.
+    assert registry == {"live_var"}
+    assert "dead_var" not in registry
+    assert not any(v.startswith("__dead") for v in registry)
+
+
+def test_stochasticity_propagates_through_deep_chain():
+    """
+    Ensures that a stochastic value at the bottom of a call chain
+    correctly taints all callers up to the final variable.
+    """
+    script = """
+    @iterations=100
+    @output=final
+    func get_random_shock() -> scalar { return Normal(1, 0.1) }
+    func apply_risk(x: scalar) -> scalar { return x * get_random_shock() }
+    func project_value(base: scalar) -> scalar { return apply_risk(base) }
+
+    let initial_value = 100
+    let final = project_value(initial_value)
+    """
+    recipe = compile_valuascript(script)
+    assert recipe is not None
+    registry = recipe["variable_registry"]
+    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
+
+    # Check that initial_value is pre-trial (deterministic)
+    assert "initial_value" not in per_trial_vars
+    # Check that the final result is correctly marked as stochastic
+    assert "final" in per_trial_vars
+
+    # Find the step for the Normal() call and verify it's in the per_trial phase.
+    # This is a robust way to confirm the stochastic source is handled correctly.
+    normal_call_step = None
+    all_steps = recipe["pre_trial_steps"] + recipe["per_trial_steps"]
+    for step in all_steps:
+        if step.get("function") == "Normal":
+            normal_call_step = step
+            break
+
+    assert normal_call_step is not None, "Normal call step not found in bytecode"
+    normal_call_result_var = registry[normal_call_step["result_index"]]
+    assert normal_call_result_var in per_trial_vars, "Stochastic source from Normal() was not moved to per_trial phase"
