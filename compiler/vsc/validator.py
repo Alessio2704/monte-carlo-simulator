@@ -221,8 +221,14 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures):
 
 def validate_semantics(high_level_ast, is_preview_mode):
     """Performs all semantic validation and returns the final, inlined execution steps."""
-    user_functions = {f["name"]: f for f in high_level_ast.get("function_definitions", [])}
     execution_steps = high_level_ast.get("execution_steps", [])
+
+    user_functions = {}
+    for func_def in high_level_ast.get("function_definitions", []):
+        func_name = func_def["name"]
+        if func_name in user_functions:
+            raise ValuaScriptError(f"L{func_def['line']}: Function '{func_name}' is defined more than once.")
+        user_functions[func_name] = func_def
 
     _check_for_recursive_calls(user_functions)
 
@@ -233,21 +239,29 @@ def validate_semantics(high_level_ast, is_preview_mode):
         udf_signatures[func_name] = {"variadic": False, "arg_types": [p["type"] for p in func_def["params"]], "return_type": func_def["return_type"]}
     all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
 
-    # --- 1. Process and validate all directives found in the file ---
+    # --- 1. Process and perform universal validation on all directives ---
     raw_directives_list = high_level_ast.get("directives", [])
     seen_directives, directives = set(), {}
     for d in raw_directives_list:
         name = d["name"]
-        if name not in DIRECTIVE_CONFIG:
+        config = DIRECTIVE_CONFIG.get(name)
+
+        if not config:
             raise ValuaScriptError(f"L{d['line']}: Unknown directive '@{name}'.")
         if name in seen_directives and not is_preview_mode:
             raise ValuaScriptError(f"L{d['line']}: The directive '@{name}' is defined more than once.")
+
+        # ** THE FIX IS HERE: Centralized value validation **
+        # This check now runs for all directives, regardless of script type.
+        if not config["value_allowed"] and d["value"] is not True:
+            raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
+
         seen_directives.add(name)
         directives[name] = d
 
     is_module = "module" in directives
 
-    # --- 2. Check for required directives based on the mode (module or standard) ---
+    # --- 2. Check for required directives based on the mode ---
     if not is_preview_mode:
         for name, config in DIRECTIVE_CONFIG.items():
             is_req = config["required"](directives) if callable(config["required"]) else config["required"]
@@ -256,16 +270,14 @@ def validate_semantics(high_level_ast, is_preview_mode):
 
     # --- 3. Validate the file's structure and contents based on the mode ---
     if is_module:
-        # For modules, check that only allowed directives are present.
         for name, d in directives.items():
             if not DIRECTIVE_CONFIG[name]["allowed_in_module"]:
                 raise ValuaScriptError(f"L{d['line']}: The @{name} directive is not allowed when @module is declared.")
         if execution_steps:
             first_step = execution_steps[0]
             raise ValuaScriptError(f"L{first_step['line']}: Global 'let' statements are not allowed in a module file. Only function definitions are permitted.")
-        # A module still needs its UDFs validated.
         validate_and_inline_udfs([], user_functions, all_signatures)
-        return [], {}, {}, None  # Not a runnable script, return empty values.
+        return [], {}, {}, None
 
     # --- 4. Full validation for a standard, runnable script ---
     validate_and_inline_udfs([], user_functions, all_signatures)
@@ -286,18 +298,14 @@ def validate_semantics(high_level_ast, is_preview_mode):
         rhs_type = _infer_expression_type(step, final_defined_vars, line, result_var, all_signatures)
         final_defined_vars[result_var] = {"type": rhs_type, "line": line}
 
-    # --- 5. Extract final configuration from validated directives ---
+    # --- 5. Extract final configuration from type-checked directives ---
     sim_config, output_var = {}, ""
     for name, d in directives.items():
         config = DIRECTIVE_CONFIG[name]
-        raw_value = d["value"]
-
-        # Validate that flags don't have values and settings do.
-        if not config["value_allowed"] and raw_value is not True:
-            raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")
-
         if config["value_allowed"]:
+            raw_value = d["value"]
             value_for_validation = raw_value.value if isinstance(raw_value, _StringLiteral) else (str(raw_value) if isinstance(raw_value, Token) else raw_value)
+
             if config["value_type"] is str:
                 if name == "output_file" and not isinstance(raw_value, _StringLiteral):
                     raise ValuaScriptError(f"L{d['line']}: {config['error_type']}")

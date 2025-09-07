@@ -88,9 +88,9 @@ def did_change(ls, params):
 def _get_word_at_position(document: Document, position: Position) -> str:
     line = document.lines[position.line]
     start, end = position.character, position.character
-    while start > 0 and line[start - 1].isidentifier():
+    while start > 0 and (line[start - 1].isalnum() or line[start - 1] == "_"):
         start -= 1
-    while end < len(line) and line[end].isidentifier():
+    while end < len(line) and (line[end].isalnum() or line[end] == "_"):
         end += 1
     return line[start:end]
 
@@ -132,7 +132,14 @@ def _get_script_analysis(source: str):
         inlined_steps, defined_vars, _, _ = validate_semantics(high_level_ast, is_preview_mode=True)
         dependencies, dependents = _build_dependency_graph(inlined_steps)
         stochastic_vars = _find_stochastic_variables(inlined_steps, dependents)
-        user_functions = {f["name"]: f for f in high_level_ast.get("function_definitions", [])}
+
+        # Manually check for duplicate functions
+        user_functions = {}
+        for f in high_level_ast.get("function_definitions", []):
+            if f["name"] in user_functions:
+                return {}, set(), {}
+            user_functions[f["name"]] = f
+
         return defined_vars, stochastic_vars, user_functions
     except Exception:
         return {}, set(), {}
