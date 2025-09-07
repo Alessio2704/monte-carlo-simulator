@@ -6,6 +6,7 @@ import json
 import tempfile
 from collections import deque
 from urllib.parse import urlparse, unquote
+from pathlib import Path
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
 from pygls.server import LanguageServer
 from lsprotocol.types import (
@@ -17,10 +18,11 @@ from lsprotocol.types import (
     MarkupKind,
     TEXT_DOCUMENT_HOVER,
     Hover,
+    TEXT_DOCUMENT_DEFINITION,
+    Location,
 )
 from pygls.workspace import Document
 
-# Ensure the server can find its own modules when packaged
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vsc.compiler import compile_valuascript, resolve_imports_and_functions
 from vsc.parser import parse_valuascript
@@ -36,8 +38,12 @@ server = LanguageServer("valuascript-server", "v1")
 def _uri_to_path(uri: str) -> str:
     """Converts a file URI to a platform-specific file path."""
     parsed = urlparse(uri)
-    # The path needs to be unquoted to handle spaces and special characters.
     return os.path.abspath(unquote(parsed.path))
+
+
+def _path_to_uri(path: str) -> str:
+    """Converts a platform-specific file path to a file URI."""
+    return Path(path).as_uri()
 
 
 def _format_number_with_separators(n):
@@ -136,14 +142,15 @@ def _get_script_analysis(source: str, file_path: str):
     """
     try:
         high_level_ast = parse_valuascript(source)
-        all_user_functions = resolve_imports_and_functions(high_level_ast, file_path)
+        all_user_functions_with_meta = resolve_imports_and_functions(high_level_ast, file_path)
+        all_user_function_defs = {k: v["definition"] for k, v in all_user_functions_with_meta.items()}
 
-        # Run validation and optimization analysis to get variable types and stochasticity.
-        inlined_steps, defined_vars, _, _ = validate_semantics(high_level_ast, all_user_functions, is_preview_mode=True)
-        dependencies, dependents = _build_dependency_graph(inlined_steps)
+        inlined_steps, defined_vars, _, _ = validate_semantics(high_level_ast, all_user_function_defs, is_preview_mode=True)
+        _, dependents = _build_dependency_graph(inlined_steps)
         stochastic_vars = _find_stochastic_variables(inlined_steps, dependents)
 
-        return defined_vars, stochastic_vars, all_user_functions
+        # The server needs the metadata (source path), so we return the full map.
+        return defined_vars, stochastic_vars, all_user_functions_with_meta
     except Exception:
         return {}, set(), {}
 
@@ -154,7 +161,8 @@ def hover(params):
     word = _get_word_at_position(document, params.position)
     source = document.source
     file_path = _uri_to_path(params.text_document.uri)
-    defined_vars, stochastic_vars, user_functions = _get_script_analysis(source, file_path)
+    defined_vars, stochastic_vars, user_functions_with_meta = _get_script_analysis(source, file_path)
+    user_functions = {k: v["definition"] for k, v in user_functions_with_meta.items()}
 
     if word in FUNCTION_SIGNATURES:
         sig = FUNCTION_SIGNATURES[word]
@@ -240,13 +248,41 @@ def hover(params):
                 formatted_value = [_format_number_with_separators(item) for item in value]
 
             value_str = json.dumps(formatted_value, indent=2)
-            md_value = f"**{value_label}:**\n```\n{value_str.replace("\"", "")}\n```"
+            md_value = f"**{value_label}:**\n```\n{value_str.replace('\"', '')}\n```"
             return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n{md_value}"))
         except Exception as e:
             return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*An error occurred while fetching live value: {e}*"))
         finally:
             if tmp_recipe_file and os.path.exists(tmp_recipe_file.name):
                 os.remove(tmp_recipe_file.name)
+
+    return None
+
+
+@server.feature(TEXT_DOCUMENT_DEFINITION)
+def definition(params):
+    document = server.workspace.get_document(params.text_document.uri)
+    word = _get_word_at_position(document, params.position)
+
+    if not word:
+        return None
+
+    source = document.source
+    file_path = _uri_to_path(params.text_document.uri)
+    _, _, user_functions_with_meta = _get_script_analysis(source, file_path)
+
+    if word in user_functions_with_meta:
+        func_meta = user_functions_with_meta[word]
+        func_def = func_meta["definition"]
+        source_path = func_meta["source_path"]
+
+        if not source_path:
+            return None
+
+        # The line number from the parser is 1-based.
+        line = func_def.get("line", 1) - 1
+
+        return Location(uri=_path_to_uri(source_path), range=Range(start=Position(line, 0), end=Position(line, 100)))
 
     return None
 
