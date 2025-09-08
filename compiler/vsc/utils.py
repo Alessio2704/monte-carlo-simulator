@@ -4,6 +4,7 @@ error formatting, executable searching, and output plotting.
 """
 
 import os
+import sys
 from shutil import which
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters
 from .config import TOKEN_FRIENDLY_NAMES
@@ -14,7 +15,7 @@ class TerminalColors:
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     CYAN = "\033[96m"
-    RESET = "\033[0m"
+    RESET = "\033[033m"
 
 
 def format_lark_error(e, script_content: str) -> str:
@@ -40,8 +41,6 @@ def format_lark_error(e, script_content: str) -> str:
 
 
 def find_engine_executable(provided_path):
-    import sys
-
     engine_name = "vse.exe" if sys.platform == "win32" else "vse"
 
     # 1. Explicit path from --engine-path flag

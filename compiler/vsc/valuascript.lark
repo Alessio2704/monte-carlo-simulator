@@ -16,14 +16,26 @@ function_body: (assignment | return_statement)+
 param: CNAME ":" CNAME
 return_statement: "return" expression
 
-// --- HIERARCHY FOR MATHEMATICAL EXPRESSIONS ---
-?expression: term ((ADD|SUB) term)*         -> infix_expression
-?term:       factor ((MUL|DIV) factor)*       -> infix_expression
-?factor:     power
-?power:      atom (POW atom)*            -> infix_expression
+// --- HIERARCHY FOR ALL EXPRESSIONS (LOGICAL, COMPARISON, MATH) ---
+// The hierarchy defines operator precedence, from lowest (if/else) to highest (atoms).
+?expression: conditional_expression
+
+conditional_expression: or_expression | IF or_expression THEN or_expression ELSE conditional_expression
+
+?or_expression: and_expression (OR and_expression)*   -> logical_or_expression
+?and_expression: not_expression (AND not_expression)* -> logical_and_expression
+?not_expression: NOT not_expression                  -> not_expression
+               | comparison_expression
+
+?comparison_expression: add_expression ((EQ|NEQ|GT|LT|GTE|LTE) add_expression)? -> comparison_expression
+
+?add_expression: mul_expression ((ADD|SUB) mul_expression)* -> math_expression
+?mul_expression: power ((MUL|DIV) power)*                 -> math_expression
+?power:      atom (POW atom)*                           -> math_expression
 ?atom: SIGNED_NUMBER
      | CNAME
      | STRING
+     | boolean
      | function_call
      | element_access
      | delete_element_vector
@@ -31,6 +43,7 @@ return_statement: "return" expression
      | "(" expression ")"
 
 // --- Reusable Rule Definitions ---
+boolean: TRUE | FALSE
 vector: "[" [arg ("," arg)*] "]"
 function_call: CNAME "(" [arg ("," arg)*] ")"
 element_access: CNAME "[" expression "]"
@@ -40,21 +53,36 @@ delete_element_vector: CNAME "[" ":" expression "]"
 // --- Terminal Definitions ---
 IMPORT_KEYWORD: "@import"
 LET: "let" /\b/
+
+// Keywords
+IF: "if" /\b/
+THEN: "then" /\b/
+ELSE: "else" /\b/
+TRUE: "true" /\b/
+FALSE: "false" /\b/
+AND: "and" /\b/
+OR: "or" /\b/
+NOT: "not" /\b/
+
+// Operators
 ADD: "+"
 SUB: "-"
 MUL: "*"
 DIV: "/"
 POW: "^"
+EQ: "=="
+NEQ: "!="
+GTE: ">="
+LTE: "<="
+GT: ">"
+LT: "<"
+
 STRING: /"[^"]*"/
 DOCSTRING: /"{3}(.|\n)*?"{3}/
 
 // --- Custom Number Terminal to support separators ---
-// We define our own SIGNED_NUMBER using Lark's EBNF-style terminals for clarity and robustness.
-// This correctly rejects invalid forms like _100, 100_, 1__000.
 SIGNED_NUMBER: ["+"|"-"]? (FLOAT | INT)
 FLOAT: INT "." INT
-// An INT is a sequence of digits, optionally followed by groups of `_` and more digits.
-// This structure makes `1__0` and `1_` impossible.
 INT: DIGIT+ ("_" DIGIT+)*
 
 %import common.CNAME

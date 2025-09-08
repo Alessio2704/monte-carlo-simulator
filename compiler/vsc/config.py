@@ -50,6 +50,16 @@ DIRECTIVE_CONFIG = {
 #          It can be moved to the pre-trial phase if all its inputs are also deterministic.
 
 FUNCTION_SIGNATURES = {
+    # --- Internal Boolean & Comparison Operations (from operators) ---
+    "__eq__": {"variadic": False, "arg_types": ["any", "any"], "return_type": "boolean", "is_stochastic": False},
+    "__neq__": {"variadic": False, "arg_types": ["any", "any"], "return_type": "boolean", "is_stochastic": False},
+    "__gt__": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "boolean", "is_stochastic": False},
+    "__lt__": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "boolean", "is_stochastic": False},
+    "__gte__": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "boolean", "is_stochastic": False},
+    "__lte__": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "boolean", "is_stochastic": False},
+    "__and__": {"variadic": True, "arg_types": ["boolean"], "return_type": "boolean", "is_stochastic": False},
+    "__or__": {"variadic": True, "arg_types": ["boolean"], "return_type": "boolean", "is_stochastic": False},
+    "__not__": {"variadic": False, "arg_types": ["boolean"], "return_type": "boolean", "is_stochastic": False},
     # --- Mathematical & Logical Operations ---
     "add": {
         "variadic": True,
@@ -397,7 +407,17 @@ FUNCTION_SIGNATURES = {
 }
 
 
-OPERATOR_MAP = {"+": "add", "-": "subtract", "*": "multiply", "/": "divide", "^": "power"}
+MATH_OPERATOR_MAP = {"+": "add", "-": "subtract", "*": "multiply", "/": "divide", "^": "power"}
+COMPARISON_OPERATOR_MAP = {
+    "==": "__eq__",
+    "!=": "__neq__",
+    ">": "__gt__",
+    "<": "__lt__",
+    ">=": "__gte__",
+    "<=": "__lte__",
+}
+LOGICAL_OPERATOR_MAP = {"and": "__and__", "or": "__or__"}
+
 
 TOKEN_FRIENDLY_NAMES = {
     "SIGNED_NUMBER": "a number",
