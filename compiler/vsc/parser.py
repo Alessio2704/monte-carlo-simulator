@@ -225,10 +225,6 @@ def parse_valuascript(script_content: str):
         clean_line = line.split("#", 1)[0].strip()
         if not clean_line:
             continue
-        if clean_line.count("(") != clean_line.count(")"):
-            raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
-        if clean_line.count("[") != clean_line.count("]"):
-            raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
         if (clean_line.startswith("let") or clean_line.startswith("@")) and clean_line.endswith("="):
             raise ValuaScriptError(ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS, line=i + 1)
         if clean_line.startswith("let") and "=" not in clean_line:
