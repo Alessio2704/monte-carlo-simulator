@@ -83,6 +83,25 @@ void SimulationEngine::build_executable_factory()
     { return std::make_unique<PertSampler>(); };
     m_executable_factory["Triangular"] = []
     { return std::make_unique<TriangularSampler>(); };
+    // Boolean/Comparison Operators
+    m_executable_factory["__eq__"] = []
+    { return std::make_unique<EqualsOperation>(); };
+    m_executable_factory["__neq__"] = []
+    { return std::make_unique<NotEqualsOperation>(); };
+    m_executable_factory["__gt__"] = []
+    { return std::make_unique<GreaterThanOperation>(); };
+    m_executable_factory["__lt__"] = []
+    { return std::make_unique<LessThanOperation>(); };
+    m_executable_factory["__gte__"] = []
+    { return std::make_unique<GreaterOrEqualOperation>(); };
+    m_executable_factory["__lte__"] = []
+    { return std::make_unique<LessOrEqualOperation>(); };
+    m_executable_factory["__and__"] = []
+    { return std::make_unique<AndOperation>(); };
+    m_executable_factory["__or__"] = []
+    { return std::make_unique<OrOperation>(); };
+    m_executable_factory["__not__"] = []
+    { return std::make_unique<NotOperation>(); };
 }
 
 std::string SimulationEngine::get_output_file_path() const
@@ -92,7 +111,6 @@ std::string SimulationEngine::get_output_file_path() const
 
 void SimulationEngine::parse_and_build(const std::string &path)
 {
-    // --- 1. Read JSON and load config ---
     std::ifstream file_stream(path);
     if (!file_stream.is_open())
     {
@@ -107,16 +125,13 @@ void SimulationEngine::parse_and_build(const std::string &path)
         m_output_file_path = config["output_file"].get<std::string>();
     }
 
-    // --- 2. Get the size of the context from the registry ---
-    // The registry itself is only used for debugging and is not stored in the engine.
     const size_t num_variables = recipe_json["variable_registry"].size();
-    if (m_output_variable_index >= num_variables)
+    if (m_output_variable_index >= num_variables && num_variables > 0)
     {
         throw std::runtime_error("Output variable index is out of bounds of the variable registry.");
     }
     m_preloaded_context_vector.resize(num_variables);
 
-    // --- 3. Build Executable Step objects directly from JSON bytecode ---
     auto build_step_from_json = [&](const json &step_json) -> std::unique_ptr<IExecutionStep>
     {
         std::string type = step_json.at("type");
@@ -134,6 +149,14 @@ void SimulationEngine::parse_and_build(const std::string &path)
             else if (val_json.is_number())
             {
                 value = val_json.get<double>();
+            }
+            else if (val_json.is_boolean())
+            {
+                value = val_json.get<bool>();
+            }
+            else if (val_json.is_string())
+            {
+                value = val_json.get<std::string>();
             }
             else
             {
@@ -153,6 +176,13 @@ void SimulationEngine::parse_and_build(const std::string &path)
             return std::make_unique<ExecutionAssignmentStep>(
                 result_index, function_name, line,
                 std::move(executable_logic), step_json.at("args"), m_executable_factory);
+        }
+        else if (type == "conditional_assignment")
+        {
+            return std::make_unique<ConditionalAssignmentStep>(
+                result_index, line,
+                step_json.at("condition"), step_json.at("then_expr"), step_json.at("else_expr"),
+                m_executable_factory);
         }
         else
         {
@@ -182,12 +212,10 @@ void SimulationEngine::run_pre_trial_phase()
     {
         std::cout << "\n--- Running Pre-Trial Phase ---" << std::endl;
     }
-
     for (const auto &step : m_pre_trial_steps)
     {
         step->execute(m_preloaded_context_vector);
     }
-
     if (!m_is_preview)
     {
         std::cout << "Pre-trial phase complete. " << m_preloaded_context_vector.size() << " variable slots allocated." << std::endl;
@@ -202,7 +230,6 @@ void SimulationEngine::run_batch(int num_trials, std::vector<TrialValue> &result
         for (int i = 0; i < num_trials; ++i)
         {
             TrialContext trial_context = m_preloaded_context_vector;
-
             for (const auto &step : m_per_trial_steps)
             {
                 step->execute(trial_context);
@@ -234,12 +261,10 @@ std::vector<TrialValue> SimulationEngine::run()
             threads.emplace_back(&SimulationEngine::run_batch, this, trials_for_this_thread, std::ref(thread_results[i]), std::ref(thread_exceptions[i]));
         }
     }
-
     for (auto &t : threads)
     {
         t.join();
     }
-
     for (const auto &ex_ptr : thread_exceptions)
     {
         if (ex_ptr)

@@ -38,7 +38,10 @@ FetchContent_MakeAvailable(csv)
 add_library(engine_core STATIC
     src/engine/core/SimulationEngine.cpp 
     src/engine/io/io.cpp
-    src/engine/functions/operations.cpp
+    src/engine/functions/math_operations.cpp
+    src/engine/functions/comparison_operations.cpp
+    src/engine/functions/io_operations.cpp
+    src/engine/functions/series_operations.cpp
     src/engine/functions/samplers.cpp
     src/engine/core/ExecutionSteps.cpp
 )

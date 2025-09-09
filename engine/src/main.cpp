@@ -18,11 +18,11 @@ struct TrialValueToJsonVisitor
     nlohmann::json operator()(double d) const { return d; }
     nlohmann::json operator()(const std::vector<double> &v) const { return v; }
     nlohmann::json operator()(const std::string &s) const { return s; }
+    nlohmann::json operator()(bool b) const { return b; }
 };
 
 void run_preview_mode(const std::string &recipe_path)
 {
-    // The engine is now created with the preview flag set to true
     SimulationEngine engine(recipe_path, true);
     std::vector<TrialValue> results = engine.run();
 
@@ -50,8 +50,7 @@ void run_preview_mode(const std::string &recipe_path)
                 {
                     sum += std::get<double>(res);
                 }
-                double mean = sum / results.size();
-                output_json["value"] = std::round(mean * 10000.0) / 10000.0;
+                output_json["value"] = std::round((sum / results.size()) * 10000.0) / 10000.0;
             }
             else if constexpr (std::is_same_v<T, std::vector<double>>)
             {
@@ -64,6 +63,11 @@ void run_preview_mode(const std::string &recipe_path)
                     rounded_vec.push_back(std::round(val * 10000.0) / 10000.0);
                 }
                 output_json["value"] = rounded_vec;
+            }
+            else if constexpr (std::is_same_v<T, bool>)
+            {
+                output_json["type"] = "boolean";
+                output_json["value"] = std::get<bool>(results[0]);
             }
             else if constexpr (std::is_same_v<T, std::string>)
             {
