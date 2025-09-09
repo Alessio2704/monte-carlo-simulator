@@ -168,6 +168,59 @@ TEST_F(ConditionalLogicTests, HandlesDeeplyNestedConditionalThatTriggeredBug)
     ASSERT_EQ(std::get<double>(results[0]), 99.0);
 }
 
+TEST_F(ConditionalLogicTests, HandlesDeepNestingInThenBranch)
+{
+    // let result = if 1 == 1 then (if 2 == 2 then (if 3 == 3 then 999 else 0) else 0) else 0
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
+        "per_trial_steps": [{
+            "type": "conditional_assignment", "result_index": 0,
+            "condition": {"type": "execution_assignment", "function": "__eq__", "args": [{"type":"scalar_literal", "value": 1}, {"type":"scalar_literal", "value": 1}]},
+            "then_expr": {
+                "type": "conditional_expression",
+                "condition": {"type": "execution_assignment", "function": "__eq__", "args": [{"type":"scalar_literal", "value": 2}, {"type":"scalar_literal", "value": 2}]},
+                "then_expr": {
+                    "type": "conditional_expression",
+                    "condition": {"type": "execution_assignment", "function": "__eq__", "args": [{"type":"scalar_literal", "value": 3}, {"type":"scalar_literal", "value": 3}]},
+                    "then_expr": {"type": "scalar_literal", "value": 999},
+                    "else_expr": {"type": "scalar_literal", "value": 0}
+                },
+                "else_expr": {"type": "scalar_literal", "value": 0}
+            },
+            "else_expr": {"type": "scalar_literal", "value": 0}
+        }]
+    })";
+    create_test_recipe("recipe.json", recipe);
+    SimulationEngine engine("recipe.json");
+    auto results = engine.run();
+    ASSERT_EQ(std::get<double>(results[0]), 999.0);
+}
+
+TEST_F(ConditionalLogicTests, ReturnsVectorFromDeeplyNestedBranch)
+{
+    // let result = if false then 0 else (if true then [10, 20, 30] else 0)
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
+        "per_trial_steps": [{
+            "type": "conditional_assignment", "result_index": 0,
+            "condition": {"type": "boolean_literal", "value": false},
+            "then_expr": {"type": "scalar_literal", "value": 0},
+            "else_expr": {
+                 "type": "conditional_expression",
+                 "condition": {"type": "boolean_literal", "value": true},
+                 "then_expr": {"type": "vector_literal", "value": [10, 20, 30]},
+                 "else_expr": {"type": "scalar_literal", "value": 0}
+            }
+        }]
+    })";
+    create_test_recipe("recipe.json", recipe);
+    SimulationEngine engine("recipe.json");
+    auto results = engine.run();
+    ASSERT_TRUE(std::holds_alternative<std::vector<double>>(results[0]));
+    const auto &vec = std::get<std::vector<double>>(results[0]);
+    EXPECT_EQ(vec, (std::vector<double>{10, 20, 30}));
+}
+
 // ============================================================================
 // == 2. ALL OPERATORS
 // ============================================================================
@@ -280,6 +333,32 @@ TEST_F(ConditionalLogicTests, HandlesStochasticBranch)
     SimulationEngine engine("recipe.json");
     auto results = engine.run();
     ASSERT_EQ(std::get<double>(results[0]), 500.0);
+}
+
+TEST_F(ConditionalLogicTests, HandlesStochasticFunctionCallInDeepNest)
+{
+    // if true then (if true then Normal(777, 0) else 0) else 0
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
+        "per_trial_steps": [{
+            "type": "conditional_assignment", "result_index": 0,
+            "condition": {"type": "boolean_literal", "value": true},
+            "then_expr": {
+                "type": "conditional_expression",
+                "condition": {"type": "boolean_literal", "value": true},
+                "then_expr": {
+                    "type": "execution_assignment", "function": "Normal",
+                    "args": [{"type":"scalar_literal", "value": 777}, {"type":"scalar_literal", "value": 0}]
+                },
+                "else_expr": {"type": "scalar_literal", "value": 0}
+            },
+            "else_expr": {"type": "scalar_literal", "value": 0}
+        }]
+    })";
+    create_test_recipe("recipe.json", recipe);
+    SimulationEngine engine("recipe.json");
+    auto results = engine.run();
+    ASSERT_EQ(std::get<double>(results[0]), 777.0);
 }
 
 // ============================================================================
