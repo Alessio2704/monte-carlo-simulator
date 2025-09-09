@@ -119,9 +119,14 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
         else:
             if len(args) != len(signature["arg_types"]):
                 raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line_num, name=func_name, expected=len(signature["arg_types"]), provided=len(args))
+            if func_name in ("__eq__", "__neq__") and len(inferred_arg_types) == 2 and inferred_arg_types[0] != inferred_arg_types[1]:
+                raise ValuaScriptError(ErrorCode.COMPARISON_TYPE_MISMATCH, line=line_num, op=func_name.strip("_"), left_type=inferred_arg_types[0], right_type=inferred_arg_types[1])
             for i, expected_type in enumerate(signature["arg_types"]):
                 actual_type = inferred_arg_types[i]
                 if expected_type != "any" and actual_type != expected_type:
+                    op_name = func_name.strip("_")
+                    if op_name in ("and", "or", "not"):
+                        raise ValuaScriptError(ErrorCode.LOGICAL_OPERATOR_TYPE_MISMATCH, line=line_num, op=op_name, provided=actual_type)
                     raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line_num, arg_num=i + 1, name=func_name, expected=expected_type, provided=actual_type)
 
         return_type_rule = signature["return_type"]
