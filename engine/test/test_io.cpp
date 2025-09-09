@@ -136,7 +136,7 @@ TEST_F(CsvEngineTest, ReadsScalarCorrectly)
         "pre_trial_steps": [
             {
                 "type": "execution_assignment", "result_index": 0, "function": "read_csv_scalar",
-                "args": [ {"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Rate"}, 2.0 ]
+                "args": [ {"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Rate"}, {"type":"scalar_literal", "value":2.0} ]
             }
         ]
     })";
@@ -160,7 +160,7 @@ TEST_F(CsvEngineTest, UsesPreloadedDataInTrial)
         "pre_trial_steps": [
             {
                 "type": "execution_assignment", "result_index": 0, "function": "read_csv_scalar",
-                "args": [ {"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Value"}, 0 ]
+                "args": [ {"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Value"}, {"type":"scalar_literal", "value":0} ]
             }
         ],
         "per_trial_steps": [
@@ -187,7 +187,16 @@ TEST_F(CsvEngineTest, ThrowsOnFileNotFound)
         }]
     })";
     create_test_recipe("err.json", recipe_content);
-    ASSERT_THROW(SimulationEngine engine("err.json"), std::runtime_error);
+    try
+    {
+        SimulationEngine engine("err.json");
+        engine.run();
+        FAIL() << "Expected exception";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::CsvFileNotFound);
+    }
 }
 
 TEST_F(CsvEngineTest, ThrowsOnColumnNotFound)
@@ -199,7 +208,16 @@ TEST_F(CsvEngineTest, ThrowsOnColumnNotFound)
         }]
     })";
     create_test_recipe("err.json", recipe_content);
-    ASSERT_THROW(SimulationEngine engine("err.json"), std::runtime_error);
+    try
+    {
+        SimulationEngine engine("err.json");
+        engine.run();
+        FAIL() << "Expected exception";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::CsvColumnNotFound);
+    }
 }
 
 TEST_F(CsvEngineTest, ThrowsOnRowIndexOutOfBounds)
@@ -207,11 +225,20 @@ TEST_F(CsvEngineTest, ThrowsOnRowIndexOutOfBounds)
     const std::string recipe_content = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["A"],
         "pre_trial_steps": [{ "type": "execution_assignment", "result_index": 0, "function": "read_csv_scalar",
-            "args": [{"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Value"}, 99.0]
+            "args": [{"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Value"}, {"type":"scalar_literal", "value":99.0}]
         }]
     })";
     create_test_recipe("err.json", recipe_content);
-    ASSERT_THROW(SimulationEngine engine("err.json"), std::runtime_error);
+    try
+    {
+        SimulationEngine engine("err.json");
+        engine.run();
+        FAIL() << "Expected exception";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::CsvRowIndexOutOfBounds);
+    }
 }
 
 TEST_F(CsvEngineTest, ThrowsOnNonNumericData)
@@ -223,5 +250,14 @@ TEST_F(CsvEngineTest, ThrowsOnNonNumericData)
         }]
     })";
     create_test_recipe("err.json", recipe_content);
-    ASSERT_THROW(SimulationEngine engine("err.json"), std::runtime_error);
+    try
+    {
+        SimulationEngine engine("err.json");
+        engine.run();
+        FAIL() << "Expected exception";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::CsvConversionError);
+    }
 }

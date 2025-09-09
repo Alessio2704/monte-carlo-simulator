@@ -1,5 +1,5 @@
 #include "include/engine/io/io.h"
-#include "include/engine/core/datastructures.h"
+#include "include/engine/core/DataStructures.h"
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -20,38 +20,39 @@ void write_results_to_csv(const std::string &path, const std::vector<TrialValue>
 
     std::cout << "\n--- Writing results to " << path << " ---" << std::endl;
 
-    // Use a visitor on the first element to determine the header and structure
     std::visit(
         [&](auto &&first_result)
         {
             using T = std::decay_t<decltype(first_result)>;
 
-            // Case 1: The result is a SCALAR (double)
             if constexpr (std::is_same_v<T, double>)
             {
-                output_file << "Result\n"; // Write header
+                output_file << "Result\n";
                 for (const auto &res : results)
                 {
                     output_file << std::get<double>(res) << "\n";
                 }
             }
-            // Case 2: The result is a VECTOR (vector<double>)
+            else if constexpr (std::is_same_v<T, bool>)
+            {
+                output_file << "Result\n";
+                for (const auto &res : results)
+                {
+                    output_file << (std::get<bool>(res) ? "true" : "false") << "\n";
+                }
+            }
             else if constexpr (std::is_same_v<T, std::vector<double>>)
             {
                 if (first_result.empty())
                     return;
-                // Write header: Period_1,Period_2,...
                 for (size_t i = 0; i < first_result.size(); ++i)
                 {
                     output_file << "Period_" << i + 1 << (i == first_result.size() - 1 ? "" : ",");
                 }
                 output_file << "\n";
-
-                // Write data rows
                 for (const auto &res : results)
                 {
                     const auto &vec = std::get<std::vector<double>>(res);
-                    // A safety check to handle inconsistent vector sizes gracefully
                     if (vec.size() != first_result.size())
                         continue;
                     for (size_t i = 0; i < vec.size(); ++i)

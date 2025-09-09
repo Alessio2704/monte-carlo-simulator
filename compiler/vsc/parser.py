@@ -2,6 +2,7 @@ import os
 from lark import Lark, Transformer, Token
 from textwrap import dedent
 from .exceptions import ValuaScriptError, ErrorCode
+from .config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP
 
 LARK_PARSER = None
 
@@ -35,6 +36,22 @@ class ValuaScriptTransformer(Transformer):
     This representation is easier to work with in subsequent compilation stages.
     """
 
+    def _build_infix_tree(self, items, operator_map):
+        """Helper to build a left-associative tree for any infix expression."""
+        if len(items) == 1:
+            return items[0]
+        tree, i = items[0], 1
+        while i < len(items):
+            op, right = items[i], items[i + 1]
+            func_name = operator_map[op.value]
+            # Special handling for variadic functions (add, multiply, and, or)
+            if isinstance(tree, dict) and tree.get("function") == func_name and func_name in ("add", "multiply", "__and__", "__or__"):
+                tree["args"].append(right)
+            else:
+                tree = {"function": func_name, "args": [tree, right]}
+            i += 2
+        return tree
+
     def STRING(self, s):
         return _StringLiteral(s.value[1:-1], s.line)
 
@@ -43,32 +60,59 @@ class ValuaScriptTransformer(Transformer):
         content = s.value[3:-3]
         return dedent(content).strip()
 
-    def infix_expression(self, items):
-        # This flattens chained operations like `a + b + c` into a single function call
-        # e.g., {"function": "add", "args": [a, b, c]}
-        from .config import OPERATOR_MAP
+    def TRUE(self, _):
+        return True
 
-        if len(items) == 1:
+    def FALSE(self, _):
+        return False
+
+    def math_expression(self, items):
+        return self._build_infix_tree(items, MATH_OPERATOR_MAP)
+
+    def logical_and_expression(self, items):
+        return self._build_infix_tree(items, LOGICAL_OPERATOR_MAP)
+
+    def logical_or_expression(self, items):
+        return self._build_infix_tree(items, LOGICAL_OPERATOR_MAP)
+
+    def not_expression(self, items):
+        # This transformer correctly handles both alternatives for the 'not_expression' rule.
+        # Case 1: `NOT not_expression` (e.g., "not is_active"). 'items' will be [Token, transformed_expr].
+        if len(items) > 1 and isinstance(items[0], Token) and items[0].type == "NOT":
+            return {"function": "__not__", "args": [items[1]]}
+        # Case 2: `comparison_expression`. 'items' will be a list with a single transformed expression.
+        else:
             return items[0]
-        tree, i = items[0], 1
-        while i < len(items):
-            op, right = items[i], items[i + 1]
-            func_name = OPERATOR_MAP[op.value]
-            if isinstance(tree, dict) and tree.get("function") == func_name and func_name in ("add", "multiply"):
-                tree["args"].append(right)
-            else:
-                tree = {"function": func_name, "args": [tree, right]}
-            i += 2
-        return tree
+
+    def comparison_expression(self, items):
+        # This transformer correctly handles both alternatives for the 'comparison_expression' rule.
+        # Case 1: `add_expression OPERATOR add_expression`. 'items' will be [operand1, operator, operand2].
+        if len(items) > 1:
+            return self._build_infix_tree(items, COMPARISON_OPERATOR_MAP)
+        # Case 2: `add_expression`. 'items' will be a list with a single transformed expression.
+        else:
+            return items[0]
+
+    def conditional_expression(self, items):
+        if len(items) == 1:
+            return items[0]  # Not a conditional, just an or_expression
+        # is 'if' condition 'then' then_expr 'else' else_expr
+        return {"type": "conditional_expression", "condition": items[1], "then_expr": items[3], "else_expr": items[5]}
 
     # --- Pass-through rules to simplify the tree ---
     def expression(self, i):
         return i[0]
 
-    def term(self, i):
+    def or_expression(self, i):
         return i[0]
 
-    def factor(self, i):
+    def and_expression(self, i):
+        return i[0]
+
+    def add_expression(self, i):
+        return i[0]
+
+    def mul_expression(self, i):
         return i[0]
 
     def power(self, i):
@@ -80,8 +124,11 @@ class ValuaScriptTransformer(Transformer):
     def arg(self, i):
         return i[0]
 
-    def directive(self, items):
-        return items[0]
+    def directive(self, i):
+        return i[0]
+
+    def boolean(self, i):
+        return i[0]
 
     # --- Terminal transformations ---
     def SIGNED_NUMBER(self, n):
@@ -122,7 +169,10 @@ class ValuaScriptTransformer(Transformer):
     def assignment(self, items):
         _let_token, var_token, expression = items
         base_step = {"result": str(var_token), "line": var_token.line}
-        if isinstance(expression, dict):
+        # A conditional expression is a new top-level type for an assignment
+        if isinstance(expression, dict) and expression.get("type") == "conditional_expression":
+            base_step.update(expression)
+        elif isinstance(expression, dict):
             base_step.update({"type": "execution_assignment", **expression})
         elif isinstance(expression, Token):
             base_step.update({"type": "execution_assignment", "function": "identity", "args": [expression]})
@@ -163,7 +213,7 @@ class ValuaScriptTransformer(Transformer):
         return {
             "imports": [i for i in safe_children if i.get("type") == "import"],
             "directives": [i for i in safe_children if i.get("type") == "directive"],
-            "execution_steps": [i for i in safe_children if i.get("type") in ("execution_assignment", "literal_assignment")],
+            "execution_steps": [i for i in safe_children if i.get("type") in ("execution_assignment", "literal_assignment", "conditional_expression")],
             "function_definitions": [i for i in safe_children if i.get("type") == "function_definition"],
         }
 
@@ -175,10 +225,6 @@ def parse_valuascript(script_content: str):
         clean_line = line.split("#", 1)[0].strip()
         if not clean_line:
             continue
-        if clean_line.count("(") != clean_line.count(")"):
-            raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
-        if clean_line.count("[") != clean_line.count("]"):
-            raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
         if (clean_line.startswith("let") or clean_line.startswith("@")) and clean_line.endswith("="):
             raise ValuaScriptError(ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS, line=i + 1)
         if clean_line.startswith("let") and "=" not in clean_line:

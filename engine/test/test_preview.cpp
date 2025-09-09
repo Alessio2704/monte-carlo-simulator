@@ -18,9 +18,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForDeterministicScalar)
     })";
     create_test_recipe("preview_test.json", recipe);
 
-    // Use the path provided by the build system instead of a hardcoded relative path.
     std::string command = std::string(VSE_EXECUTABLE_PATH) + " --preview preview_test.json";
-
     std::string output = exec_command(command.c_str());
 
     auto json_out = nlohmann::json::parse(output);
@@ -33,12 +31,11 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForStochasticScalar)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 100}, "output_variable_index": 0, "variable_registry":["a"],
-        "per_trial_steps": [{"type": "execution_assignment", "result_index": 0, "function": "Normal", "args": [100, 0]}]
+        "per_trial_steps": [{"type": "execution_assignment", "result_index": 0, "function": "Normal", "args": [{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":0}]}]
     })";
     create_test_recipe("preview_test.json", recipe);
 
     std::string command = std::string(VSE_EXECUTABLE_PATH) + " --preview preview_test.json";
-
     std::string output = exec_command(command.c_str());
 
     auto json_out = nlohmann::json::parse(output);
@@ -56,7 +53,6 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForVector)
     create_test_recipe("preview_test.json", recipe);
 
     std::string command = std::string(VSE_EXECUTABLE_PATH) + " --preview preview_test.json";
-
     std::string output = exec_command(command.c_str());
 
     auto json_out = nlohmann::json::parse(output);
@@ -72,12 +68,11 @@ TEST_F(EnginePreviewModeTest, OutputsErrorJsonOnRuntimeError)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry":["a"],
-        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result_index": 0, "function": "divide", "args": [1, 0]}]
+        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result_index": 0, "function": "divide", "args": [{"type":"scalar_literal","value":1}, {"type":"scalar_literal","value":0}]}]
     })";
     create_test_recipe("preview_test.json", recipe);
 
     std::string command = std::string(VSE_EXECUTABLE_PATH) + " --preview preview_test.json 2>&1";
-
     std::string output = exec_command(command.c_str());
 
     auto json_out = nlohmann::json::parse(output);

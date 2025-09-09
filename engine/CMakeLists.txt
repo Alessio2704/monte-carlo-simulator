@@ -38,7 +38,10 @@ FetchContent_MakeAvailable(csv)
 add_library(engine_core STATIC
     src/engine/core/SimulationEngine.cpp 
     src/engine/io/io.cpp
-    src/engine/functions/operations.cpp
+    src/engine/functions/math_operations.cpp
+    src/engine/functions/comparison_operations.cpp
+    src/engine/functions/io_operations.cpp
+    src/engine/functions/series_operations.cpp
     src/engine/functions/samplers.cpp
     src/engine/core/ExecutionSteps.cpp
 )
@@ -99,6 +102,7 @@ add_engine_test(test_samplers)
 add_engine_test(test_errors)
 add_engine_test(test_io)
 add_engine_test(test_preview)
+add_engine_test(test_conditionals)
 
 # Pass the location of the 'vse' executable to the 'test_preview' compile definitions.
 # $<TARGET_FILE:vse> is a CMake "generator expression" that resolves to the full path of the executable.

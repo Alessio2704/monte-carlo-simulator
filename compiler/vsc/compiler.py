@@ -123,7 +123,7 @@ def compile_valuascript(script_content: str, optimize=False, verbose=False, prev
 
     if is_preview_mode:
         is_stochastic = preview_variable in stochastic_vars
-        sim_config["num_trials"] = 100 if is_stochastic else 1
+        sim_config["num_trials"] = 5000 if is_stochastic else 1
         if preview_variable not in final_defined_vars:
             raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=preview_variable)
 

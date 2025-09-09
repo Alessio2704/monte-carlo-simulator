@@ -1,7 +1,9 @@
 {
   "directives": ["iterations", "output", "output_file", "module", "import"],
-  "keywords": ["let", "func", "return"],
-  "types": ["scalar", "vector", "string"],
+  "keywords": ["let", "func", "return", "if", "then", "else"],
+  "booleans": ["true", "false"],
+  "logical_operators": ["and", "or", "not"],
+  "types": ["scalar", "vector", "string", "boolean"],
   "functions": [
     "add",
     "subtract",

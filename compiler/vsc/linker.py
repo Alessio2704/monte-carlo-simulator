@@ -34,7 +34,11 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
     output_variable_index = None
     if output_var:  # This will be None for a module file, skipping the block
         if output_var not in name_to_index_map:
-            raise ValuaScriptError(f"The final @output variable '{output_var}' was not found in the final execution plan. It may have been eliminated as dead code.")
+            # Re-check existence as DCE might have removed it.
+            if any(s["result"] == output_var for s in all_steps):
+                output_variable_index = name_to_index_map.get(output_var)
+            else:
+                raise ValuaScriptError(f"The final @output variable '{output_var}' was not found in the final execution plan. It may have been eliminated as dead code.")
         output_variable_index = name_to_index_map.get(output_var)
 
     # 3. Define recursive helper to rewrite expressions into bytecode format
@@ -42,13 +46,30 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
         if isinstance(arg, Token):  # This is a variable name
             var_name = str(arg)
             return {"type": "variable_index", "value": name_to_index_map[var_name]}
-        if isinstance(arg, dict) and "args" in arg:  # This is a nested function call
+        if isinstance(arg, dict) and arg.get("type") == "conditional_expression":
+            return {
+                "type": "conditional_expression",
+                "condition": _resolve_expression_to_bytecode(arg["condition"]),
+                "then_expr": _resolve_expression_to_bytecode(arg["then_expr"]),
+                "else_expr": _resolve_expression_to_bytecode(arg["else_expr"]),
+            }
+        if isinstance(arg, dict) and "function" in arg:  # This is a nested function call
             new_arg = arg.copy()
-            # We must explicitly add the 'type' to the nested call object.
             new_arg["type"] = "execution_assignment"
             new_arg["args"] = [_resolve_expression_to_bytecode(a) for a in new_arg["args"]]
             return new_arg
-        return arg  # It's a literal (number, _StringLiteral, etc.)
+
+        # It's a literal value, wrap it in a typed dictionary
+        if isinstance(arg, bool):
+            return {"type": "boolean_literal", "value": arg}
+        if isinstance(arg, (int, float)):
+            return {"type": "scalar_literal", "value": arg}
+        if isinstance(arg, list):
+            return {"type": "vector_literal", "value": arg}
+        if isinstance(arg, _StringLiteral):
+            return {"type": "string_literal", "value": arg.value}
+
+        raise TypeError(f"Internal Error: Unhandled type '{type(arg).__name__}' during bytecode generation.")
 
     # 4. Define helper to rewrite a list of steps
     def _rewrite_steps_to_bytecode(steps_to_rewrite):
@@ -61,15 +82,15 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
             }
             if new_step["type"] == "literal_assignment":
                 new_step["value"] = step["value"]
+            elif new_step["type"] == "conditional_expression":
+                new_step["type"] = "conditional_assignment"  # Rename for the engine
+                new_step["condition"] = _resolve_expression_to_bytecode(step["condition"])
+                new_step["then_expr"] = _resolve_expression_to_bytecode(step["then_expr"])
+                new_step["else_expr"] = _resolve_expression_to_bytecode(step["else_expr"])
             else:  # execution_assignment
                 new_step["function"] = step["function"]
                 new_step["args"] = [_resolve_expression_to_bytecode(a) for a in step.get("args", [])]
 
-            # Final cleanup for JSON serialization
-            if "value" in new_step and isinstance(new_step.get("value"), (Token, _StringLiteral)):
-                new_step["value"] = _process_arg_for_json(new_step["value"])
-            if "args" in new_step:
-                new_step["args"] = [_process_arg_for_json(a) for a in new_step["args"]]
             bytecode_steps.append(new_step)
         return bytecode_steps
 
