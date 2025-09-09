@@ -4,6 +4,7 @@ import os
 import subprocess
 import json
 import tempfile
+import pandas as pd
 
 # Ensure the compiler's modules can be imported for direct use
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -143,3 +144,43 @@ def test_preview_integration_with_deeply_nested_imports(create_manual_test_struc
     # This asserts the final, calculated value is correct, proving the entire
     # compiler -> engine toolchain worked across all imported modules.
     assert pytest.approx(result.get("value"), abs=1e-2) == 186.90
+
+
+def test_full_run_and_csv_output_validation(find_engine_path, tmp_path):
+    """
+    Performs a full end-to-end test of the `--run` command and validates
+    the content of the final CSV output. This confirms the entire toolchain,
+    from compilation to engine execution to file output, is working correctly
+    for a deterministic calculation.
+    """
+    # ARRANGE: A simple, deterministic script.
+    script = """
+    @iterations = 1
+    @output = c
+    @output_file = "deterministic_out.csv"
+    let a = 10
+    let b = 20
+    let c = a + b # The result should always be 30
+    """
+    script_path = tmp_path / "main.vs"
+    script_path.write_text(script)
+
+    recipe_path = tmp_path / "main.json"
+    output_csv_path = tmp_path / "deterministic_out.csv"
+
+    # ACT 1: Compile the script using the CLI command structure.
+    compile_command = [sys.executable, "-m", "vsc", str(script_path), "-o", str(recipe_path)]
+    subprocess.run(compile_command, check=True)
+    assert os.path.exists(recipe_path)
+
+    # ACT 2: Execute the engine on the compiled recipe.
+    engine_path = find_engine_path
+    engine_command = [engine_path, str(recipe_path)]
+    subprocess.run(engine_command, check=True, cwd=tmp_path)  # Run from tmp_path
+    assert os.path.exists(output_csv_path)
+
+    # ASSERT: Read the output CSV and verify its contents.
+    df = pd.read_csv(output_csv_path)
+    assert "Result" in df.columns
+    assert len(df) == 1
+    assert pytest.approx(df["Result"].iloc[0]) == 30.0
