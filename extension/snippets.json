@@ -14,6 +14,13 @@
     ],
     "description": "Declare a new function"
   },
+  "if/then/else expression": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} then ${2:value_if_true} else ${3:value_if_false}"
+    ],
+    "description": "A conditional if/then/else expression"
+  },
   "@iterations directive": {
     "prefix": "@iterations",
     "body": ["@iterations = ${1:10000}"],

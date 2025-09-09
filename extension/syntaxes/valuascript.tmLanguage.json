@@ -7,6 +7,7 @@
     { "include": "#directives" },
     { "include": "#keywords" },
     { "include": "#storage_types" },
+    { "include": "#constants" },
     { "include": "#strings" },
     { "include": "#functions" },
     { "include": "#numbers" },
@@ -30,7 +31,7 @@
     "keywords": {
       "patterns": [
         {
-          "name": "keyword.other.valuascript",
+          "name": "keyword.other.assignment.valuascript",
           "match": "\\b(let)\\b"
         },
         {
@@ -40,6 +41,10 @@
         {
           "name": "keyword.control.flow.valuascript",
           "match": "\\b(return)\\b"
+        },
+        {
+          "name": "keyword.control.conditional.valuascript",
+          "match": "\\b(if|then|else)\\b"
         }
       ]
     },
@@ -47,7 +52,15 @@
       "patterns": [
         {
           "name": "storage.type.valuascript",
-          "match": "\\b(scalar|vector|string)\\b"
+          "match": "\\b(boolean|scalar|vector|string)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.valuascript",
+          "match": "\\b(true|false)\\b"
         }
       ]
     },
@@ -92,6 +105,14 @@
         {
           "name": "keyword.operator.arithmetic.valuascript",
           "match": "[\\+\\-\\*\\/\\^]"
+        },
+        {
+          "name": "keyword.operator.comparison.valuascript",
+          "match": "==|!=|>=|<=|>|<"
+        },
+        {
+          "name": "keyword.operator.logical.valuascript",
+          "match": "\\b(and|or|not)\\b"
         },
         { "name": "keyword.operator.arrow.valuascript", "match": "->" }
       ]

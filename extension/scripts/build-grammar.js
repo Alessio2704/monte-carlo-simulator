@@ -38,12 +38,19 @@ try {
   const typesRegex = languageSpec.types
     .sort((a, b) => b.length - a.length)
     .join("|");
+  const booleansRegex = languageSpec.booleans.join("|");
+  const logicalOperatorsRegex = languageSpec.logical_operators.join("|");
 
   // --- Replace Placeholders in Template ---
   templateContent = templateContent.replace(/__DIRECTIVES__/g, directivesRegex);
   templateContent = templateContent.replace(/__KEYWORDS__/g, keywordsRegex);
   templateContent = templateContent.replace(/__FUNCTIONS__/g, functionsRegex);
   templateContent = templateContent.replace(/__TYPES__/g, typesRegex);
+  templateContent = templateContent.replace(/__BOOLEANS__/g, booleansRegex);
+  templateContent = templateContent.replace(
+    /__LOGICAL_OPERATORS__/g,
+    logicalOperatorsRegex
+  );
 
   // --- Write Final Grammar File ---
   fs.writeFileSync(outputPath, templateContent);
