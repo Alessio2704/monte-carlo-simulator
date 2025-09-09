@@ -51,7 +51,9 @@ TrialValue AndOperation::execute(const std::vector<TrialValue> &args) const
         throw std::runtime_error("'and' operator requires at least one argument.");
     for (const auto &arg : args)
     {
-        if (!std::holds_alternative<bool>(arg) || !std::get<bool>(arg))
+        if (!std::holds_alternative<bool>(arg))
+            throw std::runtime_error("'and' operator requires a boolean argument.");
+        if (!std::get<bool>(arg))
             return false;
     }
     return true;
@@ -63,7 +65,9 @@ TrialValue OrOperation::execute(const std::vector<TrialValue> &args) const
         throw std::runtime_error("'or' operator requires at least one argument.");
     for (const auto &arg : args)
     {
-        if (std::holds_alternative<bool>(arg) && std::get<bool>(arg))
+        if (!std::holds_alternative<bool>(arg))
+            throw std::runtime_error("'or' operator requires a boolean argument.");
+        if (std::get<bool>(arg))
             return true;
     }
     return false;

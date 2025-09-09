@@ -102,6 +102,7 @@ add_engine_test(test_samplers)
 add_engine_test(test_errors)
 add_engine_test(test_io)
 add_engine_test(test_preview)
+add_engine_test(test_conditionals)
 
 # Pass the location of the 'vse' executable to the 'test_preview' compile definitions.
 # $<TARGET_FILE:vse> is a CMake "generator expression" that resolves to the full path of the executable.
