@@ -71,10 +71,10 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
 
     if expr_type == "literal_assignment":
         value = expression_dict.get("value")
-        if isinstance(value, (int, float)):
-            return "scalar"
         if isinstance(value, bool):
             return "boolean"
+        if isinstance(value, (int, float)):
+            return "scalar"
         if isinstance(value, list):
             for item in value:
                 if not isinstance(item, (int, float)):

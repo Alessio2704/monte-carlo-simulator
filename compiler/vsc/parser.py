@@ -69,9 +69,6 @@ class ValuaScriptTransformer(Transformer):
     def math_expression(self, items):
         return self._build_infix_tree(items, MATH_OPERATOR_MAP)
 
-    def comparison_expression(self, items):
-        return self._build_infix_tree(items, COMPARISON_OPERATOR_MAP)
-
     def logical_and_expression(self, items):
         return self._build_infix_tree(items, LOGICAL_OPERATOR_MAP)
 
@@ -79,7 +76,22 @@ class ValuaScriptTransformer(Transformer):
         return self._build_infix_tree(items, LOGICAL_OPERATOR_MAP)
 
     def not_expression(self, items):
-        return {"function": "__not__", "args": [items[1]]}
+        # This transformer correctly handles both alternatives for the 'not_expression' rule.
+        # Case 1: `NOT not_expression` (e.g., "not is_active"). 'items' will be [Token, transformed_expr].
+        if len(items) > 1 and isinstance(items[0], Token) and items[0].type == "NOT":
+            return {"function": "__not__", "args": [items[1]]}
+        # Case 2: `comparison_expression`. 'items' will be a list with a single transformed expression.
+        else:
+            return items[0]
+
+    def comparison_expression(self, items):
+        # This transformer correctly handles both alternatives for the 'comparison_expression' rule.
+        # Case 1: `add_expression OPERATOR add_expression`. 'items' will be [operand1, operator, operand2].
+        if len(items) > 1:
+            return self._build_infix_tree(items, COMPARISON_OPERATOR_MAP)
+        # Case 2: `add_expression`. 'items' will be a list with a single transformed expression.
+        else:
+            return items[0]
 
     def conditional_expression(self, items):
         if len(items) == 1:
@@ -95,12 +107,6 @@ class ValuaScriptTransformer(Transformer):
         return i[0]
 
     def and_expression(self, i):
-        return i[0]
-
-    def not_expression(self, i):
-        return i[0]
-
-    def comparison_expression(self, i):
         return i[0]
 
     def add_expression(self, i):

@@ -5,13 +5,19 @@ from .exceptions import ValuaScriptError
 
 
 def _get_dependencies_from_arg(arg):
-    """Recursively extracts variable dependencies from a single argument."""
+    """Recursively extracts variable dependencies from an argument or expression dict."""
     deps = set()
     if isinstance(arg, Token):
         deps.add(str(arg))
-    elif isinstance(arg, dict) and "args" in arg:
-        for sub_arg in arg["args"]:
+    elif isinstance(arg, dict):
+        # Recurse into function arguments
+        for sub_arg in arg.get("args", []):
             deps.update(_get_dependencies_from_arg(sub_arg))
+        # Recurse into conditional expression branches
+        if "condition" in arg:
+            deps.update(_get_dependencies_from_arg(arg.get("condition")))
+            deps.update(_get_dependencies_from_arg(arg.get("then_expr")))
+            deps.update(_get_dependencies_from_arg(arg.get("else_expr")))
     return deps
 
 
@@ -22,12 +28,9 @@ def _build_dependency_graph(execution_steps):
 
     for step in execution_steps:
         var_name = step["result"]
-        current_deps = set()
-        if step.get("type") == "execution_assignment":
-            for arg in step.get("args", []):
-                dep_vars = _get_dependencies_from_arg(arg)
-                current_deps.update(dep_vars)
-        dependencies[var_name] = current_deps
+        # The robust helper function can now parse the entire step dictionary,
+        # regardless of whether it's an execution_assignment or conditional_expression.
+        dependencies[var_name] = _get_dependencies_from_arg(step)
 
     for var, deps in dependencies.items():
         for dep in deps:
@@ -43,24 +46,39 @@ def _find_stochastic_variables(execution_steps, dependents):
     queue = deque()
 
     def _expression_is_stochastic(expression_dict):
+        """Recursively checks if any part of an expression is stochastic."""
         if not isinstance(expression_dict, dict):
             return False
+
+        # Check for a direct stochastic function call
         func_name = expression_dict.get("function")
         if func_name and FUNCTION_SIGNATURES.get(func_name, {}).get("is_stochastic", False):
             return True
+
+        # Recurse into function arguments
         for arg in expression_dict.get("args", []):
             if _expression_is_stochastic(arg):
                 return True
+
+        # Recurse into conditional expression branches
+        if "condition" in expression_dict:
+            # The condition itself cannot be stochastic, but the branches can be.
+            if _expression_is_stochastic(expression_dict.get("then_expr")):
+                return True
+            if _expression_is_stochastic(expression_dict.get("else_expr")):
+                return True
+
         return False
 
     for step in execution_steps:
-        if step.get("type") == "execution_assignment":
-            if _expression_is_stochastic(step):
-                var_name = step["result"]
-                if var_name not in stochastic_vars:
-                    stochastic_vars.add(var_name)
-                    queue.append(var_name)
+        # Check the entire step for any stochastic sources
+        if _expression_is_stochastic(step):
+            var_name = step["result"]
+            if var_name not in stochastic_vars:
+                stochastic_vars.add(var_name)
+                queue.append(var_name)
 
+    # Propagate stochasticity to all dependent variables
     while queue:
         current_var = queue.popleft()
         for dependent_var in dependents.get(current_var, []):
