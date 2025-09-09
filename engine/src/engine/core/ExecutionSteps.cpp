@@ -54,6 +54,31 @@ TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, c
                     throw std::runtime_error(error_prefix + "In nested function '" + nested_call.function_name + "': " + e.what());
                 }
             }
+            else if constexpr (std::is_same_v<T, std::unique_ptr<NestedConditional>>)
+            {
+                const auto &nested_cond = *plan;
+                try
+                {
+                    TrialValue condition_result = resolve_runtime_value(nested_cond.condition, context);
+                    if (!std::holds_alternative<bool>(condition_result))
+                    {
+                        throw std::runtime_error("The 'if' condition did not evaluate to a boolean value.");
+                    }
+                    if (std::get<bool>(condition_result))
+                    {
+                        return resolve_runtime_value(nested_cond.then_expr, context);
+                    }
+                    else
+                    {
+                        return resolve_runtime_value(nested_cond.else_expr, context);
+                    }
+                }
+                catch (const std::exception &e)
+                {
+                    std::string error_prefix = "L" + std::to_string(nested_cond.line_num) + ": ";
+                    throw std::runtime_error(error_prefix + "In nested conditional expression: " + e.what());
+                }
+            }
         },
         arg);
 }
@@ -90,20 +115,10 @@ ArgumentPlanner::ResolvedArgument ArgumentPlanner::build_argument_plan(
     {
         return arg.at("value").get<size_t>();
     }
-    if (type == "execution_assignment" || type == "conditional_expression") // A nested function or conditional
+    if (type == "execution_assignment")
     {
         auto nested_call = std::make_unique<NestedFunctionCall>();
         nested_call->line_num = arg.value("line", -1);
-
-        if (type == "conditional_expression")
-        {
-            // For simplicity, we can treat a nested conditional like a function call.
-            // This requires adding a placeholder in the factory, or creating a new logic branch.
-            // For now, let's assume this isn't a primary use case and focus on top-level conditionals.
-            // A proper implementation would require a different variant type.
-            throw std::runtime_error("Nested conditional expressions are not yet supported in the engine.");
-        }
-
         nested_call->function_name = arg.at("function");
         auto it = factory.find(nested_call->function_name);
         if (it == factory.end())
@@ -118,6 +133,15 @@ ArgumentPlanner::ResolvedArgument ArgumentPlanner::build_argument_plan(
             nested_call->args.push_back(build_argument_plan(nested_arg_json, factory));
         }
         return nested_call;
+    }
+    if (type == "conditional_expression")
+    {
+        auto nested_cond = std::make_unique<NestedConditional>();
+        nested_cond->line_num = arg.value("line", -1);
+        nested_cond->condition = build_argument_plan(arg.at("condition"), factory);
+        nested_cond->then_expr = build_argument_plan(arg.at("then_expr"), factory);
+        nested_cond->else_expr = build_argument_plan(arg.at("else_expr"), factory);
+        return nested_cond;
     }
     throw std::runtime_error("Invalid argument type in bytecode: '" + type + "'.");
 }

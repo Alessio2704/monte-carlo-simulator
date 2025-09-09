@@ -18,11 +18,12 @@ private:
 // --- Helper for building and executing argument plans ---
 struct ArgumentPlanner
 {
-    // Forward declaration for recursive structure
+    // Forward declarations for recursive structures
     struct NestedFunctionCall;
+    struct NestedConditional;
 
-    // An argument is pre-resolved into one of three things:
-    using ResolvedArgument = std::variant<TrialValue, size_t, std::unique_ptr<NestedFunctionCall>>;
+    // An argument is pre-resolved into one of four things:
+    using ResolvedArgument = std::variant<TrialValue, size_t, std::unique_ptr<NestedFunctionCall>, std::unique_ptr<NestedConditional>>;
     using ExecutableFactory = std::unordered_map<std::string, std::function<std::unique_ptr<IExecutable>()>>;
 
     // Structure to hold the plan for a nested function call
@@ -31,6 +32,15 @@ struct ArgumentPlanner
         std::unique_ptr<IExecutable> logic;
         std::vector<ResolvedArgument> args;
         std::string function_name;
+        int line_num;
+    };
+
+    // Structure to hold the plan for a nested conditional expression
+    struct NestedConditional
+    {
+        ResolvedArgument condition;
+        ResolvedArgument then_expr;
+        ResolvedArgument else_expr;
         int line_num;
     };
 
