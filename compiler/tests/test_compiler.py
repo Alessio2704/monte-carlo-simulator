@@ -265,7 +265,7 @@ def test_dead_code_elimination_is_disabled_by_default():
     "script_body, preview_var, expected_output_var_name, expected_num_trials, expected_remaining_vars",
     [
         pytest.param("let a = 10\nlet b = 20", "a", "a", 1, {"a"}, id="preview_deterministic"),
-        pytest.param("let sto = Normal(1,1)\nlet det = 20", "sto", "sto", 100, {"sto"}, id="preview_stochastic"),
+        pytest.param("let sto = Normal(1,1)\nlet det = 20", "sto", "sto", 5000, {"sto"}, id="preview_stochastic"),
         pytest.param("@iterations=9999\nlet a = 10\nlet b = a + 5", "b", "b", 1, {"a", "b"}, id="preview_overrides_iterations"),
     ],
 )
