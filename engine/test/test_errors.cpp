@@ -15,7 +15,15 @@ TEST_F(EngineErrorTests, ThrowsOnDeleteElementIndexOutOfBounds)
         ]
     })");
     SimulationEngine engine("err.json");
-    ASSERT_THROW(engine.run(), std::runtime_error);
+    try
+    {
+        engine.run();
+        FAIL() << "Expected exception for out-of-bounds delete.";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::IndexOutOfBounds);
+    }
 }
 
 TEST_F(EngineErrorTests, ThrowsOnDeleteElementEmptyVector)
@@ -29,14 +37,30 @@ TEST_F(EngineErrorTests, ThrowsOnDeleteElementEmptyVector)
         ]
     })");
     SimulationEngine engine("err.json");
-    ASSERT_THROW(engine.run(), std::runtime_error);
+    try
+    {
+        engine.run();
+        FAIL() << "Expected exception for delete on empty vector.";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::EmptyVectorOperation);
+    }
 }
 
 TEST_F(EngineErrorTests, ThrowsOnDivisionByZero)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":2,"variable_registry":["A","B","C"],"per_trial_steps":[{"type":"literal_assignment","result_index":0,"value":100},{"type":"literal_assignment","result_index":1,"value":0},{"type":"execution_assignment","result_index":2,"function":"divide","args":[{"type":"variable_index","value":0},{"type":"variable_index","value":1}]}]})");
     SimulationEngine engine("err.json");
-    ASSERT_THROW(engine.run(), std::runtime_error);
+    try
+    {
+        engine.run();
+        FAIL() << "Expected exception for division by zero.";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::DivisionByZero);
+    }
 }
 
 TEST_F(EngineErrorTests, ThrowsOnVectorSizeMismatch)
@@ -46,15 +70,16 @@ TEST_F(EngineErrorTests, ThrowsOnVectorSizeMismatch)
     {
         SimulationEngine engine("err.json");
         engine.run();
-        FAIL() << "Expected std::runtime_error for vector size mismatch, but no exception was thrown.";
+        FAIL() << "Expected EngineException for vector size mismatch, but no exception was thrown.";
     }
-    catch (const std::runtime_error &e)
+    catch (const EngineException &e)
     {
+        EXPECT_EQ(e.code(), EngineErrc::VectorSizeMismatch);
         EXPECT_THAT(e.what(), ::testing::HasSubstr("Vector size mismatch"));
     }
     catch (...)
     {
-        FAIL() << "Expected std::runtime_error for vector size mismatch, but a different exception was thrown.";
+        FAIL() << "Expected EngineException for vector size mismatch, but a different exception was thrown.";
     }
 }
 
@@ -62,14 +87,30 @@ TEST_F(EngineErrorTests, ThrowsOnIndexOutOfBounds)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":1,"variable_registry":["A","C"],"per_trial_steps":[{"type":"literal_assignment","result_index":0,"value":[10,20]},{"type":"execution_assignment","result_index":1,"function":"get_element","args":[{"type":"variable_index","value":0},{"type":"scalar_literal", "value":5.0}]}]})");
     SimulationEngine engine("err.json");
-    ASSERT_THROW(engine.run(), std::runtime_error);
+    try
+    {
+        engine.run();
+        FAIL() << "Expected exception for get_element out of bounds.";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::IndexOutOfBounds);
+    }
 }
 
 TEST_F(EngineErrorTests, ThrowsOnInvalidPertParams)
 {
     create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"Pert","args":[{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":50},{"type":"scalar_literal","value":200}]}]})");
     SimulationEngine engine("err.json");
-    ASSERT_THROW(engine.run(), std::runtime_error);
+    try
+    {
+        engine.run();
+        FAIL() << "Expected exception for invalid PERT parameters.";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::InvalidSamplerParameters);
+    }
 }
 
 #define TEST_ARITY(function_name, json_args, expected_error_msg)                                                                                                                                                                                                                                                                     \
@@ -80,15 +121,16 @@ TEST_F(EngineErrorTests, ThrowsOnInvalidPertParams)
         {                                                                                                                                                                                                                                                                                                                            \
             SimulationEngine engine("err.json");                                                                                                                                                                                                                                                                                     \
             engine.run();                                                                                                                                                                                                                                                                                                            \
-            FAIL() << "Expected std::runtime_error for function '" << function_name << "', but no exception was thrown.";                                                                                                                                                                                                            \
+            FAIL() << "Expected EngineException for function '" << function_name << "', but no exception was thrown.";                                                                                                                                                                                                               \
         }                                                                                                                                                                                                                                                                                                                            \
-        catch (const std::runtime_error &e)                                                                                                                                                                                                                                                                                          \
+        catch (const EngineException &e)                                                                                                                                                                                                                                                                                             \
         {                                                                                                                                                                                                                                                                                                                            \
+            EXPECT_EQ(e.code(), EngineErrc::IncorrectArgumentCount);                                                                                                                                                                                                                                                                 \
             EXPECT_THAT(e.what(), ::testing::HasSubstr(expected_error_msg));                                                                                                                                                                                                                                                         \
         }                                                                                                                                                                                                                                                                                                                            \
         catch (...)                                                                                                                                                                                                                                                                                                                  \
         {                                                                                                                                                                                                                                                                                                                            \
-            FAIL() << "Expected std::runtime_error for function '" << function_name << "', but a different exception was thrown.";                                                                                                                                                                                                   \
+            FAIL() << "Expected EngineException for function '" << function_name << "', but a different exception was thrown.";                                                                                                                                                                                                      \
         }                                                                                                                                                                                                                                                                                                                            \
     }
 
@@ -133,7 +175,15 @@ TEST_F(EngineErrorTests, ThrowsOnOutputVariableIndexOutOfBounds)
         "variable_registry": ["A", "B"], 
         "per_trial_steps": []
     })");
-    ASSERT_THROW(SimulationEngine engine("err.json"), std::runtime_error);
+    try
+    {
+        SimulationEngine engine("err.json");
+        FAIL() << "Constructor should have thrown.";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::IndexOutOfBounds);
+    }
 }
 
 TEST_F(EngineErrorTests, ThrowsOnStepVariableIndexOutOfBounds)
@@ -150,5 +200,17 @@ TEST_F(EngineErrorTests, ThrowsOnStepVariableIndexOutOfBounds)
     })");
 
     SimulationEngine engine("err.json");
-    ASSERT_THROW(engine.run(), std::runtime_error);
+    try
+    {
+        engine.run();
+        FAIL() << "Expected exception for out-of-bounds variable access.";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::IndexOutOfBounds);
+    }
+    catch (...)
+    {
+        FAIL() << "Expected EngineException but a different exception was thrown.";
+    }
 }

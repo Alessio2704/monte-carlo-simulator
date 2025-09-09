@@ -14,6 +14,7 @@
 
 #include "include/engine/core/SimulationEngine.h"
 #include "include/engine/io/io.h"
+#include "include/engine/core/EngineException.h"
 
 // Helper function to create a test recipe file.
 inline void create_test_recipe(const std::string &filename, const std::string &content)

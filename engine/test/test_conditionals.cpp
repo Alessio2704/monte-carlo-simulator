@@ -379,11 +379,17 @@ TEST_F(ConditionalLogicTests, ThrowsIfConditionIsNotBoolean)
     try
     {
         engine.run();
-        FAIL() << "Expected runtime_error for non-boolean condition.";
+        FAIL() << "Expected EngineException for non-boolean condition.";
     }
-    catch (const std::runtime_error &e)
+    catch (const EngineException &e)
     {
-        EXPECT_THAT(e.what(), ::testing::HasSubstr("L99: In conditional expression: The 'if' condition did not evaluate to a boolean value."));
+        EXPECT_EQ(e.code(), EngineErrc::ConditionNotBoolean);
+        EXPECT_EQ(e.line(), 99);
+        EXPECT_THAT(e.what(), ::testing::HasSubstr("The 'if' condition did not evaluate to a boolean value."));
+    }
+    catch (...)
+    {
+        FAIL() << "Expected EngineException but a different exception was thrown.";
     }
 }
 
@@ -400,10 +406,16 @@ TEST_F(ConditionalLogicTests, ThrowsIfLogicalOperatorGetsNonBoolean)
     try
     {
         engine.run();
-        FAIL() << "Expected runtime_error for logical operator type mismatch.";
+        FAIL() << "Expected EngineException for logical operator type mismatch.";
     }
-    catch (const std::runtime_error &e)
+    catch (const EngineException &e)
     {
-        EXPECT_THAT(e.what(), ::testing::HasSubstr("L5: In function '__and__': 'and' operator requires a boolean argument."));
+        EXPECT_EQ(e.code(), EngineErrc::LogicalOperatorRequiresBoolean);
+        EXPECT_EQ(e.line(), 5);
+        EXPECT_THAT(e.what(), ::testing::HasSubstr("In function '__and__': 'and' operator requires a boolean argument."));
+    }
+    catch (...)
+    {
+        FAIL() << "Expected EngineException but a different exception was thrown.";
     }
 }

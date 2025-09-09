@@ -1,4 +1,5 @@
 #include "include/engine/functions/operations.h"
+#include "include/engine/core/EngineException.h"
 
 // The csv.hpp header from the csv-parser library generates some warnings on MSVC
 // with high warning levels. We will temporarily disable the specific warning (C4127)
@@ -46,13 +47,13 @@ static std::shared_ptr<CachedCsv> get_cached_csv(const std::string &file_path)
     }
     catch (const std::exception &e)
     {
-        throw std::runtime_error("Failed to read or parse CSV file '" + file_path + "'. Error: " + e.what());
+        throw EngineException(EngineErrc::CsvFileNotFound, "Failed to read or parse CSV file '" + file_path + "'. Error: " + e.what());
     }
 }
 TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("Function 'read_csv_vector' requires 2 arguments.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'read_csv_vector' requires 2 arguments.");
     const std::string &file_path = std::get<std::string>(args[0]);
     const std::string &column_name = std::get<std::string>(args[1]);
     auto cached_data = get_cached_csv(file_path);
@@ -67,7 +68,7 @@ TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) 
     }
     if (!column_exists)
     {
-        throw std::runtime_error("Column '" + column_name + "' not found in file '" + file_path + "'.");
+        throw EngineException(EngineErrc::CsvColumnNotFound, "Column '" + column_name + "' not found in file '" + file_path + "'.");
     }
     std::vector<double> column_vector;
     column_vector.reserve(cached_data->data.size());
@@ -80,14 +81,14 @@ TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) 
     }
     catch (const std::exception &e)
     {
-        throw std::runtime_error("Error converting data to number in column '" + column_name + "' from file '" + file_path + "'. Please check for non-numeric values. Error: " + e.what());
+        throw EngineException(EngineErrc::CsvConversionError, "Error converting data to number in column '" + column_name + "' from file '" + file_path + "'. Please check for non-numeric values. Error: " + e.what());
     }
     return column_vector;
 }
 TrialValue ReadCsvScalarOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
-        throw std::runtime_error("Function 'read_csv_scalar' requires 3 arguments.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'read_csv_scalar' requires 3 arguments.");
     const std::string &file_path = std::get<std::string>(args[0]);
     const std::string &column_name = std::get<std::string>(args[1]);
     int row_index = static_cast<int>(std::get<double>(args[2]));
@@ -95,7 +96,7 @@ TrialValue ReadCsvScalarOperation::execute(const std::vector<TrialValue> &args) 
     double cell_value;
     if (static_cast<size_t>(row_index) >= cached_data->data.size())
     {
-        throw std::runtime_error("Row index " + std::to_string(row_index) + " is out of bounds for file '" + file_path + "' (File has " + std::to_string(cached_data->data.size()) + " data rows).");
+        throw EngineException(EngineErrc::CsvRowIndexOutOfBounds, "Row index " + std::to_string(row_index) + " is out of bounds for file '" + file_path + "' (File has " + std::to_string(cached_data->data.size()) + " data rows).");
     }
     const auto &row_map = cached_data->data[row_index];
     try
@@ -103,13 +104,13 @@ TrialValue ReadCsvScalarOperation::execute(const std::vector<TrialValue> &args) 
         const auto &cell_it = row_map.find(column_name);
         if (cell_it == row_map.end())
         {
-            throw std::runtime_error("Column '" + column_name + "' not found in file '" + file_path + "'.");
+            throw EngineException(EngineErrc::CsvColumnNotFound, "Column '" + column_name + "' not found in file '" + file_path + "'.");
         }
         cell_value = std::stod(cell_it->second);
     }
     catch (const std::exception &e)
     {
-        throw std::runtime_error("Error converting data to number at row " + std::to_string(row_index) + ", column '" + column_name + "' in file '" + file_path + "'. Error: " + e.what());
+        throw EngineException(EngineErrc::CsvConversionError, "Error converting data to number at row " + std::to_string(row_index) + ", column '" + column_name + "' in file '" + file_path + "'. Error: " + e.what());
     }
     return cell_value;
 }

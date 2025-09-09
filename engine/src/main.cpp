@@ -1,5 +1,6 @@
 #include "include/engine/core/SimulationEngine.h"
 #include "include/engine/io/io.h"
+#include "include/engine/core/EngineException.h"
 #include <iostream>
 #include <vector>
 #include <string>
@@ -126,7 +127,7 @@ int main(int argc, char *argv[])
             std::cout << "\nExecution finished." << std::endl;
         }
     }
-    catch (const std::exception &e)
+    catch (const EngineException &e)
     {
         if (preview_mode)
         {
@@ -138,6 +139,21 @@ int main(int argc, char *argv[])
         else
         {
             std::cerr << "An error occurred: " << e.what() << std::endl;
+        }
+        return 1;
+    }
+    catch (const std::exception &e)
+    {
+        if (preview_mode)
+        {
+            nlohmann::json error_json;
+            error_json["status"] = "error";
+            error_json["message"] = e.what();
+            std::cout << error_json.dump() << std::endl;
+        }
+        else
+        {
+            std::cerr << "An unexpected error occurred: " << e.what() << std::endl;
         }
         return 1;
     }

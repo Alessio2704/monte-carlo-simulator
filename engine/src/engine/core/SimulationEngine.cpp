@@ -2,6 +2,7 @@
 #include "include/engine/functions/operations.h"
 #include "include/engine/functions/samplers.h"
 #include "include/engine/core/ExecutionSteps.h"
+#include "include/engine/core/EngineException.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <stdexcept>
@@ -114,95 +115,115 @@ void SimulationEngine::parse_and_build(const std::string &path)
     std::ifstream file_stream(path);
     if (!file_stream.is_open())
     {
-        throw std::runtime_error("Failed to open recipe file: " + path);
+        throw EngineException(EngineErrc::RecipeFileNotFound, "Failed to open recipe file: " + path);
     }
-    json recipe_json = json::parse(file_stream);
-    const auto &config = recipe_json["simulation_config"];
-    m_num_trials = config["num_trials"];
-    m_output_variable_index = recipe_json["output_variable_index"];
-    if (config.contains("output_file") && config["output_file"].is_string())
+    json recipe_json;
+    try
     {
-        m_output_file_path = config["output_file"].get<std::string>();
+        recipe_json = json::parse(file_stream);
+    }
+    catch (const json::parse_error &e)
+    {
+        throw EngineException(EngineErrc::RecipeParseError, "Failed to parse JSON recipe: " + std::string(e.what()));
     }
 
-    const size_t num_variables = recipe_json["variable_registry"].size();
-    if (m_output_variable_index >= num_variables && num_variables > 0)
+    try
     {
-        throw std::runtime_error("Output variable index is out of bounds of the variable registry.");
-    }
-    m_preloaded_context_vector.resize(num_variables);
-
-    auto build_step_from_json = [&](const json &step_json) -> std::unique_ptr<IExecutionStep>
-    {
-        std::string type = step_json.at("type");
-        size_t result_index = step_json.at("result_index");
-        int line = step_json.value("line", -1);
-
-        if (type == "literal_assignment")
+        const auto &config = recipe_json.at("simulation_config");
+        m_num_trials = config.at("num_trials");
+        m_output_variable_index = recipe_json.at("output_variable_index");
+        if (config.contains("output_file") && config.at("output_file").is_string())
         {
-            const auto &val_json = step_json.at("value");
-            TrialValue value;
-            if (val_json.is_array())
+            m_output_file_path = config.at("output_file").get<std::string>();
+        }
+
+        const size_t num_variables = recipe_json.at("variable_registry").size();
+        if (m_output_variable_index >= num_variables && num_variables > 0)
+        {
+            throw EngineException(EngineErrc::IndexOutOfBounds, "Output variable index is out of bounds of the variable registry.");
+        }
+        m_preloaded_context_vector.resize(num_variables);
+
+        auto build_step_from_json = [&](const json &step_json) -> std::unique_ptr<IExecutionStep>
+        {
+            std::string type = step_json.at("type");
+            size_t result_index = step_json.at("result_index");
+            int line = step_json.value("line", -1);
+
+            if (type == "literal_assignment")
             {
-                value = val_json.get<std::vector<double>>();
+                const auto &val_json = step_json.at("value");
+                TrialValue value;
+                if (val_json.is_array())
+                {
+                    value = val_json.get<std::vector<double>>();
+                }
+                else if (val_json.is_number())
+                {
+                    value = val_json.get<double>();
+                }
+                else if (val_json.is_boolean())
+                {
+                    value = val_json.get<bool>();
+                }
+                else if (val_json.is_string())
+                {
+                    value = val_json.get<std::string>();
+                }
+                else
+                {
+                    throw EngineException(EngineErrc::RecipeParseError, "Invalid 'value' type for literal_assignment.", line);
+                }
+                return std::make_unique<LiteralAssignmentStep>(result_index, value);
             }
-            else if (val_json.is_number())
+            else if (type == "execution_assignment")
             {
-                value = val_json.get<double>();
+                std::string function_name = step_json.at("function");
+                auto factory_it = m_executable_factory.find(function_name);
+                if (factory_it == m_executable_factory.end())
+                {
+                    throw EngineException(EngineErrc::UnknownFunction, "Unknown function: " + function_name, line);
+                }
+                auto executable_logic = factory_it->second();
+                return std::make_unique<ExecutionAssignmentStep>(
+                    result_index, function_name, line,
+                    std::move(executable_logic), step_json.at("args"), m_executable_factory);
             }
-            else if (val_json.is_boolean())
+            else if (type == "conditional_assignment")
             {
-                value = val_json.get<bool>();
-            }
-            else if (val_json.is_string())
-            {
-                value = val_json.get<std::string>();
+                return std::make_unique<ConditionalAssignmentStep>(
+                    result_index, line,
+                    step_json.at("condition"), step_json.at("then_expr"), step_json.at("else_expr"),
+                    m_executable_factory);
             }
             else
             {
-                throw std::runtime_error("Invalid 'value' type for literal_assignment.");
+                throw EngineException(EngineErrc::RecipeParseError, "Unknown execution step type in JSON recipe: " + type, line);
             }
-            return std::make_unique<LiteralAssignmentStep>(result_index, value);
-        }
-        else if (type == "execution_assignment")
-        {
-            std::string function_name = step_json.at("function");
-            auto factory_it = m_executable_factory.find(function_name);
-            if (factory_it == m_executable_factory.end())
-            {
-                throw std::runtime_error("Unknown function: " + function_name);
-            }
-            auto executable_logic = factory_it->second();
-            return std::make_unique<ExecutionAssignmentStep>(
-                result_index, function_name, line,
-                std::move(executable_logic), step_json.at("args"), m_executable_factory);
-        }
-        else if (type == "conditional_assignment")
-        {
-            return std::make_unique<ConditionalAssignmentStep>(
-                result_index, line,
-                step_json.at("condition"), step_json.at("then_expr"), step_json.at("else_expr"),
-                m_executable_factory);
-        }
-        else
-        {
-            throw std::runtime_error("Unknown execution step type in JSON recipe: " + type);
-        }
-    };
+        };
 
-    if (recipe_json.contains("pre_trial_steps"))
-    {
-        for (const auto &step_json : recipe_json["pre_trial_steps"])
+        if (recipe_json.contains("pre_trial_steps"))
         {
-            m_pre_trial_steps.push_back(build_step_from_json(step_json));
+            for (const auto &step_json : recipe_json["pre_trial_steps"])
+            {
+                m_pre_trial_steps.push_back(build_step_from_json(step_json));
+            }
+        }
+        if (recipe_json.contains("per_trial_steps"))
+        {
+            for (const auto &step_json : recipe_json["per_trial_steps"])
+            {
+                m_per_trial_steps.push_back(build_step_from_json(step_json));
+            }
         }
     }
-    if (recipe_json.contains("per_trial_steps"))
+    catch (const json::out_of_range &e)
     {
-        for (const auto &step_json : recipe_json["per_trial_steps"])
-        {
-            m_per_trial_steps.push_back(build_step_from_json(step_json));
-        }
+        throw EngineException(EngineErrc::RecipeConfigError, "Missing required key in recipe file: " + std::string(e.what()));
+    }
+    catch (const json::type_error &e)
+    {
+        throw EngineException(EngineErrc::RecipeConfigError, "Incorrect type for key in recipe file: " + std::string(e.what()));
     }
 }
 
@@ -233,6 +254,10 @@ void SimulationEngine::run_batch(int num_trials, std::vector<TrialValue> &result
             for (const auto &step : m_per_trial_steps)
             {
                 step->execute(trial_context);
+            }
+            if (m_output_variable_index >= trial_context.size())
+            {
+                 throw EngineException(EngineErrc::IndexOutOfBounds, "Output variable index is out of bounds. This may indicate an incomplete simulation run.");
             }
             results.push_back(trial_context.at(m_output_variable_index));
         }

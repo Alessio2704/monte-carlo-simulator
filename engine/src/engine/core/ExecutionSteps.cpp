@@ -1,4 +1,5 @@
 #include "include/engine/core/ExecutionSteps.h"
+#include "include/engine/core/EngineException.h"
 #include <stdexcept>
 #include <nlohmann/json.hpp>
 
@@ -48,10 +49,14 @@ TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, c
                 {
                     return nested_call.logic->execute(nested_final_args);
                 }
+                catch (const EngineException &e)
+                {
+                    // Re-throw exception, adding our contextual information.
+                    throw EngineException(e.code(), std::string("In nested function '") + nested_call.function_name + "': " + e.what(), nested_call.line_num);
+                }
                 catch (const std::exception &e)
                 {
-                    std::string error_prefix = "L" + std::to_string(nested_call.line_num) + ": ";
-                    throw std::runtime_error(error_prefix + "In nested function '" + nested_call.function_name + "': " + e.what());
+                    throw EngineException(EngineErrc::UnknownError, std::string("In nested function '") + nested_call.function_name + "': " + e.what(), nested_call.line_num);
                 }
             }
             else if constexpr (std::is_same_v<T, std::unique_ptr<NestedConditional>>)
@@ -62,7 +67,7 @@ TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, c
                     TrialValue condition_result = resolve_runtime_value(nested_cond.condition, context);
                     if (!std::holds_alternative<bool>(condition_result))
                     {
-                        throw std::runtime_error("The 'if' condition did not evaluate to a boolean value.");
+                        throw EngineException(EngineErrc::ConditionNotBoolean, "The 'if' condition did not evaluate to a boolean value.");
                     }
                     if (std::get<bool>(condition_result))
                     {
@@ -73,10 +78,13 @@ TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, c
                         return resolve_runtime_value(nested_cond.else_expr, context);
                     }
                 }
+                catch (const EngineException &e)
+                {
+                    throw EngineException(e.code(), std::string("In nested conditional expression: ") + e.what(), nested_cond.line_num);
+                }
                 catch (const std::exception &e)
                 {
-                    std::string error_prefix = "L" + std::to_string(nested_cond.line_num) + ": ";
-                    throw std::runtime_error(error_prefix + "In nested conditional expression: " + e.what());
+                    throw EngineException(EngineErrc::UnknownError, std::string("In nested conditional expression: ") + e.what(), nested_cond.line_num);
                 }
             }
         },
@@ -91,7 +99,7 @@ ArgumentPlanner::ResolvedArgument ArgumentPlanner::build_argument_plan(
     const auto &type_it = arg.find("type");
     if (type_it == arg.end())
     {
-        throw std::runtime_error("Argument object is missing 'type' field.");
+        throw EngineException(EngineErrc::RecipeParseError, "Argument object is missing 'type' field.");
     }
     const std::string &type = type_it->get<std::string>();
 
@@ -123,7 +131,7 @@ ArgumentPlanner::ResolvedArgument ArgumentPlanner::build_argument_plan(
         auto it = factory.find(nested_call->function_name);
         if (it == factory.end())
         {
-            throw std::runtime_error("Unknown nested function: " + nested_call->function_name);
+            throw EngineException(EngineErrc::UnknownFunction, "Unknown nested function: " + nested_call->function_name, nested_call->line_num);
         }
         nested_call->logic = it->second();
         const auto &nested_args_json = arg.at("args");
@@ -143,7 +151,7 @@ ArgumentPlanner::ResolvedArgument ArgumentPlanner::build_argument_plan(
         nested_cond->else_expr = build_argument_plan(arg.at("else_expr"), factory);
         return nested_cond;
     }
-    throw std::runtime_error("Invalid argument type in bytecode: '" + type + "'.");
+    throw EngineException(EngineErrc::RecipeParseError, "Invalid argument type in bytecode: '" + type + "'.");
 }
 
 // ============================================================================
@@ -182,10 +190,21 @@ void ExecutionAssignmentStep::execute(TrialContext &context) const
 
         context[m_result_index] = m_logic->execute(final_args);
     }
+    catch (const std::out_of_range &e)
+    {
+        // Add specific catch for out_of_range to provide a better error code.
+        throw EngineException(EngineErrc::IndexOutOfBounds, std::string("In function '") + m_function_name + "': " + "Variable index out of bounds.", m_line_num);
+    }
+    catch (const EngineException &e)
+    {
+        // This is a key location. We catch an exception from a function (like 'divide')
+        // and add the line number and function name context before re-throwing.
+        throw EngineException(e.code(), std::string("In function '") + m_function_name + "': " + e.what(), m_line_num);
+    }
     catch (const std::exception &e)
     {
-        std::string error_prefix = "L" + std::to_string(m_line_num) + ": ";
-        throw std::runtime_error(error_prefix + "In function '" + m_function_name + "': " + e.what());
+        // Fallback for any other unexpected standard exceptions.
+        throw EngineException(EngineErrc::UnknownError, std::string("In function '") + m_function_name + "': " + e.what(), m_line_num);
     }
 }
 
@@ -216,7 +235,7 @@ void ConditionalAssignmentStep::execute(TrialContext &context) const
 
         if (!std::holds_alternative<bool>(condition_result))
         {
-            throw std::runtime_error("The 'if' condition did not evaluate to a boolean value.");
+            throw EngineException(EngineErrc::ConditionNotBoolean, "The 'if' condition did not evaluate to a boolean value.");
         }
 
         if (std::get<bool>(condition_result))
@@ -228,9 +247,12 @@ void ConditionalAssignmentStep::execute(TrialContext &context) const
             context[m_result_index] = ArgumentPlanner::resolve_runtime_value(m_else_plan, context);
         }
     }
+    catch (const EngineException &e)
+    {
+        throw EngineException(e.code(), std::string("In conditional expression: ") + e.what(), m_line_num);
+    }
     catch (const std::exception &e)
     {
-        std::string error_prefix = "L" + std::to_string(m_line_num) + ": ";
-        throw std::runtime_error(error_prefix + "In conditional expression: " + e.what());
+        throw EngineException(EngineErrc::UnknownError, std::string("In conditional expression: ") + e.what(), m_line_num);
     }
 }

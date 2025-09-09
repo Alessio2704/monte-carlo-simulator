@@ -1,4 +1,5 @@
 #include "include/engine/functions/samplers.h"
+#include "include/engine/core/EngineException.h"
 #include <random>
 #include <stdexcept>
 #include <cmath>
@@ -14,7 +15,7 @@ inline std::mt19937 &get_thread_local_generator()
 TrialValue NormalSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("Function 'Normal' requires 2 arguments: mean, stddev.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'Normal' requires 2 arguments: mean, stddev.");
     double mean = std::get<double>(args[0]);
     double stddev = std::get<double>(args[1]);
     std::normal_distribution<> dist(mean, stddev);
@@ -24,7 +25,7 @@ TrialValue NormalSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue UniformSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("Function 'Uniform' requires 2 arguments: min, max.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'Uniform' requires 2 arguments: min, max.");
     double min = std::get<double>(args[0]);
     double max = std::get<double>(args[1]);
     std::uniform_real_distribution<> dist(min, max);
@@ -34,7 +35,7 @@ TrialValue UniformSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue BernoulliSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("Function 'Bernoulli' requires 1 argument: p.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'Bernoulli' requires 1 argument: p.");
     double p = std::get<double>(args[0]);
     std::bernoulli_distribution dist(p);
     return static_cast<double>(dist(get_thread_local_generator()));
@@ -43,7 +44,7 @@ TrialValue BernoulliSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue LognormalSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("Function 'Lognormal' requires 2 arguments: log_mean, log_stddev.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'Lognormal' requires 2 arguments: log_mean, log_stddev.");
     double log_mean = std::get<double>(args[0]);
     double log_stddev = std::get<double>(args[1]);
     std::lognormal_distribution<> dist(log_mean, log_stddev);
@@ -53,11 +54,11 @@ TrialValue LognormalSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue BetaSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
-        throw std::runtime_error("Function 'Beta' requires 2 arguments: alpha, beta.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'Beta' requires 2 arguments: alpha, beta.");
     double alpha = std::get<double>(args[0]);
     double beta = std::get<double>(args[1]);
     if (alpha <= 0 || beta <= 0)
-        throw std::invalid_argument("Beta distribution parameters must be positive.");
+        throw EngineException(EngineErrc::InvalidSamplerParameters, "Beta distribution parameters must be positive.");
 
     std::gamma_distribution<> gamma1(alpha, 1.0);
     std::gamma_distribution<> gamma2(beta, 1.0);
@@ -73,14 +74,14 @@ TrialValue BetaSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue PertSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
-        throw std::runtime_error("Function 'Pert' requires 3 arguments: min, mostLikely, max.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'Pert' requires 3 arguments: min, mostLikely, max.");
     double min = std::get<double>(args[0]);
     double mostLikely = std::get<double>(args[1]);
     double max = std::get<double>(args[2]);
 
     if (min > mostLikely || mostLikely > max || min == max)
     {
-        throw std::invalid_argument("Invalid PERT parameters: must be min <= mostLikely <= max and min != max.");
+        throw EngineException(EngineErrc::InvalidSamplerParameters, "Invalid PERT parameters: must be min <= mostLikely <= max and min != max.");
     }
 
     const double gamma = 4.0;
@@ -99,14 +100,14 @@ TrialValue PertSampler::execute(const std::vector<TrialValue> &args) const
 TrialValue TriangularSampler::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
-        throw std::runtime_error("Function 'Triangular' requires 3 arguments: min, mostLikely, max.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'Triangular' requires 3 arguments: min, mostLikely, max.");
     double min = std::get<double>(args[0]);
     double mostLikely = std::get<double>(args[1]);
     double max = std::get<double>(args[2]);
 
     if (min > mostLikely || mostLikely > max)
     {
-        throw std::invalid_argument("Invalid Triangular parameters: must be min <= mostLikely <= max.");
+        throw EngineException(EngineErrc::InvalidSamplerParameters, "Invalid Triangular parameters: must be min <= mostLikely <= max.");
     }
 
     std::uniform_real_distribution<> uniform_dist(0.0, 1.0);

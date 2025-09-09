@@ -1,5 +1,7 @@
 #include "include/engine/functions/operations.h"
+#include "include/engine/core/EngineException.h"
 #include <vector>
+#include <numeric> // Required for std::accumulate
 
 // =====================================================================================
 // == SIMD-FRIENDLY "FAST PATH" HELPERS
@@ -41,7 +43,7 @@ inline std::vector<double> divide_vectors_simd(const std::vector<double> &left, 
     for (size_t i = 0; i < left.size(); ++i)
     {
         if (right[i] == 0.0)
-            throw std::runtime_error("Division by zero in vector operation.");
+            throw EngineException(EngineErrc::DivisionByZero, "Division by zero in vector operation.");
         result[i] = left[i] / right[i];
     }
     return result;
@@ -87,7 +89,7 @@ inline std::vector<double> multiply_vector_scalar_simd(const std::vector<double>
 inline std::vector<double> divide_vector_scalar_simd(const std::vector<double> &vec, double scalar)
 {
     if (scalar == 0.0)
-        throw std::runtime_error("Division by zero.");
+        throw EngineException(EngineErrc::DivisionByZero, "Division by zero.");
     std::vector<double> result(vec.size());
     for (size_t i = 0; i < vec.size(); ++i)
     {
@@ -139,7 +141,7 @@ inline std::vector<double> divide_scalar_vector_simd(double scalar, const std::v
     for (size_t i = 0; i < vec.size(); ++i)
     {
         if (vec[i] == 0.0)
-            throw std::runtime_error("Division by zero.");
+            throw EngineException(EngineErrc::DivisionByZero, "Division by zero.");
         result[i] = scalar / vec[i];
     }
     return result;
@@ -161,7 +163,7 @@ inline std::vector<double> power_scalar_vector_simd(double scalar, const std::ve
 inline double perform_variadic_op(OpCode code, const std::vector<double> &values)
 {
     if (values.empty())
-        throw std::runtime_error("Cannot perform operation on an empty list of values.");
+        throw EngineException(EngineErrc::EmptyVectorOperation, "Cannot perform operation on an empty list of values.");
     double accumulator = values[0];
     for (size_t i = 1; i < values.size(); ++i)
     {
@@ -178,14 +180,14 @@ inline double perform_variadic_op(OpCode code, const std::vector<double> &values
             break;
         case OpCode::DIVIDE:
             if (values[i] == 0.0)
-                throw std::runtime_error("Division by zero");
+                throw EngineException(EngineErrc::DivisionByZero, "Division by zero");
             accumulator /= values[i];
             break;
         case OpCode::POWER:
             accumulator = std::pow(accumulator, values[i]);
             break;
         default:
-            throw std::logic_error("Unsupported variadic op code.");
+            throw EngineException(EngineErrc::UnknownError, "Unsupported variadic op code.");
         }
     }
     return accumulator;
@@ -194,7 +196,10 @@ inline double perform_variadic_op(OpCode code, const std::vector<double> &values
 struct ElementWiseVisitor
 {
     OpCode code;
+
+    // --- Valid Numeric Operations ---
     TrialValue operator()(double left, double right) const { return perform_variadic_op(code, {left, right}); }
+
     TrialValue operator()(const std::vector<double> &vec, double scalar) const
     {
         std::vector<double> result;
@@ -205,6 +210,7 @@ struct ElementWiseVisitor
         }
         return result;
     }
+
     TrialValue operator()(double scalar, const std::vector<double> &vec) const
     {
         std::vector<double> result;
@@ -215,10 +221,11 @@ struct ElementWiseVisitor
         }
         return result;
     }
+
     TrialValue operator()(const std::vector<double> &vec_left, const std::vector<double> &vec_right) const
     {
         if (vec_left.size() != vec_right.size())
-            throw std::runtime_error("Vector size mismatch: element-wise operation requires vectors of the same length, but got sizes " + std::to_string(vec_left.size()) + " and " + std::to_string(vec_right.size()) + ".");
+            throw EngineException(EngineErrc::VectorSizeMismatch, "Vector size mismatch: element-wise operation requires vectors of the same length, but got sizes " + std::to_string(vec_left.size()) + " and " + std::to_string(vec_right.size()) + ".");
         std::vector<double> result;
         result.reserve(vec_left.size());
         for (size_t i = 0; i < vec_left.size(); ++i)
@@ -227,11 +234,15 @@ struct ElementWiseVisitor
         }
         return result;
     }
-    template <typename T>
-    TrialValue operator()(const std::string &, T) const { throw std::logic_error("Mathematical operations on strings are not supported."); }
-    template <typename T>
-    TrialValue operator()(T, const std::string &) const { throw std::logic_error("Mathematical operations on strings are not supported."); }
-    TrialValue operator()(const std::string &, const std::string &) const { throw std::logic_error("Mathematical operations on strings are not supported."); }
+
+    // --- Catch-all for Invalid Type Combinations ---
+    // This template handles any combination not explicitly defined above (e.g., string+double, bool+vector, etc.).
+    // It makes the visitor exhaustive, satisfying the requirement of std::visit.
+    template <typename T1, typename T2>
+    TrialValue operator()(const T1 &, const T2 &) const
+    {
+        throw EngineException(EngineErrc::MismatchedArgumentType, "Unsupported argument types for mathematical operation.");
+    }
 };
 
 // =====================================================================================
@@ -243,7 +254,7 @@ VariadicBaseOperation::VariadicBaseOperation(OpCode code) : m_code(code) {}
 TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.empty())
-        throw std::runtime_error("Operation requires at least one argument.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Operation requires at least one argument.");
     if (args.size() == 1)
         return args[0];
 
@@ -258,7 +269,7 @@ TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) c
             const auto &vec_left = std::get<std::vector<double>>(left);
             const auto &vec_right = std::get<std::vector<double>>(right);
             if (vec_left.size() != vec_right.size())
-                throw std::runtime_error("Vector size mismatch: element-wise operation requires vectors of the same length, but got sizes " + std::to_string(vec_left.size()) + " and " + std::to_string(vec_right.size()) + ".");
+                throw EngineException(EngineErrc::VectorSizeMismatch, "Vector size mismatch: element-wise operation requires vectors of the same length, but got sizes " + std::to_string(vec_left.size()) + " and " + std::to_string(vec_right.size()) + ".");
 
             switch (m_code)
             {
@@ -355,42 +366,42 @@ PowerOperation::PowerOperation() : VariadicBaseOperation(OpCode::POWER) {}
 TrialValue LogOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("Function 'log' requires 1 argument.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'log' requires 1 argument.");
     return std::log(std::get<double>(args[0]));
 }
 TrialValue Log10Operation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("Function 'log10' requires 1 argument.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'log10' requires 1 argument.");
     return std::log10(std::get<double>(args[0]));
 }
 TrialValue ExpOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("Function 'exp' requires 1 argument.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'exp' requires 1 argument.");
     return std::exp(std::get<double>(args[0]));
 }
 TrialValue SinOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("Function 'sin' requires 1 argument.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'sin' requires 1 argument.");
     return std::sin(std::get<double>(args[0]));
 }
 TrialValue CosOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("Function 'cos' requires 1 argument.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'cos' requires 1 argument.");
     return std::cos(std::get<double>(args[0]));
 }
 TrialValue TanOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("Function 'tan' requires 1 argument.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'tan' requires 1 argument.");
     return std::tan(std::get<double>(args[0]));
 }
 TrialValue IdentityOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
-        throw std::runtime_error("Function 'identity' requires exactly 1 argument.");
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'identity' requires exactly 1 argument.");
     return args[0];
 }
