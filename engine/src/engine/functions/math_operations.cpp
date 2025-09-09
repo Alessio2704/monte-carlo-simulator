@@ -251,109 +251,158 @@ struct ElementWiseVisitor
 
 VariadicBaseOperation::VariadicBaseOperation(OpCode code) : m_code(code) {}
 
+// --- HELPER FOR IN-PLACE VECTOR OPERATIONS ---
+// This visitor will modify the `accumulator` directly, avoiding new allocations.
+struct InPlaceVisitor
+{
+    OpCode code;
+    TrialValue &accumulator;
+
+    // Vector-Vector
+    void operator()(const std::vector<double> &right) const
+    {
+        auto &acc_vec = std::get<std::vector<double>>(accumulator);
+        if (acc_vec.size() != right.size())
+            throw EngineException(EngineErrc::VectorSizeMismatch, "Vector size mismatch for in-place operation.");
+        for (size_t i = 0; i < acc_vec.size(); ++i)
+        {
+            switch (code)
+            {
+            case OpCode::ADD:
+                acc_vec[i] += right[i];
+                break;
+            case OpCode::SUBTRACT:
+                acc_vec[i] -= right[i];
+                break;
+            case OpCode::MULTIPLY:
+                acc_vec[i] *= right[i];
+                break;
+            case OpCode::DIVIDE:
+                if (right[i] == 0.0)
+                    throw EngineException(EngineErrc::DivisionByZero, "Division by zero.");
+                acc_vec[i] /= right[i];
+                break;
+            case OpCode::POWER:
+                acc_vec[i] = std::pow(acc_vec[i], right[i]);
+                break;
+            default:
+                throw EngineException(EngineErrc::UnknownError, "Unsupported in-place op code.");
+            }
+        }
+    }
+
+    // Vector-Scalar
+    void operator()(double right) const
+    {
+        auto &acc_vec = std::get<std::vector<double>>(accumulator);
+        for (size_t i = 0; i < acc_vec.size(); ++i)
+        {
+            switch (code)
+            {
+            case OpCode::ADD:
+                acc_vec[i] += right;
+                break;
+            case OpCode::SUBTRACT:
+                acc_vec[i] -= right;
+                break;
+            case OpCode::MULTIPLY:
+                acc_vec[i] *= right;
+                break;
+            case OpCode::DIVIDE:
+                if (right == 0.0)
+                    throw EngineException(EngineErrc::DivisionByZero, "Division by zero.");
+                acc_vec[i] /= right;
+                break;
+            case OpCode::POWER:
+                acc_vec[i] = std::pow(acc_vec[i], right);
+                break;
+            default:
+                throw EngineException(EngineErrc::UnknownError, "Unsupported in-place op code.");
+            }
+        }
+    }
+
+    // Catch-all for unsupported types (string, bool, etc.)
+    template <typename T>
+    void operator()(const T &) const
+    {
+        throw EngineException(EngineErrc::MismatchedArgumentType, "Unsupported argument type for variadic math operation.");
+    }
+};
+
 TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.empty())
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Operation requires at least one argument.");
-    if (args.size() == 1)
-        return args[0];
 
-    // --- FAST PATH DISPATCHER ---
-    if (args.size() == 2)
-    {
-        const auto &left = args[0];
-        const auto &right = args[1];
+    // Start with the first argument as the initial result.
+    TrialValue accumulator = args[0];
 
-        if (std::holds_alternative<std::vector<double>>(left) && std::holds_alternative<std::vector<double>>(right))
-        {
-            const auto &vec_left = std::get<std::vector<double>>(left);
-            const auto &vec_right = std::get<std::vector<double>>(right);
-            if (vec_left.size() != vec_right.size())
-                throw EngineException(EngineErrc::VectorSizeMismatch, "Vector size mismatch: element-wise operation requires vectors of the same length, but got sizes " + std::to_string(vec_left.size()) + " and " + std::to_string(vec_right.size()) + ".");
-
-            switch (m_code)
-            {
-            case OpCode::ADD:
-                return add_vectors_simd(vec_left, vec_right);
-            case OpCode::SUBTRACT:
-                return subtract_vectors_simd(vec_left, vec_right);
-            case OpCode::MULTIPLY:
-                return multiply_vectors_simd(vec_left, vec_right);
-            case OpCode::DIVIDE:
-                return divide_vectors_simd(vec_left, vec_right);
-            case OpCode::POWER:
-                return power_vectors_simd(vec_left, vec_right);
-            default:
-                break;
-            }
-        }
-        else if (std::holds_alternative<std::vector<double>>(left) && std::holds_alternative<double>(right))
-        {
-            const auto &vec = std::get<std::vector<double>>(left);
-            double scalar = std::get<double>(right);
-            switch (m_code)
-            {
-            case OpCode::ADD:
-                return add_vector_scalar_simd(vec, scalar);
-            case OpCode::SUBTRACT:
-                return subtract_vector_scalar_simd(vec, scalar);
-            case OpCode::MULTIPLY:
-                return multiply_vector_scalar_simd(vec, scalar);
-            case OpCode::DIVIDE:
-                return divide_vector_scalar_simd(vec, scalar);
-            case OpCode::POWER:
-                return power_vector_scalar_simd(vec, scalar);
-            default:
-                break;
-            }
-        }
-        else if (std::holds_alternative<double>(left) && std::holds_alternative<std::vector<double>>(right))
-        {
-            double scalar = std::get<double>(left);
-            const auto &vec = std::get<std::vector<double>>(right);
-            switch (m_code)
-            {
-            case OpCode::ADD:
-                return add_scalar_vector_simd(scalar, vec);
-            case OpCode::SUBTRACT:
-                return subtract_scalar_vector_simd(scalar, vec);
-            case OpCode::MULTIPLY:
-                return multiply_scalar_vector_simd(scalar, vec);
-            case OpCode::DIVIDE:
-                return divide_scalar_vector_simd(scalar, vec);
-            case OpCode::POWER:
-                return power_scalar_vector_simd(scalar, vec);
-            default:
-                break;
-            }
-        }
-    }
-
-    // --- SLOW PATH (FALLBACK) ---
-    bool has_vector = false;
-    for (const auto &arg : args)
-    {
-        if (std::holds_alternative<std::vector<double>>(arg))
-        {
-            has_vector = true;
-            break;
-        }
-    }
+    // Determine if any argument is a vector, which dictates the overall strategy.
+    bool has_vector = std::any_of(args.begin(), args.end(), [](const TrialValue &v)
+                                  { return std::holds_alternative<std::vector<double>>(v); });
 
     if (!has_vector)
     {
-        std::vector<double> values;
-        values.reserve(args.size());
-        for (const auto &arg : args)
-            values.push_back(std::get<double>(arg));
-        return perform_variadic_op(m_code, values);
+        // --- SCALAR-ONLY FAST PATH ---
+        // All arguments are doubles, no vectors involved.
+        double result = std::get<double>(accumulator);
+        for (size_t i = 1; i < args.size(); ++i)
+        {
+            double val = std::get<double>(args[i]);
+            switch (m_code)
+            {
+            case OpCode::ADD:
+                result += val;
+                break;
+            case OpCode::SUBTRACT:
+                result -= val;
+                break;
+            case OpCode::MULTIPLY:
+                result *= val;
+                break;
+            case OpCode::DIVIDE:
+                if (val == 0.0)
+                    throw EngineException(EngineErrc::DivisionByZero, "Division by zero");
+                result /= val;
+                break;
+            case OpCode::POWER:
+                result = std::pow(result, val);
+                break;
+            default:
+                throw EngineException(EngineErrc::UnknownError, "Unsupported variadic op code.");
+            }
+        }
+        return result;
     }
 
-    TrialValue accumulator = args[0];
+    // --- VECTOR/MIXED-TYPE OPTIMIZED PATH ---
+    // At least one argument is a vector. The result must be a vector.
+    // If the initial accumulator is a scalar, we must "promote" it to a vector.
+    if (std::holds_alternative<double>(accumulator))
+    {
+        double scalar_val = std::get<double>(accumulator);
+        // Find the first vector in the args to determine the required size.
+        size_t vector_size = 0;
+        for (const auto &arg : args)
+        {
+            if (std::holds_alternative<std::vector<double>>(arg))
+            {
+                vector_size = std::get<std::vector<double>>(arg).size();
+                break;
+            }
+        }
+        // Promote the scalar to a vector of the correct size.
+        accumulator = std::vector<double>(vector_size, scalar_val);
+    }
+
+    // Loop through the rest of the arguments, applying the operation in-place.
     for (size_t i = 1; i < args.size(); ++i)
     {
-        accumulator = std::visit(ElementWiseVisitor{m_code}, accumulator, args[i]);
+        // We visit the current argument and apply the operation to our accumulator.
+        std::visit(InPlaceVisitor{m_code, accumulator}, args[i]);
     }
+
     return accumulator;
 }
 
