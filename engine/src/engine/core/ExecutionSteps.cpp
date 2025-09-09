@@ -190,7 +190,7 @@ void ExecutionAssignmentStep::execute(TrialContext &context) const
 
         context[m_result_index] = m_logic->execute(final_args);
     }
-    catch (const std::out_of_range &e)
+    catch (const std::out_of_range &)
     {
         // Add specific catch for out_of_range to provide a better error code.
         throw EngineException(EngineErrc::IndexOutOfBounds, std::string("In function '") + m_function_name + "': " + "Variable index out of bounds.", m_line_num);
