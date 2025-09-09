@@ -239,7 +239,7 @@ def hover(params):
                 return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error: Could not parse preview result from engine.*"))
 
             value = result_json.get("value")
-            value_label = "Mean Value (100 trials)" if is_stochastic else "Value"
+            value_label = "Mean Value (5000 trials)" if is_stochastic else "Value"
 
             formatted_value = value
             if isinstance(value, bool):
