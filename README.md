@@ -1,111 +1,33 @@
-# ValuaScript & The Quantitative Simulation Engine
+# ValuaScript: A Declarative Language for High-Performance Monte Carlo Simulations
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/Alessio2704/monte-carlo-simulator/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++ Version](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
 [![Python Version](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-A high-performance, multithreaded C++ engine for quantitative financial modeling, driven by **ValuaScript**—a simple, dedicated scripting language featuring an intelligent, optimizing Ahead-of-Time (AOT) compiler, a rich feature set including modules and user-defined functions, and a professional VS Code extension with live value previews.
+ValuaScript combines a simple, declarative scripting language with a high-performance, multi-threaded C++ engine to create, run, and analyze complex quantitative models. It is purpose-built to deliver both **clarity and speed**, making sophisticated Monte Carlo simulations accessible and maintainable.
 
 ---
 
-## Why ValuaScript?
+## The Core Philosophy: A Vocabulary for Simulations
 
-Financial modeling often forces a choice between two extremes: the intuitive but slow, error-prone nature of spreadsheets, and the powerful but verbose, complex nature of general-purpose programming languages.
+Financial and scientific modeling often forces a choice between two extremes: the intuitive but slow, error-prone nature of spreadsheets, and the powerful but verbose, complex nature of general-purpose programming languages.
 
-ValuaScript was created to bridge this gap. It provides a platform that offers the **usability and readability** of a dedicated modeling language with the **raw performance** of compiled, multithreaded C++. It is purpose-built to execute complex, stochastic financial models, running hundreds of thousands of Monte Carlo simulations in seconds—a task that would take minutes or hours in traditional tools.
+ValuaScript was created to bridge this gap. It is not a general-purpose language; it is a **vocabulary for describing simulations.**
 
-## Key Features
+This approach is guided by three principles:
 
-### The ValuaScript Language: Simple, Expressive, and Modular
+*   **Declarative & Readable:** A ValuaScript file describes **what** the model is, not **how** to compute it. There are no loops, complex data structures, or pointers. The script reads like a novel or a specification sheet, making models easy to write, review, and maintain for domain experts and programmers alike.
 
-- **✨ Familiar Syntax:** A clean, declarative language with an intuitive, spreadsheet-like formula syntax.
-- **📦 Code Modularity & Reusability:** Organize complex models into clean, reusable modules with `@import`. The compiler resolves the entire dependency graph, supporting nested and shared ("diamond") dependencies.
-- **🔧 User-Defined Functions:** Create reusable, type-safe functions using the `func` keyword, complete with docstrings, strict lexical scoping, and compile-time recursion detection.
-- **🛡️ Compile-Time Safety:** Catch logical errors like type mismatches, incorrect function arguments, undefined variables, and circular imports at compile time, not runtime.
-- **🎲 Integrated Monte Carlo Support:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, `Beta`, etc.).
+*   **High-Performance by Design:** All the heavy lifting—numerical calculations, statistical sampling, and data aggregation—is handled by a multi-threaded C++17 engine. Scripting a model in ValuaScript is simply wiring together these pre-compiled, high-speed components. A simulation that might take minutes in other tools is executed in seconds.
 
-### The AOT Compiler & C++ Engine: Performance Through Architecture
+*   **Extensible through Contribution:** The language grows by expanding its C++ core. Need a niche financial model or a specific epidemiological simulation? Implement it once in optimized C++, and it instantly becomes a new "word" in the ValuaScript vocabulary for everyone to use. This creates a powerful, community-driven flywheel for growth.
 
-- **🚀 High-Performance Backend:** The core engine is a multithreaded Virtual Machine (VM) written in modern C++17, designed to leverage all available CPU cores for maximum parallelism.
-- **🧠 Intelligent AOT Compiler:** A robust Ahead-of-Time (AOT) compiler (`vsc`) performs all semantic analysis and optimization _before_ execution, generating a low-level JSON bytecode for the engine.
-- **⚙️ Advanced Optimizations:**
-  - **Function Inlining:** User-defined functions are seamlessly inlined into the main execution plan, eliminating call overhead.
-  - **Loop-Invariant Code Motion:** Deterministic calculations are automatically identified and moved out of the main simulation loop, running only once.
-  - **Dead Code Elimination:** Unused variables and functions are stripped from the final bytecode to minimize its size and complexity.
+## See it in Action: A Simple Modular DCF Model
 
-### The VS Code Extension: A Rich IDE Experience
+This example demonstrates how ValuaScript combines modules, user-defined functions, and stochastic variables to create a model that is clean, readable, and powerful.
 
-- **⚡ Live Value Preview:** Hover over any variable to see its calculated value instantly. For stochastic variables, the engine runs a sample simulation in the background and displays the mean.
-- **🔍 Real-Time Diagnostics:** Get immediate, as-you-type feedback on errors and warnings.
-- **💡 Hover-for-Help:** See full signatures and docstrings for all built-in and user-defined functions, with support across imported modules.
-- **▶️ Go-to-Definition:** Seamlessly navigate to the source of any user-defined function, even if it's in another file.
-
-## Architecture: AOT Compiler & Virtual Machine
-
-The project follows a modern AOT Compiler and Virtual Machine (VM) model. This clean separation of concerns ensures maximum performance and compile-time safety by eliminating runtime overhead.
-
-1.  **The `vsc` Compiler (Python):** This is the "brain." It parses the high-level `.vs` script, resolves the `@import` graph, validates all logic, runs optimizations, and emits a low-level **JSON bytecode**.
-2.  **The `vse` Engine (C++):** This is the "muscle." It is a fast, multithreaded VM that does no analysis; it simply loads the pre-compiled bytecode and executes the instructions at maximum speed.
-
-```mermaid
-graph TD
-    subgraph "Development Phase"
-        A["<br/><b>ValuaScript Project</b><br/><i>(.vs files)</i>"]
-    end
-    subgraph "Compilation Phase"
-        B["<br/><b>vsc Compiler (Python)</b><br/>Parses, validates, optimizes,<br/>and generates bytecode"]
-    end
-    subgraph "Execution Phase"
-        C["<br/><b>JSON Bytecode</b><br/><i>Low-level execution plan</i>"]
-        D["<br/><b>vse Engine (C++)</b><br/>Fast, multithreaded<br/>bytecode execution"]
-        E["<br/><b>Simulation Output</b><br/><i>(.csv file & stats)</i>"]
-    end
-
-    A -- "vsc model.vs --run" --> B
-    B -- Emits --> C
-    C -- Consumed by --> D
-    D -- Produces --> E
-
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style B fill:#ccf,stroke:#333,stroke-width:2px
-    style D fill:#9f9,stroke:#333,stroke-width:2px
-    style C fill:#fff,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5
-    style E fill:#fff,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5
-```
-
-## Quick Installation
-
-Get started in minutes with our automated installation scripts.
-
-#### Prerequisites
-
-1.  **Python 3.9+** must be installed and available in your PATH.
-2.  **Administrator/sudo privileges** are required to add the tools to your system's PATH.
-
-### macOS & Linux
-
-Open your terminal and run the following one-line command:
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.sh)"
-```
-
-### Windows
-
-Open a new **PowerShell terminal as Administrator** and run:
-
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.ps1'))
-```
-
-After installation, **you must open a new terminal window** for the changes to take effect.
-
-## Example: A Simple Modular DCF Model
-
-This example demonstrates how ValuaScript combines modules, user-defined functions, and stochastic variables to create a clean, readable, and powerful model.
-
-**File: `modules/finance_utils.vs`**
+#### File: `modules/finance_utils.vs`
 
 ```valuascript
 @module
@@ -123,7 +45,7 @@ func present_value(cashflows: vector, discount_rate: scalar) -> scalar {
 }
 ```
 
-**File: `main.vs`**
+#### File: `main.vs`
 
 ```valuascript
 @import "modules/finance_utils.vs"
@@ -147,12 +69,97 @@ let future_revenues = grow_series(initial_revenue, revenue_growth, 5)
 let dcf_value = present_value(future_revenues, discount_rate)
 ```
 
-**To run this model:**
+#### Run the Simulation
+
+One command compiles, runs 50,000 trials with optimizations, and plots the results.
 
 ```bash
-# Compile and execute the simulation, with optimizations and plotting
 vsc main.vs --run -O --plot
 ```
+
+## Architecture: AOT Compiler & Virtual Machine
+
+The project follows a modern Ahead-of-Time (AOT) Compiler and Virtual Machine (VM) model. This clean separation of concerns ensures maximum performance and compile-time safety by eliminating runtime analysis and interpretation.
+
+1.  **The `vsc` Compiler (Python):** This is the "brain." It parses the high-level `.vs` script, resolves the `@import` graph, performs deep semantic validation, runs optimizations, and emits a low-level **JSON bytecode**.
+2.  **The `vse` Engine (C++):** This is the "muscle." It is a fast, multi-threaded executable that does no analysis; it simply loads the pre-compiled bytecode and executes the instructions at maximum speed.
+
+```mermaid
+graph TD
+    subgraph "Development Phase"
+        A["<br/><b>ValuaScript Project</b><br/><i>(.vs files)</i>"]
+    end
+    subgraph "Compilation Phase"
+        B["<br/><b>vsc Compiler (Python)</b><br/>Parses, validates, optimizes,<br/>and generates bytecode"]
+    end
+    subgraph "Execution Phase"
+        C["<br/><b>JSON Bytecode</b><br/><i>Low-level execution plan</i>"]
+        D["<br/><b>vse Engine (C++)</b><br/>Fast, multi-threaded<br/>bytecode execution"]
+        E["<br/><b>Simulation Output</b><br/><i>(.csv file & stats)</i>"]
+    end
+
+    A -- "vsc model.vs --run" --> B
+    B -- Emits --> C
+    C -- Consumed by --> D
+    D -- Produces --> E
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#ccf,stroke:#333,stroke-width:2px
+    style D fill:#9f9,stroke:#333,stroke-width:2px
+    style C fill:#fff,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5
+    style E fill:#fff,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5
+```
+
+## Key Features
+
+### ✨ The ValuaScript Language
+- **Intuitive Syntax:** A clean, declarative language with a familiar, spreadsheet-like formula syntax.
+- **📦 Code Modularity:** Organize models into reusable modules with `@import`. The compiler resolves the entire dependency graph, including nested and shared ("diamond") dependencies.
+- **🔧 User-Defined Functions:** Create reusable, type-safe functions with docstrings, strict lexical scoping, and compile-time recursion detection.
+- **🛡️ Compile-Time Safety:** Catch logical errors like type mismatches, incorrect function arguments, undefined variables, and circular imports before you run.
+- **🎲 Integrated Monte Carlo Support:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, `Beta`, etc.).
+
+### 🚀 The AOT Compiler & C++ Engine
+- **High-Performance Backend:** A multi-threaded Virtual Machine (VM) written in modern C++17, designed to leverage all available CPU cores for maximum parallelism.
+- **🧠 Intelligent AOT Compiler:** Performs all semantic analysis and optimization *before* execution, generating a low-level JSON bytecode for the engine.
+- **⚙️ Advanced Optimizations:**
+  - **Function Inlining:** User-defined functions are seamlessly inlined, eliminating call overhead.
+  - **Loop-Invariant Code Motion:** Deterministic calculations are automatically identified and run only once.
+  - **Dead Code Elimination:** Unused variables are stripped from the final bytecode.
+
+### ⚡ The VS Code Extension
+- **Live Value Preview:** Hover over any variable to see its calculated value instantly. For stochastic variables, the engine runs a sample simulation in the background and displays the mean.
+- **Real-Time Diagnostics:** Get immediate, as-you-type feedback on errors.
+- **Hover-for-Help:** See full signatures and docstrings for all built-in and user-defined functions.
+- **Go-to-Definition:** Seamlessly navigate to the source of any user-defined function.
+
+## Quick Start: Installation
+
+Get started in minutes with our automated installation scripts.
+
+#### Prerequisites
+
+1.  **Python 3.9+** must be installed and available in your PATH.
+2.  **Administrator/sudo privileges** are required to add the tools to your system's PATH.
+
+#### macOS & Linux
+
+Open your terminal and run the following one-line command:
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.sh)"
+```
+
+#### Windows
+
+Open a new **PowerShell terminal as Administrator** and run:
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.ps1'))
+```
+
+After installation, **you must open a new terminal window** for the changes to take effect.
+
+#### Uninstalling
+The same scripts can be used to uninstall the tools. Simply replace `install.sh` with `uninstall.sh` (for Mac/Linux) or `install.ps1` with `uninstall.ps1` (for Windows) in the commands above.
 
 ## ValuaScript Language Guide
 
@@ -190,13 +197,13 @@ let cost_of_equity = risk_free_rate + beta * equity_risk_premium
 # Vector Literals
 let margin_forecast = [0.25, 0.26, 0.28]
 
-# --- Element and Slice Access ---
+# --- Element Access ---
 let my_vector = [100, 200, 300]
 let first_element = my_vector[0]   # Accesses the first element (100)
 let last_element = my_vector[-1]    # Accesses the last element (300)
 
-# The slice syntax [:-index] creates a new vector with the element at 'index' removed.
-let vector_without_last = my_vector[:-1] # Returns a new vector [100, 200]
+# To create a new vector with an element removed, use the `delete_element` function.
+let vector_without_last = delete_element(my_vector, -1) # Returns a new vector [100, 200]
 
 # --- Conditional Logic (if/then/else) ---
 let tax_regime = if is_high_income then 0.40 else 0.25
@@ -207,7 +214,7 @@ let tax_regime = if is_high_income then 0.40 else 0.25
 <details>
 <summary><strong>User-Defined Functions (UDFs) & Modules</strong></summary>
 
-ValuaScript supports fully type-checked, user-defined functions. They are powerful tools for creating reusable, modular logic with several key features:
+ValuaScript supports fully type-checked, user-defined functions with several key features:
 
 - **Strict Scoping:** Functions can only access their own parameters and locally defined variables. They cannot access global variables, ensuring pure, predictable behavior.
 - **Compile-Time Validation:** The compiler checks for correct types, argument counts, and prevents recursion.
@@ -248,33 +255,42 @@ A comprehensive library of built-in functions is available for math, series mani
 
 </details>
 
-## Development & Contribution
+## Contributing & Development
 
-This project is built with a professional CI/CD pipeline and has a comprehensive test suite. Contributions are welcome.
+This project is built with a professional CI/CD pipeline and has a comprehensive test suite. Contributions are welcome, especially those that expand the engine's vocabulary.
 
-### Running Tests
+### How to Contribute
+The most valuable contribution is adding new, specialized functions to the C++ engine.
 
-**1. C++ Engine Tests (GoogleTest & CTest)**
+1.  **File an issue** to discuss the new function's design and use case.
+2.  **Implement the logic** in C++ inside the `engine/src/engine/functions/` directory.
+3.  **Add your function** to the factory in `engine/src/engine/core/SimulationEngine.cpp`.
+4.  **Define its signature** in `compiler/vsc/config.py` to make it available to the validator and LSP.
+5.  **Write tests** for your new function in both C++ (`gtest`) and as a Python integration test (`pytest`).
+6.  **Submit a pull request!**
 
+### Running the Test Suite
+
+#### 1. C++ Engine Tests (GoogleTest & CTest)
+From the root directory of the project:
 ```bash
-# First, configure and build the project from the root directory
+# Configure and build the project
 cmake -S . -B build
 cmake --build build
 
-# Then, run the full test suite from the build directory
+# Run the full test suite
 cd build
 ctest --verbose
 ```
 
-**2. Python Compiler Tests (Pytest)**
-
+#### 2. Python Compiler Tests (Pytest)
 ```bash
 # Navigate to the compiler directory
 cd compiler
 
-# (Optional but Recommended) Create and activate a virtual environment
+# (Recommended) Create and activate a virtual environment
 python3 -m venv venv
-source venv/bin/activate # On Windows: .\venv\Scripts\activate
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 
 # Install the compiler and its development dependencies
 pip install -e .[dev]
@@ -285,8 +301,8 @@ pytest -v
 
 ## Roadmap
 
-- [ ] **Empirical Distribution Sampler:** Add a `create_sampler_from_data` function to allow users to create a custom sampler from a real-world data series (e.g., historical stock returns), significantly improving model realism.
-- [ ] **GPU Acceleration:** Explore CUDA/OpenCL to offload the "embarrassingly parallel" Monte Carlo workload to the GPU, providing an order-of-magnitude performance increase for massive simulations.
+-   [ ] **Empirical Distribution Sampling for Unparalleled Realism:** Add a function to create a custom sampler from a real-world data series (e.g., historical stock returns), allowing models to be driven by actual data instead of theoretical distributions.
+-   [ ] **Massive Parallelism with GPU Acceleration:** Explore CUDA/OpenCL to offload the "embarrassingly parallel" Monte Carlo workload to the GPU, providing an order-of-magnitude performance increase for simulations with millions of trials.
 
 ## License
 
