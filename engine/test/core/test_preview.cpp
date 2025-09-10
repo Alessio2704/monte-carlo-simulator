@@ -1,4 +1,4 @@
-#include "test_helpers.h"
+#include "test/test_helpers.h"
 #include <nlohmann/json.hpp>
 
 // This macro will be defined by CMake via target_compile_definitions
