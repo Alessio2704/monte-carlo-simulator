@@ -1,7 +1,61 @@
-#include "include/engine/functions/operations.h"
+#include "include/engine/functions/core/operations.h"
 #include "include/engine/core/EngineException.h"
 #include <vector>
-#include <numeric> // Required for std::accumulate
+#include <numeric>
+#include <cmath>
+
+// --- Registration Function ---
+
+void register_core_functions(FunctionRegistry &registry)
+{
+    // Math
+    registry.register_function("add", []
+                               { return std::make_unique<AddOperation>(); });
+    registry.register_function("subtract", []
+                               { return std::make_unique<SubtractOperation>(); });
+    registry.register_function("multiply", []
+                               { return std::make_unique<MultiplyOperation>(); });
+    registry.register_function("divide", []
+                               { return std::make_unique<DivideOperation>(); });
+    registry.register_function("power", []
+                               { return std::make_unique<PowerOperation>(); });
+    registry.register_function("log", []
+                               { return std::make_unique<LogOperation>(); });
+    registry.register_function("log10", []
+                               { return std::make_unique<Log10Operation>(); });
+    registry.register_function("exp", []
+                               { return std::make_unique<ExpOperation>(); });
+    registry.register_function("sin", []
+                               { return std::make_unique<SinOperation>(); });
+    registry.register_function("cos", []
+                               { return std::make_unique<CosOperation>(); });
+    registry.register_function("tan", []
+                               { return std::make_unique<TanOperation>(); });
+    registry.register_function("identity", []
+                               { return std::make_unique<IdentityOperation>(); });
+
+    // Comparison & Logical
+    registry.register_function("__eq__", []
+                               { return std::make_unique<EqualsOperation>(); });
+    registry.register_function("__neq__", []
+                               { return std::make_unique<NotEqualsOperation>(); });
+    registry.register_function("__gt__", []
+                               { return std::make_unique<GreaterThanOperation>(); });
+    registry.register_function("__lt__", []
+                               { return std::make_unique<LessThanOperation>(); });
+    registry.register_function("__gte__", []
+                               { return std::make_unique<GreaterOrEqualOperation>(); });
+    registry.register_function("__lte__", []
+                               { return std::make_unique<LessOrEqualOperation>(); });
+    registry.register_function("__and__", []
+                               { return std::make_unique<AndOperation>(); });
+    registry.register_function("__or__", []
+                               { return std::make_unique<OrOperation>(); });
+    registry.register_function("__not__", []
+                               { return std::make_unique<NotOperation>(); });
+}
+
+// --- Math Operations Implementations ---
 
 // =====================================================================================
 // == SIMD-FRIENDLY "FAST PATH" HELPERS
@@ -453,4 +507,87 @@ TrialValue IdentityOperation::execute(const std::vector<TrialValue> &args) const
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'identity' requires exactly 1 argument.");
     return args[0];
+}
+
+// --- Comparison and Logical Operations Implementations ---
+
+ComparisonBaseOperation::ComparisonBaseOperation(OpCode code) : m_code(code) {}
+
+TrialValue ComparisonBaseOperation::execute(const std::vector<TrialValue> &args) const
+{
+    if (args.size() != 2)
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "Comparison operator requires 2 arguments.");
+    return std::visit([this](auto &&left, auto &&right) -> TrialValue
+                      {
+        using T1 = std::decay_t<decltype(left)>;
+        using T2 = std::decay_t<decltype(right)>;
+
+        if constexpr (std::is_same_v<T1, double> && std::is_same_v<T2, double>) {
+            switch (m_code) {
+                case OpCode::EQ:  return left == right;
+                case OpCode::NEQ: return left != right;
+                case OpCode::GT:  return left > right;
+                case OpCode::LT:  return left < right;
+                case OpCode::GTE: return left >= right;
+                case OpCode::LTE: return left <= right;
+                default: throw EngineException(EngineErrc::UnknownError, "Invalid comparison opcode for scalars.");
+            }
+        } else if constexpr (std::is_same_v<T1, bool> && std::is_same_v<T2, bool>) {
+            switch (m_code) {
+                case OpCode::EQ:  return left == right;
+                case OpCode::NEQ: return left != right;
+                default: throw EngineException(EngineErrc::MismatchedArgumentType, "Only equality operators (==, !=) are supported for booleans.");
+            }
+        } else {
+            // Fallback for non-matching types: only allow equality checks
+            switch(m_code) {
+                case OpCode::EQ: return false;
+                case OpCode::NEQ: return true;
+                default: throw EngineException(EngineErrc::MismatchedArgumentType, "Unsupported types for this comparison.");
+            }
+        } }, args[0], args[1]);
+}
+
+EqualsOperation::EqualsOperation() : ComparisonBaseOperation(OpCode::EQ) {}
+NotEqualsOperation::NotEqualsOperation() : ComparisonBaseOperation(OpCode::NEQ) {}
+GreaterThanOperation::GreaterThanOperation() : ComparisonBaseOperation(OpCode::GT) {}
+LessThanOperation::LessThanOperation() : ComparisonBaseOperation(OpCode::LT) {}
+GreaterOrEqualOperation::GreaterOrEqualOperation() : ComparisonBaseOperation(OpCode::GTE) {}
+LessOrEqualOperation::LessOrEqualOperation() : ComparisonBaseOperation(OpCode::LTE) {}
+
+TrialValue AndOperation::execute(const std::vector<TrialValue> &args) const
+{
+    if (args.empty())
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "'and' operator requires at least one argument.");
+    for (const auto &arg : args)
+    {
+        if (!std::holds_alternative<bool>(arg))
+            throw EngineException(EngineErrc::LogicalOperatorRequiresBoolean, "'and' operator requires a boolean argument.");
+        if (!std::get<bool>(arg))
+            return false;
+    }
+    return true;
+}
+
+TrialValue OrOperation::execute(const std::vector<TrialValue> &args) const
+{
+    if (args.empty())
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "'or' operator requires at least one argument.");
+    for (const auto &arg : args)
+    {
+        if (!std::holds_alternative<bool>(arg))
+            throw EngineException(EngineErrc::LogicalOperatorRequiresBoolean, "'or' operator requires a boolean argument.");
+        if (std::get<bool>(arg))
+            return true;
+    }
+    return false;
+}
+
+TrialValue NotOperation::execute(const std::vector<TrialValue> &args) const
+{
+    if (args.size() != 1)
+        throw EngineException(EngineErrc::IncorrectArgumentCount, "'not' operator requires 1 argument.");
+    if (!std::holds_alternative<bool>(args[0]))
+        throw EngineException(EngineErrc::LogicalOperatorRequiresBoolean, "'not' operator requires a boolean argument.");
+    return !std::get<bool>(args[0]);
 }

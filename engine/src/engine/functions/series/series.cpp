@@ -1,7 +1,35 @@
-#include "include/engine/functions/operations.h"
+#include "include/engine/functions/series/operations.h"
 #include "include/engine/core/EngineException.h"
 #include <vector>
 #include <numeric>
+
+// --- Registration Function ---
+
+void register_series_functions(FunctionRegistry &registry)
+{
+    registry.register_function("grow_series", []
+                               { return std::make_unique<GrowSeriesOperation>(); });
+    registry.register_function("compound_series", []
+                               { return std::make_unique<CompoundSeriesOperation>(); });
+    registry.register_function("npv", []
+                               { return std::make_unique<NpvOperation>(); });
+    registry.register_function("sum_series", []
+                               { return std::make_unique<SumSeriesOperation>(); });
+    registry.register_function("get_element", []
+                               { return std::make_unique<GetElementOperation>(); });
+    registry.register_function("delete_element", []
+                               { return std::make_unique<DeleteElementOperation>(); });
+    registry.register_function("series_delta", []
+                               { return std::make_unique<SeriesDeltaOperation>(); });
+    registry.register_function("compose_vector", []
+                               { return std::make_unique<ComposeVectorOperation>(); });
+    registry.register_function("interpolate_series", []
+                               { return std::make_unique<InterpolateSeriesOperation>(); });
+    registry.register_function("capitalize_expense", []
+                               { return std::make_unique<CapitalizeExpenseOperation>(); });
+}
+
+// --- Implementations (from original series_operations.cpp) ---
 
 // =====================================================================================
 // == SIMD-FRIENDLY HELPERS

@@ -1,8 +1,30 @@
-#include "include/engine/functions/samplers.h"
+#include "include/engine/functions/statistics/samplers.h"
 #include "include/engine/core/EngineException.h"
 #include <random>
 #include <stdexcept>
 #include <cmath>
+
+// --- Registration Function ---
+
+void register_statistics_functions(FunctionRegistry &registry)
+{
+    registry.register_function("Normal", []
+                               { return std::make_unique<NormalSampler>(); });
+    registry.register_function("Uniform", []
+                               { return std::make_unique<UniformSampler>(); });
+    registry.register_function("Bernoulli", []
+                               { return std::make_unique<BernoulliSampler>(); });
+    registry.register_function("Lognormal", []
+                               { return std::make_unique<LognormalSampler>(); });
+    registry.register_function("Beta", []
+                               { return std::make_unique<BetaSampler>(); });
+    registry.register_function("Pert", []
+                               { return std::make_unique<PertSampler>(); });
+    registry.register_function("Triangular", []
+                               { return std::make_unique<TriangularSampler>(); });
+}
+
+// --- Implementations (from original samplers.cpp) ---
 
 // Helper to provide a thread-safe random number generator.
 // Each thread will have its own generator instance.

@@ -36,14 +36,19 @@ FetchContent_MakeAvailable(csv)
 
 # --- Define our Core Library ---
 add_library(engine_core STATIC
+    # Core Engine Files
     src/engine/core/SimulationEngine.cpp 
-    src/engine/io/io.cpp
-    src/engine/functions/math_operations.cpp
-    src/engine/functions/comparison_operations.cpp
-    src/engine/functions/io_operations.cpp
-    src/engine/functions/series_operations.cpp
-    src/engine/functions/samplers.cpp
     src/engine/core/ExecutionSteps.cpp
+    src/engine/io/io.cpp
+    
+    # Function Registry
+    src/engine/functions/FunctionRegistry.cpp
+
+    # Function Domains
+    src/engine/functions/core/core.cpp
+    src/engine/functions/io/io.cpp
+    src/engine/functions/series/series.cpp
+    src/engine/functions/statistics/statistics.cpp
 )
 
 

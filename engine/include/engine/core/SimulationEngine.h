@@ -3,6 +3,7 @@
 #include "include/engine/core/DataStructures.h"
 #include "include/engine/core/IExecutionStep.h"
 #include "include/engine/core/IExecutable.h"
+#include "include/engine/functions/FunctionRegistry.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -17,10 +18,10 @@ public:
     std::string get_output_file_path() const;
 
 private:
+    void build_function_registry(); // <-- Modified
     void parse_and_build(const std::string &path);
     void run_pre_trial_phase();
     void run_batch(int num_trials, std::vector<TrialValue> &results, std::exception_ptr &out_exception);
-    void build_executable_factory();
 
     // --- Configuration ---
     int m_num_trials;
@@ -29,7 +30,9 @@ private:
     bool m_is_preview;
 
     // --- Core Engine Components ---
-    std::unordered_map<std::string, std::function<std::unique_ptr<IExecutable>()>> m_executable_factory;
+    std::unique_ptr<FunctionRegistry> m_function_registry; // <-- Modified
+    // The factory map will be a reference to the one in the registry
+    const std::unordered_map<std::string, FunctionRegistry::FactoryFunc>* m_executable_factory; 
 
     // --- Execution State ---
     std::vector<TrialValue> m_preloaded_context_vector;
