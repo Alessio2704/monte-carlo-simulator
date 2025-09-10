@@ -17,11 +17,11 @@ ValuaScript was created to bridge this gap. It is not a general-purpose language
 
 This approach is guided by three principles:
 
-- **Declarative & Readable:** A ValuaScript file describes **what** the model is, not **how** to compute it. There are no loops, complex data structures, or pointers. The script reads like a novel or a specification sheet, making models easy to write, review, and maintain for domain experts and programmers alike.
+*   **Declarative & Readable:** A ValuaScript file describes **what** the model is, not **how** to compute it. There are no loops, complex data structures, or pointers. The script reads like a novel or a specification sheet, making models easy to write, review, and maintain for domain experts and programmers alike.
 
-- **High-Performance by Design:** All the heavy lifting—numerical calculations, statistical sampling, and data aggregation—is handled by a multi-threaded C++17 engine. Scripting a model in ValuaScript is simply wiring together these pre-compiled, high-speed components. A simulation that might take minutes in other tools is executed in seconds.
+*   **High-Performance by Design:** All the heavy lifting—numerical calculations, statistical sampling, and data aggregation—is handled by a multi-threaded C++17 engine. Scripting a model in ValuaScript is simply wiring together these pre-compiled, high-speed components. A simulation that might take minutes in other tools is executed in seconds.
 
-- **Extensible through Contribution:** The language grows by expanding its C++ core. Need a niche financial model or a specific epidemiological simulation? Implement it once in optimized C++, and it instantly becomes a new "word" in the ValuaScript vocabulary for everyone to use. This creates a powerful, community-driven flywheel for growth.
+*   **Extensible through Contribution:** The language grows by expanding its C++ core. Need a niche financial model or a specific epidemiological simulation? Implement it once in optimized C++, and it instantly becomes a new "word" in the ValuaScript vocabulary for everyone to use. This creates a powerful, community-driven flywheel for growth.
 
 ## See it in Action: A Simple Modular DCF Model
 
@@ -113,7 +113,6 @@ graph TD
 ## Key Features
 
 ### ✨ The ValuaScript Language
-
 - **Intuitive Syntax:** A clean, declarative language with a familiar, spreadsheet-like formula syntax.
 - **📦 Code Modularity:** Organize models into reusable modules with `@import`. The compiler resolves the entire dependency graph, including nested and shared ("diamond") dependencies.
 - **🔧 User-Defined Functions:** Create reusable, type-safe functions with docstrings, strict lexical scoping, and compile-time recursion detection.
@@ -121,16 +120,14 @@ graph TD
 - **🎲 Integrated Monte Carlo Support:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, `Beta`, etc.).
 
 ### 🚀 The AOT Compiler & C++ Engine
-
 - **High-Performance Backend:** A multi-threaded Virtual Machine (VM) written in modern C++17, designed to leverage all available CPU cores for maximum parallelism.
-- **🧠 Intelligent AOT Compiler:** Performs all semantic analysis and optimization _before_ execution, generating a low-level JSON bytecode for the engine.
+- **🧠 Intelligent AOT Compiler:** Performs all semantic analysis and optimization *before* execution, generating a low-level JSON bytecode for the engine.
 - **⚙️ Advanced Optimizations:**
   - **Function Inlining:** User-defined functions are seamlessly inlined, eliminating call overhead.
   - **Loop-Invariant Code Motion:** Deterministic calculations are automatically identified and run only once.
   - **Dead Code Elimination:** Unused variables are stripped from the final bytecode.
 
 ### ⚡ The VS Code Extension
-
 - **Live Value Preview:** Hover over any variable to see its calculated value instantly. For stochastic variables, the engine runs a sample simulation in the background and displays the mean.
 - **Real-Time Diagnostics:** Get immediate, as-you-type feedback on errors.
 - **Hover-for-Help:** See full signatures and docstrings for all built-in and user-defined functions.
@@ -148,7 +145,6 @@ Get started in minutes with our automated installation scripts.
 #### macOS & Linux
 
 Open your terminal and run the following one-line command:
-
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.sh)"
 ```
@@ -156,7 +152,6 @@ Open your terminal and run the following one-line command:
 #### Windows
 
 Open a new **PowerShell terminal as Administrator** and run:
-
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.ps1'))
 ```
@@ -164,7 +159,6 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 After installation, **you must open a new terminal window** for the changes to take effect.
 
 #### Uninstalling
-
 The same scripts can be used to uninstall the tools. Simply replace `install.sh` with `uninstall.sh` (for Mac/Linux) or `install.ps1` with `uninstall.ps1` (for Windows) in the commands above.
 
 ## ValuaScript Language Guide
@@ -264,18 +258,15 @@ A comprehensive library of built-in functions is available for math, series mani
 
 ## Contributing & Development
 
-Contributions are welcome! The most valuable way to contribute is to expand ValuaScript's "vocabulary" by adding new, high-performance functions to the C++ engine.
+Contributions are welcome! ValuaScript is designed to be a community-driven platform. The architecture is explicitly designed to make adding new functions—or even entirely new domains of science and engineering—as simple and safe as possible.
 
-The architecture is designed to make this process as simple and safe as possible. You can add a new function to a domain (or create a new domain entirely) without ever modifying the core engine or central build files.
-
-### How to Add a New Function to the Engine
+### How to Add a New Function to an Existing Domain
 
 Let's walk through adding a function named `NewFunction` to the `financial` domain.
 
 **Step 1: Create the C++ Header (`.h`)**
 Define your operation's class interface.
-_File: `engine/include/engine/functions/financial/NewFunction.h`_
-
+*File: `engine/include/engine/functions/financial/NewFunction.h`*
 ```cpp
 #pragma once
 #include "include/engine/core/IExecutable.h"
@@ -289,7 +280,8 @@ public:
 
 **Step 2: Create the C++ Implementation (`.cpp`)**
 Implement the function's logic and its local registration function. The build system will find this file automatically.
-_File: `engine/src/engine/functions/financial/NewFunction.cpp`_
+
+*File: `engine/src/engine/functions/financial/NewFunction.cpp`*
 
 ```cpp
 #include "include/engine/functions/financial/NewFunction.h"
@@ -312,8 +304,7 @@ TrialValue NewFunctionOperation::execute(const std::vector<TrialValue> &args) co
 
 **Step 3: Update the Private Domain Manifest**
 Declare your new function's registrar in the domain's internal manifest.
-_File: `engine/src/engine/functions/financial/financial_registration.h`_
-
+*File: `engine/src/engine/functions/financial/financial_registration.h`*
 ```cpp
 #pragma once
 class FunctionRegistry;
@@ -325,8 +316,7 @@ void register_new_function_operation(FunctionRegistry& registry); // Add this li
 
 **Step 4: Update the Domain Orchestrator**
 Call your new registrar from the domain's main orchestrator file.
-_File: `engine/src/engine/functions/financial/financial.cpp`_
-
+*File: `engine/src/engine/functions/financial/financial.cpp`*
 ```cpp
 #include "include/engine/functions/financial/financial.h"
 #include "engine/src/engine/functions/financial/financial_registration.h"
@@ -341,8 +331,7 @@ void register_financial_functions(FunctionRegistry& registry)
 
 **Step 5: Define the Python Signature**
 Finally, teach the compiler about your new function so it can be validated and used in scripts.
-_File: `compiler/vsc/functions/financial.py`_
-
+*File: `compiler/vsc/functions/financial.py`*
 ```python
 SIGNATURES = {
     "BlackScholes": { ... },
@@ -362,17 +351,87 @@ SIGNATURES = {
     },
 }
 ```
+Your function is now fully integrated!
 
-That's it! Your new function is now a first-class citizen in the ValuaScript language.
+### How to Add a Completely New Domain
+
+If your function belongs to a new field (e.g., epidemiology, physics, engineering), you should first create a new domain. Let's add an `epidemiology` domain.
+
+**Step 1: Create the Domain Directory Structure**
+Create the necessary folders in both the `engine/include` and `engine/src` directories.
+```
+engine/include/engine/functions/epidemiology/
+engine/src/engine/functions/epidemiology/
+```
+
+**Step 2: Create the Public Domain Header**
+This is the clean, public-facing header for the entire domain.
+*File: `engine/include/engine/functions/epidemiology/epidemiology.h`*
+```cpp
+#pragma once
+class FunctionRegistry; 
+void register_epidemiology_functions(FunctionRegistry& registry);
+```
+
+**Step 3: Create the Domain Orchestrator and Private Manifest**
+These files will organize and register all functions within the new domain. Initially, they will be simple.
+*File: `engine/src/engine/functions/epidemiology/epidemiology_registration.h`*
+```cpp
+#pragma once
+class FunctionRegistry;
+// This file will list all individual function registrars for this domain.
+```
+*File: `engine/src/engine/functions/epidemiology/epidemiology.cpp`*
+```cpp
+#include "include/engine/functions/epidemiology/epidemiology.h"
+#include "engine/src/engine/functions/epidemiology/epidemiology_registration.h"
+#include "include/engine/functions/FunctionRegistry.h"
+
+void register_epidemiology_functions(FunctionRegistry& registry)
+{
+    // This function will call all registrars from the private header.
+}
+```
+
+**Step 4: Register the New Domain with the Engine**
+This is the **only time you will edit the core engine code**. Add your new domain's registration function to the main list.
+*File: `engine/src/engine/core/SimulationEngine.cpp`*
+```cpp
+// ... inside SimulationEngine::build_function_registry() ...
+void SimulationEngine::build_function_registry()
+{
+    m_function_registry = std::make_unique<FunctionRegistry>();
+    
+    register_core_functions(*m_function_registry);
+    register_series_functions(*m_function_registry);
+    // ... other domains ...
+    register_financial_functions(*m_function_registry);
+    register_epidemiology_functions(*m_function_registry); // Add this line
+    
+    m_executable_factory = &m_function_registry->get_factory_map();
+}
+```
+
+**Step 5: Create the Python Signature File**
+The compiler's dynamic loader will automatically discover this new file.
+*File: `compiler/vsc/functions/epidemiology.py`*
+```python
+"""
+Signatures for epidemiological modeling functions.
+"""
+SIGNATURES = {
+    # Initially empty. Add function signatures here.
+}
+```
+
+Your new domain is now set up! From here, you can follow the guide "How to Add a New Function" to populate your `epidemiology` domain with models like `SIR`, `SEIR`, etc.
 
 ### Running the Test Suite
 
 A pull request must include tests for any new functionality.
 
 #### 1. C++ Engine Tests (GoogleTest & CTest)
-
 From the root directory of the project:
-
 ```bash
 # Configure and build the project
 cmake -S . -B build
@@ -384,7 +443,6 @@ ctest --verbose
 ```
 
 #### 2. Python Compiler Tests (Pytest)
-
 ```bash
 # Navigate to the compiler directory
 cd compiler
@@ -402,8 +460,8 @@ pytest -v
 
 ## Roadmap
 
-- [ ] **Empirical Distribution Sampling:** Add a function to create a custom sampler from a real-world data series (e.g., historical stock returns), allowing models to be driven by actual data instead of theoretical distributions.
-- [ ] **GPU Acceleration:** Explore CUDA/OpenCL to offload the "embarrassingly parallel" Monte Carlo workload to the GPU, providing an order-of-magnitude performance increase for simulations with millions of trials.
+-   [ ] **Empirical Distribution Sampling:** Add a function to create a custom sampler from a real-world data series (e.g., historical stock returns), allowing models to be driven by actual data instead of theoretical distributions.
+-   [ ] **GPU Acceleration:** Explore CUDA/OpenCL to offload the "embarrassingly parallel" Monte Carlo workload to the GPU, providing an order-of-magnitude performance increase for simulations with millions of trials.
 
 ## License
 
