@@ -34,21 +34,30 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(csv)
 
+# --- Automatically Discover All Engine Source Files ---
+# We use file(GLOB_RECURSE) with CONFIGURE_DEPENDS. This modern CMake feature
+# automatically detects new .cpp files and re-configures the build when they are
+# added or removed, eliminating the need to ever manually edit this file again.
+
+# 1. Find all core source files
+file(GLOB_RECURSE ENGINE_CORE_SOURCES
+    CONFIGURE_DEPENDS
+    "src/engine/core/*.cpp"
+    "src/engine/io/*.cpp"
+)
+
+# 2. Find all function domain source files
+file(GLOB_RECURSE ENGINE_FUNCTION_SOURCES
+    CONFIGURE_DEPENDS
+    "src/engine/functions/*.cpp" # For the registry
+    "src/engine/functions/*/*.cpp" # For all domain implementations
+)
+
 # --- Define our Core Library ---
 add_library(engine_core STATIC
-    # Core Engine Files
-    src/engine/core/SimulationEngine.cpp 
-    src/engine/core/ExecutionSteps.cpp
-    src/engine/io/io.cpp
-    
-    # Function Registry
-    src/engine/functions/FunctionRegistry.cpp
-
-    # Function Domains
-    src/engine/functions/core/core.cpp
-    src/engine/functions/io/io.cpp
-    src/engine/functions/series/series.cpp
-    src/engine/functions/statistics/statistics.cpp
+    # Add all discovered source files to the library
+    ${ENGINE_CORE_SOURCES}
+    ${ENGINE_FUNCTION_SOURCES}
 )
 
 
