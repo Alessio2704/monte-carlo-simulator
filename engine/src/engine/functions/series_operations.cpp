@@ -153,10 +153,31 @@ TrialValue SeriesDeltaOperation::execute(const std::vector<TrialValue> &args) co
 TrialValue ComposeVectorOperation::execute(const std::vector<TrialValue> &args) const
 {
     std::vector<double> composed_vector;
-    composed_vector.reserve(args.size());
+
     for (const auto &arg_variant : args)
     {
-        composed_vector.push_back(std::get<double>(arg_variant));
+        // Visit the current argument to determine its type
+        std::visit(
+            [&composed_vector](auto &&arg)
+            {
+                using T = std::decay_t<decltype(arg)>;
+                if constexpr (std::is_same_v<T, double>)
+                {
+                    // If it's a scalar, just add it.
+                    composed_vector.push_back(arg);
+                }
+                else if constexpr (std::is_same_v<T, std::vector<double>>)
+                {
+                    // If it's a vector, flatten it by inserting its elements.
+                    composed_vector.insert(composed_vector.end(), arg.begin(), arg.end());
+                }
+                else
+                {
+                    // Any other type is an error.
+                    throw EngineException(EngineErrc::MismatchedArgumentType, "Function 'compose_vector' can only accept scalars and vectors.");
+                }
+            },
+            arg_variant);
     }
     return composed_vector;
 }

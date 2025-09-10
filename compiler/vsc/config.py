@@ -172,12 +172,12 @@ FUNCTION_SIGNATURES = {
     # --- Vector & Series Operations ---
     "compose_vector": {
         "variadic": True,
-        "arg_types": ["scalar"],
+        "arg_types": ["any"],
         "return_type": "vector",
         "is_stochastic": False,
         "doc": {
-            "summary": "Creates a new vector from a series of scalar values.",
-            "params": [{"name": "value1, value2, ...", "desc": "The scalar values to include in the vector."}],
+            "summary": "Creates a new vector from a series of values.",
+            "params": [{"name": "value1, value2, ...", "desc": "The values to include in the vector. Input vectors will be flattened."}],
             "returns": "A new vector.",
         },
     },
