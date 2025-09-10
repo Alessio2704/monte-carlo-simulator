@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from lark.exceptions import UnexpectedToken, UnexpectedInput, UnexpectedCharacters
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError, ErrorCode
-from vsc.config import FUNCTION_SIGNATURES
+from vsc.functions import FUNCTION_SIGNATURES
 
 
 @pytest.fixture

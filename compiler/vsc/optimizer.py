@@ -1,6 +1,6 @@
 from lark import Token
 from collections import deque
-from .config import FUNCTION_SIGNATURES
+from .functions import FUNCTION_SIGNATURES
 from .exceptions import ValuaScriptError
 
 

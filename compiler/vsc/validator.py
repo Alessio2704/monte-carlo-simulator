@@ -4,7 +4,8 @@ import os
 
 from .exceptions import ValuaScriptError, ErrorCode
 from .parser import _StringLiteral
-from .config import FUNCTION_SIGNATURES, DIRECTIVE_CONFIG
+from .functions import FUNCTION_SIGNATURES
+from .config import DIRECTIVE_CONFIG
 
 
 def _check_for_recursive_calls(user_functions):
