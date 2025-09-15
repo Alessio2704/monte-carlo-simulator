@@ -44,7 +44,7 @@ TrialValue BlackScholesOperation::execute(const std::vector<TrialValue> &args) c
     // Convert option_type to lowercase for case-insensitive comparison
     std::transform(option_type_str.begin(), option_type_str.end(), option_type_str.begin(),
                    [](unsigned char c)
-                   { return std::tolower(c); });
+                   { return static_cast<char>(std::tolower(c)); });
 
     const double d1 = (std::log(S / K) + (r + (v * v) / 2.0) * T) / (v * std::sqrt(T));
     const double d2 = d1 - v * std::sqrt(T);
