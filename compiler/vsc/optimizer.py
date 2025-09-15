@@ -168,17 +168,17 @@ def optimize_steps(execution_steps, output_var, defined_vars, do_dce, verbose):
         # Filter steps based on whether ANY of their results are live
         original_step_count = len(execution_steps)
         execution_steps = [step for step in execution_steps if any(res in live_variables for res in _get_step_results(step))]
+        final_vars_after_dce = set()
+        for step in execution_steps:
+            final_vars_after_dce.update(_get_step_results(step))
 
-        removed_count = original_step_count - len(execution_steps)
-        if removed_count > 0 and verbose:
-            final_vars = set()
-            for step in execution_steps:
-                final_vars.update(_get_step_results(step))
-            removed_vars = sorted(list(all_original_vars - final_vars))
-            print(f"Optimization complete: Removed {len(removed_vars)} unused variable(s): {', '.join(removed_vars)}")
+        removed_vars = all_original_vars - final_vars_after_dce
+        if removed_vars and verbose:
+            print(f"Optimization complete: Removed {len(removed_vars)} unused variable(s): {', '.join(sorted(list(removed_vars)))}")
         elif verbose:
             print("Optimization complete: No unused variables found to remove.")
-        # Rebuild dependency graph after DCE
+
+        # Rebuild dependency graph after DCE for the final partitioning
         dependencies, dependents = _build_dependency_graph(execution_steps)
 
     if verbose:

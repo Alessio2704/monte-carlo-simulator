@@ -167,7 +167,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                 has_return = True
                 expected_return_type = func_def["return_type"]
 
-                # Handle tuple returns
                 if "values" in step:
                     returned_values = step["values"]
                     if not isinstance(expected_return_type, list) or len(returned_values) != len(expected_return_type):
@@ -194,7 +193,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                                 ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=f"{func_name} (return item {i+1})", provided=actual_type, expected=expected_return_type[i]
                             )
 
-                # Handle single returns
                 else:
                     if isinstance(expected_return_type, list):
                         raise ValuaScriptError(
@@ -214,7 +212,7 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                     if actual_type != expected_return_type:
                         raise ValuaScriptError(ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=func_name, provided=actual_type, expected=expected_return_type)
 
-            else:  # It's a 'let' assignment inside the function
+            else:
                 line, result_var = step["line"], step["result"]
                 if result_var in local_vars:
                     raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, line=line, name=result_var, func_name=func_name)
@@ -224,16 +222,13 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
         if not has_return:
             raise ValuaScriptError(ErrorCode.MISSING_RETURN_STATEMENT, line=func_def["line"], name=func_name)
 
-    # --- Start Inlining ---
     inlined_code = list(execution_steps)
     live_defined_vars = initial_defined_vars.copy()
     call_count = 0
     temp_var_count = 0
 
-    # This loop structure ensures that nested UDF calls are flattened before their parent calls are inlined.
     while True:
         made_change_in_pass = False
-        # --- Flattening Pass for nested calls ---
         i = 0
         while i < len(inlined_code):
             step = inlined_code[i]
@@ -247,7 +242,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                         temp_var_name = f"__temp_{temp_var_count}"
 
                         nested_call_step = {"line": step["line"], "type": "execution_assignment", **arg}
-                        # Determine if it's a single or multi-return to create the right temp assignment
                         nested_func_def = user_functions[arg.get("function")]
                         if isinstance(nested_func_def["return_type"], list):
                             nested_call_step["type"] = "multi_assignment"
@@ -257,20 +251,17 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                         else:
                             nested_call_step["result"] = temp_var_name
 
-                        # We must insert the new step and update live_defined_vars before type inference
                         inlined_code.insert(i, nested_call_step)
-                        # Now infer and update types for the new temp vars
                         return_types = _infer_expression_type(nested_call_step, live_defined_vars, step["line"], "", all_signatures)
                         if isinstance(return_types, list):
                             for j, r_type in enumerate(return_types):
                                 live_defined_vars[temp_results[j]] = {"type": r_type, "line": step["line"]}
-                            # The argument to the parent function becomes the list of temp vars
                             modified_args.append([Token("CNAME", tr) for tr in temp_results])
                         else:
                             live_defined_vars[temp_var_name] = {"type": return_types, "line": step["line"]}
                             modified_args.append(Token("CNAME", temp_var_name))
 
-                        i += 1  # Move past the newly inserted step
+                        i += 1
                     else:
                         modified_args.append(arg)
                 if made_change_in_step:
@@ -278,7 +269,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                     step["args"] = modified_args
             i += 1
 
-        # --- Inlining Pass for top-level calls ---
         udf_call_index = -1
         for i, step in enumerate(inlined_code):
             if step.get("type") in ("execution_assignment", "multi_assignment") and step.get("function") in user_functions:
@@ -286,7 +276,7 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                 break
 
         if udf_call_index == -1 and not made_change_in_pass:
-            break  # No more UDFs to inline or flatten, exit the main loop
+            break
 
         if udf_call_index != -1:
             made_change_in_pass = True
@@ -294,15 +284,11 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
             func_name = step["function"]
             func_def = user_functions[func_name]
 
-            # Re-check arity and types with the now-flattened arguments
-            # ... (validation logic as before) ...
-
             call_count += 1
             mangling_prefix = f"__{func_name}_{call_count}__"
             arg_map = {}
             insertion_point = udf_call_index
 
-            # Map arguments to mangled parameter variables
             for i, param in enumerate(func_def["params"]):
                 mangled_param_name = f"{mangling_prefix}{param['name']}"
                 param_assign_step = {"result": mangled_param_name, "type": "execution_assignment", "function": "identity", "args": [step["args"][i]], "line": step["line"]}
@@ -311,7 +297,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                 arg_map[param["name"]] = Token("CNAME", mangled_param_name)
                 insertion_point += 1
 
-            # Helper for mangling expressions inside the function body
             param_names = {p["name"] for p in func_def["params"]}
             local_var_names = {s["result"] for s in func_def["body"] if s.get("type") not in ("return_statement")}
 
@@ -335,25 +320,21 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                         new_expr["then_expr"] = mangle_expression(new_expr["then_expr"])
                         new_expr["else_expr"] = mangle_expression(new_expr["else_expr"])
                     return new_expr
-                elif isinstance(expr, list):  # For tuple expressions
+                elif isinstance(expr, list):
                     return [mangle_expression(e) for e in expr]
                 return expr
 
-            # Inline the function body
             for body_step in func_def["body"]:
                 if body_step.get("type") == "return_statement":
-                    # For multi-return, create multiple identity assignments
                     if "values" in body_step:
                         mangled_return_values = mangle_expression(body_step["values"])
                         for i, res_var in enumerate(step["results"]):
                             final_assignment = {"result": res_var, "line": step["line"], "type": "execution_assignment", "function": "identity", "args": [mangled_return_values[i]]}
                             inlined_code.insert(insertion_point, final_assignment)
                             insertion_point += 1
-                    # For single return
                     else:
                         mangled_return_value = mangle_expression(body_step["value"])
                         final_assignment = {"result": step["result"], "line": step["line"]}
-                        # ... (logic for single assignment as before) ...
                         if isinstance(mangled_return_value, dict) and mangled_return_value.get("type") == "conditional_expression":
                             final_assignment.update(mangled_return_value)
                         elif isinstance(mangled_return_value, dict):
@@ -367,7 +348,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                 else:
                     mangled_step = mangle_expression(body_step)
                     inlined_code.insert(insertion_point, mangled_step)
-                    # Update live vars with the new mangled variable
                     res_vars = mangled_step.get("results") or [mangled_step.get("result")]
                     rhs_types = _infer_expression_type(mangled_step, live_defined_vars, mangled_step["line"], "", all_signatures, func_name)
                     if not isinstance(rhs_types, list):
@@ -432,36 +412,48 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode, file_path=
     defined_vars = {}
     for step in execution_steps:
         line = step["line"]
+
+        # Check for duplicate variables before defining them
         if step.get("type") == "multi_assignment":
-            results = step["results"]
-            for r in results:
+            for r in step["results"]:
                 if r in defined_vars:
                     raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name=r)
-            rhs_types = _infer_expression_type(step, defined_vars, line, "", all_signatures)
-            if not isinstance(rhs_types, list) or len(rhs_types) != len(results):
-                raise ValuaScriptError(
-                    ErrorCode.ARGUMENT_COUNT_MISMATCH,
-                    line=line,
-                    name=f"assignment for {step.get('function', 'expression')}",
-                    expected=len(results),
-                    provided=len(rhs_types) if isinstance(rhs_types, list) else 1,
-                )
-            for i, result_var in enumerate(results):
-                defined_vars[result_var] = {"type": rhs_types[i], "line": line}
+            if len(set(step["results"])) != len(step["results"]):
+                raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name="a variable in the same assignment")
+
         else:  # Single assignment
-            result_var = step["result"]
-            if result_var in defined_vars:
-                raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name=result_var)
-            rhs_type = _infer_expression_type(step, defined_vars, line, result_var, all_signatures)
-            defined_vars[result_var] = {"type": rhs_type, "line": line}
+            if step["result"] in defined_vars:
+                raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name=step["result"])
+
+        # Check for assignment arity mismatch
+        if "function" in step:
+            func_name = step["function"]
+            return_type = all_signatures[func_name]["return_type"]
+            is_multi_return = isinstance(return_type, list)
+
+            if step.get("type") == "multi_assignment":
+                if not is_multi_return:
+                    raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment for '{func_name}'", expected=1, provided=len(step["results"]))
+                if len(step["results"]) != len(return_type):
+                    raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment for '{func_name}'", expected=len(return_type), provided=len(step["results"]))
+            else:  # Single assignment
+                if is_multi_return:
+                    raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment for '{func_name}'", expected=len(return_type), provided=1)
+
+        # Infer types and add to defined_vars
+        if step.get("type") == "multi_assignment":
+            rhs_types = _infer_expression_type(step, defined_vars, line, "", all_signatures)
+            for i, result_var in enumerate(step["results"]):
+                defined_vars[result_var] = {"type": rhs_types[i], "line": line}
+        else:
+            rhs_type = _infer_expression_type(step, defined_vars, line, step["result"], all_signatures)
+            defined_vars[step["result"]] = {"type": rhs_type, "line": line}
 
     inlined_steps = validate_and_inline_udfs(execution_steps, all_user_functions, all_signatures, initial_defined_vars=defined_vars)
 
     final_defined_vars = {}
     for step in inlined_steps:
         line = step["line"]
-        # After inlining, there should be no more multi_assignments from UDFs
-        # unless they are from built-ins
         if step.get("type") == "multi_assignment":
             results = step["results"]
             rhs_types = _infer_expression_type(step, final_defined_vars, line, "", all_signatures)
@@ -497,7 +489,6 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode, file_path=
                     sim_config["output_file"] = value
 
     if not is_preview_mode and output_var not in final_defined_vars:
-        # Check original defined_vars for a better error message in case it was eliminated
         if output_var not in defined_vars:
             raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=output_var)
 

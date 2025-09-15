@@ -4,76 +4,98 @@ class MultiAssignmentTest : public FileCleanupTest
 {
 };
 
-TEST_F(MultiAssignmentTest, CorrectlyUnpacksVectorResult)
+TEST_F(MultiAssignmentTest, CorrectlyUnpacksVectorResultInPerTrial)
 {
-    // This recipe simulates:
-    // let a, b = capitalize_expense(1, [1,1], 2)
-    // The expected result for capitalize_expense is the vector [100.5, 1.0]
-    // So, 'a' should be 100.5 and 'b' should be 1.0
-    // We will set 'b' as the output variable to check the second value.
+    // Simulates: let assets, amortization = capitalize_expense(...)
+    // capitalize_expense(100, [90, 80], 2) -> returns vector [145.0, 85.0]
+    // We will test that both variables get the correct values assigned.
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1},
-        "output_variable_index": 1,
-        "variable_registry": ["a", "b"],
+        "output_variable_index": 0,
+        "variable_registry": ["assets", "amortization"],
         "per_trial_steps": [
             {
-                "type": "multi_execution_assignment",
-                "result_indices": [0, 1],
-                "function": "capitalize_expense",
+                "type": "multi_execution_assignment", "result_indices": [0, 1], "function": "capitalize_expense",
                 "args": [
                     {"type": "scalar_literal", "value": 100.0},
                     {"type": "vector_literal", "value": [90.0, 80.0]},
                     {"type": "scalar_literal", "value": 2.0}
+                ]
+            }
+        ]
+    })";
+
+    // Test 1: Check the first variable ('assets')
+    create_test_recipe("recipe.json", recipe);
+    SimulationEngine engine_assets("recipe.json");
+    auto results_assets = engine_assets.run();
+    ASSERT_EQ(std::get<double>(results_assets[0]), 145.0);
+
+    // Test 2: Modify recipe to check the second variable ('amortization')
+    const std::string recipe_amort = R"({
+        "simulation_config": {"num_trials": 1},
+        "output_variable_index": 1, 
+        "variable_registry": ["assets", "amortization"],
+        "per_trial_steps": [
+            {
+                "type": "multi_execution_assignment", "result_indices": [0, 1], "function": "capitalize_expense",
+                "args": [
+                    {"type": "scalar_literal", "value": 100.0},
+                    {"type": "vector_literal", "value": [90.0, 80.0]},
+                    {"type": "scalar_literal", "value": 2.0}
+                ]
+            }
+        ]
+    })";
+    create_test_recipe("recipe2.json", recipe_amort);
+    SimulationEngine engine_amort("recipe2.json");
+    auto results_amort = engine_amort.run();
+    ASSERT_EQ(std::get<double>(results_amort[0]), 85.0);
+}
+
+TEST_F(MultiAssignmentTest, CorrectlyUnpacksInPreTrialAndIsUsedInPerTrial)
+{
+    // Simulates:
+    // [Pre-Trial] let assets, amortization = capitalize_expense(...)
+    // [Per-Trial] let final_val = assets + amortization
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1},
+        "output_variable_index": 2, 
+        "variable_registry": ["assets", "amortization", "final_val"],
+        "pre_trial_steps": [
+            {
+                "type": "multi_execution_assignment", "result_indices": [0, 1], "function": "capitalize_expense",
+                "args": [
+                    {"type": "scalar_literal", "value": 100.0},
+                    {"type": "vector_literal", "value": [90.0, 80.0]},
+                    {"type": "scalar_literal", "value": 2.0}
+                ]
+            }
+        ],
+        "per_trial_steps": [
+            {
+                "type": "execution_assignment", "result_index": 2, "function": "add",
+                "args": [
+                    {"type": "variable_index", "value": 0},
+                    {"type": "variable_index", "value": 1}
                 ]
             }
         ]
     })";
     create_test_recipe("recipe.json", recipe);
-
-    // Test that the second variable ('b') gets the correct value
-    SimulationEngine engine_b("recipe.json");
-    auto results_b = engine_b.run();
-    ASSERT_EQ(results_b.size(), 1);
-    EXPECT_NEAR(std::get<double>(results_b[0]), 85.0, 1e-6); // Amortization = 90/2 + 80/2
-
-    // Now, change the output index to test the first variable ('a')
-    const std::string recipe_a = R"({
-        "simulation_config": {"num_trials": 1},
-        "output_variable_index": 0,
-        "variable_registry": ["a", "b"],
-        "per_trial_steps": [
-            {
-                "type": "multi_execution_assignment",
-                "result_indices": [0, 1],
-                "function": "capitalize_expense",
-                "args": [
-                    {"type": "scalar_literal", "value": 100.0},
-                    {"type": "vector_literal", "value": [90.0, 80.0]},
-                    {"type": "scalar_literal", "value": 2.0}
-                ]
-            }
-        ]
-    })";
-    create_test_recipe("recipe_a.json", recipe_a);
-    SimulationEngine engine_a("recipe_a.json");
-    auto results_a = engine_a.run();
-    ASSERT_EQ(results_a.size(), 1);
-    EXPECT_NEAR(std::get<double>(results_a[0]), 145.0, 1e-6); // Asset = 100 + 90*(1/2)
+    SimulationEngine engine("recipe.json");
+    auto results = engine.run();
+    ASSERT_EQ(std::get<double>(results[0]), 230.0); // 145.0 + 85.0
 }
 
-TEST_F(MultiAssignmentTest, ThrowsOnResultCountMismatch)
+TEST_F(MultiAssignmentTest, ThrowsOnResultCountMismatchTooMany)
 {
-    // Here, we expect 3 variables but capitalize_expense only returns 2.
+    // We expect 3 variables but capitalize_expense only returns 2.
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0,
         "variable_registry": ["a", "b", "c"],
-        "per_trial_steps": [{
-            "type": "multi_execution_assignment", "result_indices": [0, 1, 2], "function": "capitalize_expense",
-            "args": [
-                {"type": "scalar_literal", "value": 100},
-                {"type": "vector_literal", "value": [90]},
-                {"type": "scalar_literal", "value": 2}
-            ]
+        "per_trial_steps": [{"type": "multi_execution_assignment", "line": 42, "result_indices": [0, 1, 2], "function": "capitalize_expense",
+            "args": [{"type": "scalar_literal", "value": 1}, {"type": "vector_literal", "value": [1]}, {"type": "scalar_literal", "value": 1}]
         }]
     })";
     create_test_recipe("err.json", recipe);
@@ -87,18 +109,44 @@ TEST_F(MultiAssignmentTest, ThrowsOnResultCountMismatch)
     catch (const EngineException &e)
     {
         EXPECT_EQ(e.code(), EngineErrc::IncorrectArgumentCount);
+        EXPECT_EQ(e.line(), 42);
         EXPECT_THAT(e.what(), ::testing::HasSubstr("returned 2 values, but 3 were expected"));
+    }
+}
+
+TEST_F(MultiAssignmentTest, ThrowsOnResultCountMismatchTooFew)
+{
+    // We expect 1 variable but capitalize_expense returns 2.
+    const std::string recipe = R"({
+        "simulation_config": {"num_trials": 1}, "output_variable_index": 0,
+        "variable_registry": ["a"],
+        "per_trial_steps": [{"type": "multi_execution_assignment", "line": 42, "result_indices": [0], "function": "capitalize_expense",
+            "args": [{"type": "scalar_literal", "value": 1}, {"type": "vector_literal", "value": [1]}, {"type": "scalar_literal", "value": 1}]
+        }]
+    })";
+    create_test_recipe("err.json", recipe);
+
+    try
+    {
+        SimulationEngine engine("err.json");
+        engine.run();
+        FAIL() << "Expected exception for result count mismatch.";
+    }
+    catch (const EngineException &e)
+    {
+        EXPECT_EQ(e.code(), EngineErrc::IncorrectArgumentCount);
+        EXPECT_EQ(e.line(), 42);
+        EXPECT_THAT(e.what(), ::testing::HasSubstr("returned 2 values, but 1 were expected"));
     }
 }
 
 TEST_F(MultiAssignmentTest, ThrowsIfFunctionDoesNotReturnVector)
 {
-    // We try to multi-assign from 'log', which returns a scalar.
+    // We try to multi-assign from 'log', which returns a scalar, not a vector.
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0,
         "variable_registry": ["a", "b"],
-        "per_trial_steps": [{
-            "type": "multi_execution_assignment", "result_indices": [0, 1], "function": "log",
+        "per_trial_steps": [{"type": "multi_execution_assignment", "line": 42, "result_indices": [0, 1], "function": "log",
             "args": [{"type": "scalar_literal", "value": 10}]
         }]
     })";
@@ -113,6 +161,7 @@ TEST_F(MultiAssignmentTest, ThrowsIfFunctionDoesNotReturnVector)
     catch (const EngineException &e)
     {
         EXPECT_EQ(e.code(), EngineErrc::MismatchedArgumentType);
+        EXPECT_EQ(e.line(), 42);
         EXPECT_THAT(e.what(), ::testing::HasSubstr("did not return a vector for multi-assignment"));
     }
 }
