@@ -1,4 +1,4 @@
-#include "include/engine/functions/operations.h"
+#include "include/engine/functions/io/operations.h"
 #include "include/engine/core/EngineException.h"
 
 // The csv.hpp header from the csv-parser library generates some warnings on MSVC
@@ -14,6 +14,18 @@
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
+
+// --- Registration Function ---
+
+void register_io_functions(FunctionRegistry &registry)
+{
+    registry.register_function("read_csv_scalar", []
+                               { return std::make_unique<ReadCsvScalarOperation>(); });
+    registry.register_function("read_csv_vector", []
+                               { return std::make_unique<ReadCsvVectorOperation>(); });
+}
+
+// --- Implementations (from original io_operations.cpp) ---
 
 // --- CSV Reading ---
 struct CachedCsv

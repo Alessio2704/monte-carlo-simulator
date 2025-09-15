@@ -1,8 +1,14 @@
 #include "include/engine/core/SimulationEngine.h"
-#include "include/engine/functions/operations.h"
-#include "include/engine/functions/samplers.h"
 #include "include/engine/core/ExecutionSteps.h"
 #include "include/engine/core/EngineException.h"
+
+// Include all the domain registration headers
+#include "include/engine/functions/core/operations.h"
+#include "include/engine/functions/series/operations.h"
+#include "include/engine/functions/statistics/samplers.h"
+#include "include/engine/functions/io/operations.h"
+#include "include/engine/functions/financial/financial.h"
+
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <stdexcept>
@@ -13,96 +19,26 @@
 using json = nlohmann::json;
 
 SimulationEngine::SimulationEngine(const std::string &json_recipe_path, bool is_preview)
-    : m_is_preview(is_preview)
+    : m_is_preview(is_preview), m_executable_factory(nullptr)
 {
-    build_executable_factory();
+    build_function_registry();
     parse_and_build(json_recipe_path);
     run_pre_trial_phase();
 }
 
-void SimulationEngine::build_executable_factory()
+void SimulationEngine::build_function_registry()
 {
-    m_executable_factory["add"] = []
-    { return std::make_unique<AddOperation>(); };
-    m_executable_factory["subtract"] = []
-    { return std::make_unique<SubtractOperation>(); };
-    m_executable_factory["multiply"] = []
-    { return std::make_unique<MultiplyOperation>(); };
-    m_executable_factory["divide"] = []
-    { return std::make_unique<DivideOperation>(); };
-    m_executable_factory["power"] = []
-    { return std::make_unique<PowerOperation>(); };
-    m_executable_factory["log"] = []
-    { return std::make_unique<LogOperation>(); };
-    m_executable_factory["log10"] = []
-    { return std::make_unique<Log10Operation>(); };
-    m_executable_factory["exp"] = []
-    { return std::make_unique<ExpOperation>(); };
-    m_executable_factory["sin"] = []
-    { return std::make_unique<SinOperation>(); };
-    m_executable_factory["cos"] = []
-    { return std::make_unique<CosOperation>(); };
-    m_executable_factory["tan"] = []
-    { return std::make_unique<TanOperation>(); };
-    m_executable_factory["identity"] = []
-    { return std::make_unique<IdentityOperation>(); };
-    m_executable_factory["grow_series"] = []
-    { return std::make_unique<GrowSeriesOperation>(); };
-    m_executable_factory["compound_series"] = []
-    { return std::make_unique<CompoundSeriesOperation>(); };
-    m_executable_factory["npv"] = []
-    { return std::make_unique<NpvOperation>(); };
-    m_executable_factory["sum_series"] = []
-    { return std::make_unique<SumSeriesOperation>(); };
-    m_executable_factory["get_element"] = []
-    { return std::make_unique<GetElementOperation>(); };
-    m_executable_factory["delete_element"] = []
-    { return std::make_unique<DeleteElementOperation>(); };
-    m_executable_factory["series_delta"] = []
-    { return std::make_unique<SeriesDeltaOperation>(); };
-    m_executable_factory["compose_vector"] = []
-    { return std::make_unique<ComposeVectorOperation>(); };
-    m_executable_factory["interpolate_series"] = []
-    { return std::make_unique<InterpolateSeriesOperation>(); };
-    m_executable_factory["capitalize_expense"] = []
-    { return std::make_unique<CapitalizeExpenseOperation>(); };
-    m_executable_factory["read_csv_scalar"] = []
-    { return std::make_unique<ReadCsvScalarOperation>(); };
-    m_executable_factory["read_csv_vector"] = []
-    { return std::make_unique<ReadCsvVectorOperation>(); };
-    m_executable_factory["Normal"] = []
-    { return std::make_unique<NormalSampler>(); };
-    m_executable_factory["Uniform"] = []
-    { return std::make_unique<UniformSampler>(); };
-    m_executable_factory["Bernoulli"] = []
-    { return std::make_unique<BernoulliSampler>(); };
-    m_executable_factory["Lognormal"] = []
-    { return std::make_unique<LognormalSampler>(); };
-    m_executable_factory["Beta"] = []
-    { return std::make_unique<BetaSampler>(); };
-    m_executable_factory["Pert"] = []
-    { return std::make_unique<PertSampler>(); };
-    m_executable_factory["Triangular"] = []
-    { return std::make_unique<TriangularSampler>(); };
-    // Boolean/Comparison Operators
-    m_executable_factory["__eq__"] = []
-    { return std::make_unique<EqualsOperation>(); };
-    m_executable_factory["__neq__"] = []
-    { return std::make_unique<NotEqualsOperation>(); };
-    m_executable_factory["__gt__"] = []
-    { return std::make_unique<GreaterThanOperation>(); };
-    m_executable_factory["__lt__"] = []
-    { return std::make_unique<LessThanOperation>(); };
-    m_executable_factory["__gte__"] = []
-    { return std::make_unique<GreaterOrEqualOperation>(); };
-    m_executable_factory["__lte__"] = []
-    { return std::make_unique<LessOrEqualOperation>(); };
-    m_executable_factory["__and__"] = []
-    { return std::make_unique<AndOperation>(); };
-    m_executable_factory["__or__"] = []
-    { return std::make_unique<OrOperation>(); };
-    m_executable_factory["__not__"] = []
-    { return std::make_unique<NotOperation>(); };
+    m_function_registry = std::make_unique<FunctionRegistry>();
+
+    // Call each domain's registration function
+    register_core_functions(*m_function_registry);
+    register_series_functions(*m_function_registry);
+    register_statistics_functions(*m_function_registry);
+    register_io_functions(*m_function_registry);
+    register_financial_functions(*m_function_registry);
+
+    // Get a pointer to the factory map for use during parsing
+    m_executable_factory = &m_function_registry->get_factory_map();
 }
 
 std::string SimulationEngine::get_output_file_path() const
@@ -179,22 +115,22 @@ void SimulationEngine::parse_and_build(const std::string &path)
             else if (type == "execution_assignment")
             {
                 std::string function_name = step_json.at("function");
-                auto factory_it = m_executable_factory.find(function_name);
-                if (factory_it == m_executable_factory.end())
+                auto factory_it = m_executable_factory->find(function_name);
+                if (factory_it == m_executable_factory->end())
                 {
                     throw EngineException(EngineErrc::UnknownFunction, "Unknown function: " + function_name, line);
                 }
                 auto executable_logic = factory_it->second();
                 return std::make_unique<ExecutionAssignmentStep>(
                     result_index, function_name, line,
-                    std::move(executable_logic), step_json.at("args"), m_executable_factory);
+                    std::move(executable_logic), step_json.at("args"), *m_executable_factory);
             }
             else if (type == "conditional_assignment")
             {
                 return std::make_unique<ConditionalAssignmentStep>(
                     result_index, line,
                     step_json.at("condition"), step_json.at("then_expr"), step_json.at("else_expr"),
-                    m_executable_factory);
+                    *m_executable_factory);
             }
             else
             {
@@ -257,7 +193,7 @@ void SimulationEngine::run_batch(int num_trials, std::vector<TrialValue> &result
             }
             if (m_output_variable_index >= trial_context.size())
             {
-                 throw EngineException(EngineErrc::IndexOutOfBounds, "Output variable index is out of bounds. This may indicate an incomplete simulation run.");
+                throw EngineException(EngineErrc::IndexOutOfBounds, "Output variable index is out of bounds. This may indicate an incomplete simulation run.");
             }
             results.push_back(trial_context.at(m_output_variable_index));
         }

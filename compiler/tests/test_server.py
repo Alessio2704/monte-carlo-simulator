@@ -62,7 +62,7 @@ def test_hover_content_generation():
     }
 
     # ACT & ASSERT for a built-in function
-    from vsc.config import FUNCTION_SIGNATURES
+    from vsc.functions import FUNCTION_SIGNATURES
 
     npv_sig = FUNCTION_SIGNATURES["npv"]
     npv_doc = npv_sig["doc"]

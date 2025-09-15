@@ -34,45 +34,40 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(csv)
 
-# --- Define our Core Library ---
-add_library(engine_core STATIC
-    src/engine/core/SimulationEngine.cpp 
-    src/engine/io/io.cpp
-    src/engine/functions/math_operations.cpp
-    src/engine/functions/comparison_operations.cpp
-    src/engine/functions/io_operations.cpp
-    src/engine/functions/series_operations.cpp
-    src/engine/functions/samplers.cpp
-    src/engine/core/ExecutionSteps.cpp
+# --- Automatically Discover All Engine Source Files ---
+file(GLOB_RECURSE ENGINE_CORE_SOURCES
+    CONFIGURE_DEPENDS
+    "src/engine/core/*.cpp"
+    "src/engine/io/*.cpp"
 )
 
+file(GLOB_RECURSE ENGINE_FUNCTION_SOURCES
+    CONFIGURE_DEPENDS
+    "src/engine/functions/*.cpp"
+    "src/engine/functions/*/*.cpp"
+)
+
+# --- Define our Core Library ---
+add_library(engine_core STATIC
+    ${ENGINE_CORE_SOURCES}
+    ${ENGINE_FUNCTION_SOURCES}
+)
 
 target_include_directories(engine_core PUBLIC
-    # For builds, add the 'include' directory from this subdirectory.
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    # For installs, specify the destination.
     $<INSTALL_INTERFACE:include>
 )
 
-# Link the engine library against the JSON library.
 target_link_libraries(engine_core PUBLIC nlohmann_json::nlohmann_json csv)
-
 
 # --- Define our Main Executable ---
 add_executable(vse
     src/main.cpp
 )
 
-# Link the main executable against our core library.
 target_link_libraries(vse PRIVATE engine_core)
 
-
 # --- Testing Configuration ---
-# Note: enable_testing() is now in the top-level CMakeLists.txt
-
-# This is CRITICAL for Windows builds. It forces gtest to be built with the
-# same dynamic runtime library (/MD or /MDd) as our main project, which prevents
-# linker errors. This must be set BEFORE FetchContent_MakeAvailable.
 if(MSVC)
   set(gtest_force_shared_crt ON CACHE BOOL "Force shared CRT for gtest on Windows")
 endif()
@@ -85,9 +80,10 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
-# Helper macro to reduce boilerplate when adding new test files
-macro(add_engine_test test_name)
-  add_executable(${test_name} "test/${test_name}.cpp")
+# Helper macro to add a test executable.
+macro(add_engine_test test_path_and_name)
+  get_filename_component(test_name ${test_path_and_name} NAME_WE)
+  add_executable(${test_name} "test/${test_path_and_name}.cpp")
   target_link_libraries(${test_name} PRIVATE
       engine_core
       gtest_main
@@ -96,14 +92,21 @@ macro(add_engine_test test_name)
   gtest_discover_tests(${test_name})
 endmacro()
 
-# Define all our test executables using the macro
-add_engine_test(test_operations)
-add_engine_test(test_samplers)
-add_engine_test(test_errors)
-add_engine_test(test_io)
-add_engine_test(test_preview)
-add_engine_test(test_conditionals)
+# --- Define All Test Executables ---
+
+# Core Engine Tests
+add_engine_test(core/test_errors)
+add_engine_test(core/test_preview)
+add_engine_test(core/test_output_writer)
+
+# Function Domain Tests
+add_engine_test(functions/core/test_arithmetic_ops)
+add_engine_test(functions/core/test_simple_ops)
+add_engine_test(functions/core/test_conditionals)
+add_engine_test(functions/series/test_series_ops)
+add_engine_test(functions/statistics/test_samplers)
+add_engine_test(functions/io/test_io_ops)
+add_engine_test(functions/financial/test_black_scholes)
 
 # Pass the location of the 'vse' executable to the 'test_preview' compile definitions.
-# $<TARGET_FILE:vse> is a CMake "generator expression" that resolves to the full path of the executable.
 target_compile_definitions(test_preview PRIVATE VSE_EXECUTABLE_PATH="$<TARGET_FILE:vse>")

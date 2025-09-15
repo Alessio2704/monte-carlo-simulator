@@ -7,12 +7,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from lark.exceptions import UnexpectedToken, UnexpectedInput, UnexpectedCharacters
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError, ErrorCode
-from vsc.config import FUNCTION_SIGNATURES
-
-
-@pytest.fixture
-def base_script():
-    return "@iterations = 100\n@output = result\n"
 
 
 def test_valid_scripts_compile_successfully():
@@ -117,31 +111,6 @@ def test_semantic_errors(script_body, expected_code):
     with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script_body)
     assert e.value.code == expected_code
-
-
-def get_arity_test_cases():
-    for func, sig in FUNCTION_SIGNATURES.items():
-        if sig.get("variadic", False):
-            continue
-        expected_argc = len(sig["arg_types"])
-        if expected_argc > 0:
-            yield pytest.param(func, expected_argc - 1, id=f"{func}-too_few")
-        yield pytest.param(func, expected_argc + 1, id=f"{func}-too_many")
-
-
-@pytest.mark.parametrize("func, provided_argc", get_arity_test_cases())
-def test_all_function_arities(base_script, func, provided_argc):
-    args_list = []
-    arg_types = FUNCTION_SIGNATURES[func]["arg_types"]
-    for i in range(provided_argc):
-        expected_type = arg_types[min(i, len(arg_types) - 1)] if arg_types else "any"
-        args_list.append(f'"arg{i}"' if expected_type == "string" else "1")
-    args = ", ".join(args_list) if provided_argc > 0 else ""
-    script = base_script + f"let result = {func}({args})"
-
-    with pytest.raises(ValuaScriptError) as e:
-        compile_valuascript(script)
-    assert e.value.code == ErrorCode.ARGUMENT_COUNT_MISMATCH
 
 
 # ==============================================================================

@@ -1,4 +1,4 @@
-#include "test_helpers.h"
+#include "test/test_helpers.h"
 
 class ConditionalLogicTests : public FileCleanupTest
 {

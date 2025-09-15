@@ -1,5 +1,12 @@
 #pragma once
 #include "include/engine/core/IExecutable.h"
+#include "include/engine/functions/FunctionRegistry.h"
+
+// --- Registration ---
+// Each domain will have a single function to register all its operations.
+void register_core_functions(FunctionRegistry &registry);
+
+// --- Concrete Operation Classes ---
 
 // Base class for variadic operations like add, subtract, multiply, etc.
 class VariadicBaseOperation : public IExecutable
@@ -22,8 +29,6 @@ public:
 private:
     OpCode m_code;
 };
-
-// --- Concrete Operation Classes ---
 
 class AddOperation : public VariadicBaseOperation
 {
@@ -87,7 +92,6 @@ public:
     TrialValue execute(const std::vector<TrialValue> &args) const override;
 };
 
-// --- Comparison and Logical Operations ---
 class EqualsOperation : public ComparisonBaseOperation
 {
 public:
@@ -118,6 +122,7 @@ class LessOrEqualOperation : public ComparisonBaseOperation
 public:
     LessOrEqualOperation();
 };
+
 class AndOperation : public IExecutable
 {
 public:
@@ -129,68 +134,6 @@ public:
     TrialValue execute(const std::vector<TrialValue> &args) const override;
 };
 class NotOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-
-// --- Vector and Series Operations ---
-class GrowSeriesOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class CompoundSeriesOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class NpvOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class SumSeriesOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class GetElementOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class DeleteElementOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class SeriesDeltaOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class ComposeVectorOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class InterpolateSeriesOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class CapitalizeExpenseOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class ReadCsvVectorOperation : public IExecutable
-{
-public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
-};
-class ReadCsvScalarOperation : public IExecutable
 {
 public:
     TrialValue execute(const std::vector<TrialValue> &args) const override;

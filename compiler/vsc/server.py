@@ -28,7 +28,7 @@ from vsc.compiler import compile_valuascript, resolve_imports_and_functions
 from vsc.parser import parse_valuascript
 from vsc.validator import validate_semantics
 from vsc.optimizer import _build_dependency_graph, _find_stochastic_variables
-from vsc.config import FUNCTION_SIGNATURES
+from .functions import FUNCTION_SIGNATURES
 from vsc.exceptions import ValuaScriptError
 from vsc.utils import format_lark_error, find_engine_executable
 

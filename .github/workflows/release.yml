@@ -92,7 +92,7 @@ jobs:
       # --- Non-Linux Build Steps ---
       - name: Install C++ Build Tools (macOS)
         if: runner.os == 'macOS'
-        run: brew uninstall cmake && brew untap local/pinned && brew install cmake
+        run: brew install cmake
 
       - name: Configure CMake (macOS)
         if: runner.os == 'macOS'
