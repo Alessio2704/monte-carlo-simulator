@@ -184,6 +184,11 @@ class ValuaScriptTransformer(Transformer):
         return items
 
     def function_def(self, items):
+
+        # The proper way to handle UDF is the following
+        # i.e. accessing the indexes directly
+        # other ways have proved to be wrong and cause bugs
+
         func_name_token = items[0]
         body_list = items[-1]
 

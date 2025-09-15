@@ -78,6 +78,7 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
 
     if expr_type == "literal_assignment":
         value = expression_dict.get("value")
+        # Bool is evaluated first in order to not confuse it with an int later. It is mandatory it is here at the beginning
         if isinstance(value, bool):
             return "boolean"
         if isinstance(value, (int, float)):
