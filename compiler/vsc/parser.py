@@ -139,6 +139,21 @@ class ValuaScriptTransformer(Transformer):
         return c
 
     # --- Rule transformations ---
+    def multi_assignment_vars(self, items):
+        return items
+
+    def tuple_type(self, items):
+        return items
+
+    def tuple_expression(self, items):
+        return {"_is_tuple_return": True, "values": items}
+
+    def return_statement(self, items):
+        return_value = items[0]
+        if isinstance(return_value, dict) and return_value.get("_is_tuple_return"):
+            return {"type": "return_statement", "values": return_value["values"]}
+        return {"type": "return_statement", "value": return_value}
+
     def function_call(self, items):
         func_name_token = items[0]
         args = [item for item in items[1:] if item is not None]
@@ -167,9 +182,19 @@ class ValuaScriptTransformer(Transformer):
         return {"type": "import", "path": path_literal.value, "line": import_token.line}
 
     def assignment(self, items):
-        _let_token, var_token, expression = items
-        base_step = {"result": str(var_token), "line": var_token.line}
-        # A conditional expression is a new top-level type for an assignment
+        _let_token, var_items, expression = items
+        line_source = var_items[0] if isinstance(var_items, list) else var_items
+        line = line_source.line
+
+        if isinstance(var_items, list):
+            results_as_strings = [str(v) for v in var_items]
+            base_step = {"results": results_as_strings, "line": line, "type": "multi_assignment"}
+            if isinstance(expression, dict) and "function" in expression:
+                base_step.update(expression)
+                return base_step
+            return {"results": results_as_strings, "line": line, "type": "multi_assignment", "expression": expression}
+
+        base_step = {"result": str(var_items), "line": line}
         if isinstance(expression, dict) and expression.get("type") == "conditional_expression":
             base_step.update(expression)
         elif isinstance(expression, dict):
@@ -196,11 +221,16 @@ class ValuaScriptTransformer(Transformer):
         return_type_token = items[-3]
         params = items[1:-3]
 
+        if isinstance(return_type_token, list):
+            processed_return_type = [str(t) for t in return_type_token]
+        else:
+            processed_return_type = str(return_type_token)
+
         return {
             "type": "function_definition",
             "name": str(func_name_token),
             "params": [p for p in params if isinstance(p, dict)],
-            "return_type": str(return_type_token),
+            "return_type": processed_return_type,
             "body": body_list,
             "docstring": docstring,
             "line": func_name_token.line,
@@ -209,23 +239,19 @@ class ValuaScriptTransformer(Transformer):
     def param(self, items):
         return {"name": str(items[0]), "type": str(items[1])}
 
-    def return_statement(self, items):
-        return {"type": "return_statement", "value": items[0]}
-
     def start(self, children):
-        # Filter out None values that can appear from empty rules
         safe_children = [c for c in children if c]
+        assignment_types = ("execution_assignment", "literal_assignment", "conditional_expression", "multi_assignment")
         return {
             "imports": [i for i in safe_children if i.get("type") == "import"],
             "directives": [i for i in safe_children if i.get("type") == "directive"],
-            "execution_steps": [i for i in safe_children if i.get("type") in ("execution_assignment", "literal_assignment", "conditional_expression")],
+            "execution_steps": [i for i in safe_children if i.get("type") in assignment_types],
             "function_definitions": [i for i in safe_children if i.get("type") == "function_definition"],
         }
 
 
 def parse_valuascript(script_content: str):
     """Parses the script content and transforms it into a high-level AST."""
-    # --- PRE-PARSING CHECKS for better error messages ---
     for i, line in enumerate(script_content.splitlines()):
         clean_line = line.split("#", 1)[0].strip()
         if not clean_line:

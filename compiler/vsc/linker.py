@@ -19,12 +19,17 @@ def _process_arg_for_json(arg):
 def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, output_var):
     """
     Performs the final "linking" stage:
-    1. Builds the variable registry.
+    1. Builds the variable registry from all single and multi-assignments.
     2. Resolves all variable names to integer indices.
     3. Generates the final low-level JSON bytecode.
     """
     all_steps = pre_trial_steps + per_trial_steps
-    all_variable_names = {step["result"] for step in all_steps}
+    all_variable_names = set()
+    for step in all_steps:
+        if "result" in step:
+            all_variable_names.add(step["result"])
+        elif "results" in step:
+            all_variable_names.update(step["results"])
 
     # 1. Create the canonical, ordered registry. Sorting ensures deterministic output.
     variable_registry_list = sorted(list(all_variable_names))
@@ -34,11 +39,7 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
     output_variable_index = None
     if output_var:  # This will be None for a module file, skipping the block
         if output_var not in name_to_index_map:
-            # Re-check existence as DCE might have removed it.
-            if any(s["result"] == output_var for s in all_steps):
-                output_variable_index = name_to_index_map.get(output_var)
-            else:
-                raise ValuaScriptError(f"The final @output variable '{output_var}' was not found in the final execution plan. It may have been eliminated as dead code.")
+            raise ValuaScriptError(f"The final @output variable '{output_var}' was not found in the final execution plan. It may have been eliminated as dead code.")
         output_variable_index = name_to_index_map.get(output_var)
 
     # 3. Define recursive helper to rewrite expressions into bytecode format
@@ -75,21 +76,32 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
     def _rewrite_steps_to_bytecode(steps_to_rewrite):
         bytecode_steps = []
         for step in steps_to_rewrite:
-            new_step = {
-                "type": step["type"],
-                "result_index": name_to_index_map[step["result"]],
-                "line": step.get("line", -1),
-            }
-            if new_step["type"] == "literal_assignment":
-                new_step["value"] = step["value"]
-            elif new_step["type"] == "conditional_expression":
-                new_step["type"] = "conditional_assignment"  # Rename for the engine
-                new_step["condition"] = _resolve_expression_to_bytecode(step["condition"])
-                new_step["then_expr"] = _resolve_expression_to_bytecode(step["then_expr"])
-                new_step["else_expr"] = _resolve_expression_to_bytecode(step["else_expr"])
-            else:  # execution_assignment
-                new_step["function"] = step["function"]
-                new_step["args"] = [_resolve_expression_to_bytecode(a) for a in step.get("args", [])]
+            step_type = step["type"]
+            # Handle multi-assignment for built-in functions
+            if step_type == "multi_assignment":
+                new_step = {
+                    "type": "multi_execution_assignment",
+                    "result_indices": [name_to_index_map[r] for r in step["results"]],
+                    "line": step.get("line", -1),
+                    "function": step["function"],
+                    "args": [_resolve_expression_to_bytecode(a) for a in step.get("args", [])],
+                }
+            else:  # Handle single assignment
+                new_step = {
+                    "type": step_type,
+                    "result_index": name_to_index_map[step["result"]],
+                    "line": step.get("line", -1),
+                }
+                if new_step["type"] == "literal_assignment":
+                    new_step["value"] = step["value"]
+                elif new_step["type"] == "conditional_expression":
+                    new_step["type"] = "conditional_assignment"  # Rename for the engine
+                    new_step["condition"] = _resolve_expression_to_bytecode(step["condition"])
+                    new_step["then_expr"] = _resolve_expression_to_bytecode(step["then_expr"])
+                    new_step["else_expr"] = _resolve_expression_to_bytecode(step["else_expr"])
+                else:  # execution_assignment
+                    new_step["function"] = step["function"]
+                    new_step["args"] = [_resolve_expression_to_bytecode(a) for a in step.get("args", [])]
 
             bytecode_steps.append(new_step)
         return bytecode_steps
