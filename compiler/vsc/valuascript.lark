@@ -46,6 +46,7 @@ conditional_expression: or_expression | IF or_expression THEN or_expression ELSE
      | element_access
      | delete_element_vector
      | vector
+     | tuple_expression
      | "(" expression ")"
 
 // --- Reusable Rule Definitions ---

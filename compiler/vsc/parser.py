@@ -146,6 +146,11 @@ class ValuaScriptTransformer(Transformer):
         return items
 
     def tuple_expression(self, items):
+        # FIX START: If a tuple_expression has only one item, it's just a
+        # parenthesized expression. Unwrap it to resolve the grammar ambiguity.
+        if len(items) == 1:
+            return items[0]
+        # FIX END
         return {"_is_tuple_return": True, "values": items}
 
     def return_statement(self, items):
@@ -189,9 +194,12 @@ class ValuaScriptTransformer(Transformer):
         if isinstance(var_items, list):
             results_as_strings = [str(v) for v in var_items]
             base_step = {"results": results_as_strings, "line": line, "type": "multi_assignment"}
+            # FIX: The check for illegal tuple assignment is moved to the validator.
+            # The parser now just constructs the AST node.
             if isinstance(expression, dict) and "function" in expression:
                 base_step.update(expression)
                 return base_step
+            # This will now correctly handle the AST for `let a,b = (1,2)`
             return {"results": results_as_strings, "line": line, "type": "multi_assignment", "expression": expression}
 
         base_step = {"result": str(var_items), "line": line}

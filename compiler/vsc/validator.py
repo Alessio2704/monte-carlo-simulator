@@ -82,6 +82,12 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
         temp_step = {"type": "literal_assignment", "value": sub_expr}
         return _infer_expression_type(temp_step, defined_vars, line_num, current_result_var, all_signatures)
 
+    # FIX START: Check for the malformed AST node that represents an illegal tuple assignment.
+    # This check now happens in the correct semantic analysis stage.
+    if expression_dict.get("_is_tuple_return"):
+        raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=line_num, message="Cannot assign from a tuple literal. Multiple values can only be returned from a function.")
+    # FIX END
+
     expr_type = expression_dict.get("type", "execution_assignment")
 
     if expr_type == "literal_assignment":
@@ -115,8 +121,20 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
         return then_type
 
     if expr_type == "execution_assignment" or expr_type == "multi_assignment":
-        if expr_type == "multi_assignment" and "function" not in expression_dict:
-            raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=line_num, message="Cannot assign multiple variables from a literal or math expression.")
+        if expr_type == "multi_assignment" and "expression" in expression_dict:
+            # This handles the case `let a, b = some_non_function_call`
+            sub_expr = expression_dict["expression"]
+            if not (isinstance(sub_expr, dict) and "function" in sub_expr):
+                raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=line_num, message="Right side of a multi-assignment must be a function call.")
+            # Promote the nested function call up
+            expression_dict.update(sub_expr)
+            del expression_dict["expression"]
+
+        # FIX START: The KeyError originated here. A non-function-call dict
+        # (like a tuple literal) was being processed. Now it's guarded.
+        if "function" not in expression_dict:
+            raise TypeError(f"Internal Error: Expression is not a function call: {expression_dict}")
+        # FIX END
 
         func_name = expression_dict["function"]
         args = expression_dict.get("args", [])
@@ -428,6 +446,8 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode, file_path=
         # Check for assignment arity mismatch
         if "function" in step:
             func_name = step["function"]
+            if func_name not in all_signatures:
+                raise ValuaScriptError(ErrorCode.UNKNOWN_FUNCTION, line=line, name=func_name)
             return_type = all_signatures[func_name]["return_type"]
             is_multi_return = isinstance(return_type, list)
 
