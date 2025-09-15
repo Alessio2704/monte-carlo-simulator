@@ -29,7 +29,7 @@ TEST_F(CsvEngineTest, ReadsVectorCorrectly)
         "variable_registry": ["A"],
         "pre_trial_steps": [
             {
-                "type": "execution_assignment", "result_index": 0, "function": "read_csv_vector",
+                "type": "execution_assignment", "result_indices": [0], "function": "read_csv_vector",
                 "args": [ {"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Value"} ]
             }
         ]
@@ -59,7 +59,7 @@ TEST_F(CsvEngineTest, ReadsScalarCorrectly)
         "variable_registry": ["A"],
         "pre_trial_steps": [
             {
-                "type": "execution_assignment", "result_index": 0, "function": "read_csv_scalar",
+                "type": "execution_assignment", "result_indices": [0], "function": "read_csv_scalar",
                 "args": [ {"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Rate"}, {"type":"scalar_literal", "value":2.0} ]
             }
         ]
@@ -83,13 +83,13 @@ TEST_F(CsvEngineTest, UsesPreloadedDataInTrial)
         "variable_registry": ["A", "B", "C"],
         "pre_trial_steps": [
             {
-                "type": "execution_assignment", "result_index": 0, "function": "read_csv_scalar",
+                "type": "execution_assignment", "result_indices": [0], "function": "read_csv_scalar",
                 "args": [ {"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Value"}, {"type":"scalar_literal", "value":0} ]
             }
         ],
         "per_trial_steps": [
             {"type": "literal_assignment", "result_index": 1, "value": 10.0},
-            {"type": "execution_assignment", "result_index": 2, "function": "add", "args": [{"type":"variable_index", "value":0}, {"type":"variable_index", "value":1}]}
+            {"type": "execution_assignment", "result_indices": [2], "function": "add", "args": [{"type":"variable_index", "value":0}, {"type":"variable_index", "value":1}]}
         ]
     })";
     create_test_recipe("recipe.json", recipe_content);
@@ -106,7 +106,7 @@ TEST_F(CsvEngineTest, ThrowsOnFileNotFound)
 {
     const std::string recipe_content = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["A"],
-        "pre_trial_steps": [{ "type": "execution_assignment", "result_index": 0, "function": "read_csv_vector",
+        "pre_trial_steps": [{ "type": "execution_assignment", "result_indices": [0], "function": "read_csv_vector",
             "args": [{"type": "string_literal", "value": "non_existent_file.csv"}, {"type": "string_literal", "value": "Value"}]
         }]
     })";
@@ -127,7 +127,7 @@ TEST_F(CsvEngineTest, ThrowsOnColumnNotFound)
 {
     const std::string recipe_content = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["A"],
-        "pre_trial_steps": [{ "type": "execution_assignment", "result_index": 0, "function": "read_csv_vector",
+        "pre_trial_steps": [{ "type": "execution_assignment", "result_indices": [0], "function": "read_csv_vector",
             "args": [{"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "NonExistentColumn"}]
         }]
     })";
@@ -148,7 +148,7 @@ TEST_F(CsvEngineTest, ThrowsOnRowIndexOutOfBounds)
 {
     const std::string recipe_content = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["A"],
-        "pre_trial_steps": [{ "type": "execution_assignment", "result_index": 0, "function": "read_csv_scalar",
+        "pre_trial_steps": [{ "type": "execution_assignment", "result_indices": [0], "function": "read_csv_scalar",
             "args": [{"type": "string_literal", "value": "test_data.csv"}, {"type": "string_literal", "value": "Value"}, {"type":"scalar_literal", "value":99.0}]
         }]
     })";
@@ -169,7 +169,7 @@ TEST_F(CsvEngineTest, ThrowsOnNonNumericData)
 {
     const std::string recipe_content = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["A"],
-        "pre_trial_steps": [{ "type": "execution_assignment", "result_index": 0, "function": "read_csv_vector",
+        "pre_trial_steps": [{ "type": "execution_assignment", "result_indices": [0], "function": "read_csv_vector",
             "args": [{"type": "string_literal", "value": "bad_data.csv"}, {"type": "string_literal", "value": "Header"}]
         }]
     })";
@@ -194,7 +194,7 @@ class IoOpsErrorTest : public FileCleanupTest
 #define TEST_ARITY(function_name, json_args, expected_error_msg)                                                                                                                                                                                                                                                                     \
     {                                                                                                                                                                                                                                                                                                                                \
         SCOPED_TRACE("Testing arity for function: " + std::string(function_name));                                                                                                                                                                                                                                                   \
-        create_test_recipe("err.json", "{\"simulation_config\":{\"num_trials\":1},\"output_variable_index\":0,\"variable_registry\":[\"X\"],\"per_trial_steps\":[{\"type\":\"execution_assignment\",\"line\":-1,\"result_index\":0,\"function\":\"" + std::string(function_name) + "\",\"args\":" + std::string(json_args) + "}]}"); \
+        create_test_recipe("err.json", "{\"simulation_config\":{\"num_trials\":1},\"output_variable_index\":0,\"variable_registry\":[\"X\"],\"per_trial_steps\":[{\"type\":\"execution_assignment\",\"line\":-1,\"result_indices\":[0],\"function\":\"" + std::string(function_name) + "\",\"args\":" + std::string(json_args) + "}]}"); \
         try                                                                                                                                                                                                                                                                                                                          \
         {                                                                                                                                                                                                                                                                                                                            \
             SimulationEngine engine("err.json");                                                                                                                                                                                                                                                                                     \

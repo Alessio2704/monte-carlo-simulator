@@ -8,5 +8,7 @@ class IExecutable
 {
 public:
     virtual ~IExecutable() = default;
-    virtual TrialValue execute(const std::vector<TrialValue> &args) const = 0;
+    // The execute method returns a vector of TrialValue to support multi-return.
+    // Functions returning a single value should return a vector with one element.
+    virtual std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const = 0;
 };

@@ -13,7 +13,7 @@ class VariadicBaseOperation : public IExecutable
 {
 public:
     explicit VariadicBaseOperation(OpCode code);
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 
 private:
     OpCode m_code;
@@ -24,7 +24,7 @@ class ComparisonBaseOperation : public IExecutable
 {
 public:
     explicit ComparisonBaseOperation(OpCode code);
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 
 private:
     OpCode m_code;
@@ -59,37 +59,37 @@ public:
 class LogOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 class Log10Operation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 class ExpOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 class SinOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 class CosOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 class TanOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 class IdentityOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 
 class EqualsOperation : public ComparisonBaseOperation
@@ -126,15 +126,15 @@ public:
 class AndOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 class OrOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 class NotOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };

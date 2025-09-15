@@ -114,7 +114,12 @@ void SimulationEngine::parse_and_build(const std::string &path)
             }
             else if (type == "execution_assignment")
             {
-                size_t result_index = step_json.at("result_index");
+                std::vector<size_t> result_indices = step_json.at("result_indices").get<std::vector<size_t>>();
+                if (result_indices.empty())
+                {
+                    throw EngineException(EngineErrc::RecipeParseError, "Execution assignment step requires at least one 'result_indices'.", line);
+                }
+
                 std::string function_name = step_json.at("function");
                 auto factory_it = m_executable_factory->find(function_name);
                 if (factory_it == m_executable_factory->end())
@@ -123,20 +128,6 @@ void SimulationEngine::parse_and_build(const std::string &path)
                 }
                 auto executable_logic = factory_it->second();
                 return std::make_unique<ExecutionAssignmentStep>(
-                    result_index, function_name, line,
-                    std::move(executable_logic), step_json.at("args"), *m_executable_factory);
-            }
-            else if (type == "multi_execution_assignment")
-            {
-                std::vector<size_t> result_indices = step_json.at("result_indices").get<std::vector<size_t>>();
-                std::string function_name = step_json.at("function");
-                auto factory_it = m_executable_factory->find(function_name);
-                if (factory_it == m_executable_factory->end())
-                {
-                    throw EngineException(EngineErrc::UnknownFunction, "Unknown function: " + function_name, line);
-                }
-                auto executable_logic = factory_it->second();
-                return std::make_unique<MultiExecutionAssignmentStep>(
                     result_indices, function_name, line,
                     std::move(executable_logic), step_json.at("args"), *m_executable_factory);
             }

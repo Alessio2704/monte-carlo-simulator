@@ -4,5 +4,5 @@
 class BlackScholesOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };

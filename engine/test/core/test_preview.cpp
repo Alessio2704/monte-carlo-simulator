@@ -31,7 +31,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForStochasticScalar)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 100}, "output_variable_index": 0, "variable_registry":["a"],
-        "per_trial_steps": [{"type": "execution_assignment", "result_index": 0, "function": "Normal", "args": [{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":0}]}]
+        "per_trial_steps": [{"type": "execution_assignment", "result_indices": [0], "function": "Normal", "args": [{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":0}]}]
     })";
     create_test_recipe("preview_test.json", recipe);
 
@@ -68,7 +68,7 @@ TEST_F(EnginePreviewModeTest, OutputsErrorJsonOnRuntimeError)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry":["a"],
-        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result_index": 0, "function": "divide", "args": [{"type":"scalar_literal","value":1}, {"type":"scalar_literal","value":0}]}]
+        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result_indices": [0], "function": "divide", "args": [{"type":"scalar_literal","value":1}, {"type":"scalar_literal","value":0}]}]
     })";
     create_test_recipe("preview_test.json", recipe);
 

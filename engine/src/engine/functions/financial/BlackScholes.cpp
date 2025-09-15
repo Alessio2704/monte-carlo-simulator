@@ -21,7 +21,7 @@ double cndf(double x)
     return 0.5 * std::erfc(-x / std::sqrt(2.0));
 }
 
-TrialValue BlackScholesOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> BlackScholesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 6)
     {
@@ -51,19 +51,16 @@ TrialValue BlackScholesOperation::execute(const std::vector<TrialValue> &args) c
 
     if (option_type_str == "call")
     {
-        // Calculate the call option price
         const double call_price = S * cndf(d1) - K * std::exp(-r * T) * cndf(d2);
-        return call_price;
+        return {call_price};
     }
     else if (option_type_str == "put")
     {
-        // Calculate the put option price using the corresponding formula
         const double put_price = K * std::exp(-r * T) * cndf(-d2) - S * cndf(-d1);
-        return put_price;
+        return {put_price};
     }
     else
     {
-        // Handle invalid option type string
         throw EngineException(EngineErrc::MismatchedArgumentType, "Invalid option_type for BlackScholes. Expected 'call' or 'put', but got '" + option_type_str + "'.");
     }
 }

@@ -33,42 +33,42 @@ protected:
 
 TEST_F(EngineSamplerTest, Normal)
 {
-    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"Normal","args":[{"type":"scalar_literal","value":100.0},{"type":"scalar_literal","value":15.0}]}]})", 20000, 100.0, 0.5);
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"Normal","args":[{"type":"scalar_literal","value":100.0},{"type":"scalar_literal","value":15.0}]}]})", 20000, 100.0, 0.5);
 }
 
 TEST_F(EngineSamplerTest, Pert)
 {
     double expected_mean = (50.0 + 4.0 * 100.0 + 200.0) / 6.0; // ~125
-    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"Pert","args":[{"type":"scalar_literal","value":50},{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":200}]}]})", 20000, expected_mean, 2.0, true, 50.0, 200.0);
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"Pert","args":[{"type":"scalar_literal","value":50},{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":200}]}]})", 20000, expected_mean, 2.0, true, 50.0, 200.0);
 }
 
 TEST_F(EngineSamplerTest, Uniform)
 {
-    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"Uniform","args":[{"type":"scalar_literal","value":-10},{"type":"scalar_literal","value":10}]}]})", 20000, 0.0, 0.5, true, -10.0, 10.0);
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"Uniform","args":[{"type":"scalar_literal","value":-10},{"type":"scalar_literal","value":10}]}]})", 20000, 0.0, 0.5, true, -10.0, 10.0);
 }
 
 TEST_F(EngineSamplerTest, Triangular)
 {
     double expected_mean = (10.0 + 20.0 + 60.0) / 3.0; // ~30.0
-    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"Triangular","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":20},{"type":"scalar_literal","value":60}]}]})", 20000, expected_mean, 1.0, true, 10.0, 60.0);
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"Triangular","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":20},{"type":"scalar_literal","value":60}]}]})", 20000, expected_mean, 1.0, true, 10.0, 60.0);
 }
 
 TEST_F(EngineSamplerTest, Bernoulli)
 {
-    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"Bernoulli","args":[{"type":"scalar_literal","value":0.75}]}]})", 20000, 0.75, 0.01, true, 0.0, 1.0);
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"Bernoulli","args":[{"type":"scalar_literal","value":0.75}]}]})", 20000, 0.75, 0.01, true, 0.0, 1.0);
 }
 
 TEST_F(EngineSamplerTest, Beta)
 {
     double expected_mean = 2.0 / (2.0 + 5.0); // ~0.2857
-    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"Beta","args":[{"type":"scalar_literal","value":2.0},{"type":"scalar_literal","value":5.0}]}]})", 20000, expected_mean, 0.01, true, 0.0, 1.0);
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"Beta","args":[{"type":"scalar_literal","value":2.0},{"type":"scalar_literal","value":5.0}]}]})", 20000, expected_mean, 0.01, true, 0.0, 1.0);
 }
 
 TEST_F(EngineSamplerTest, Lognormal)
 {
     double log_mean = 2.0, log_stddev = 0.5;
     double expected_mean = std::exp(log_mean + (log_stddev * log_stddev) / 2.0); // ~8.37
-    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"Lognormal","args":[{"type":"scalar_literal","value":2.0},{"type":"scalar_literal","value":0.5}]}]})", 20000, expected_mean, 0.5, true, 0.0, 1e9);
+    RunAndAnalyze(R"({"simulation_config":{"num_trials":20000},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"Lognormal","args":[{"type":"scalar_literal","value":2.0},{"type":"scalar_literal","value":0.5}]}]})", 20000, expected_mean, 0.5, true, 0.0, 1e9);
 }
 
 // --- Fixture Tests for Specific Error Conditions ---
@@ -78,7 +78,7 @@ class SamplerErrorTest : public FileCleanupTest
 
 TEST_F(SamplerErrorTest, ThrowsOnInvalidPertParams)
 {
-    create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"Pert","args":[{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":50},{"type":"scalar_literal","value":200}]}]})");
+    create_test_recipe("err.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["X"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"Pert","args":[{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":50},{"type":"scalar_literal","value":200}]}]})");
     SimulationEngine engine("err.json");
     try
     {

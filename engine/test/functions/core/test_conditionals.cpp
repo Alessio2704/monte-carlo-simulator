@@ -133,7 +133,7 @@ TEST_F(ConditionalLogicTests, HandlesDeeplyNestedConditionalThatTriggeredBug)
             {"type": "literal_assignment", "result_index": 0, "value": 3}
         ],
         "per_trial_steps": [
-            {"type": "execution_assignment", "result_index": 1, "function": "Normal", "args": [{"type":"scalar_literal", "value": 99}, {"type":"scalar_literal", "value": 0}]},
+            {"type": "execution_assignment", "result_indices": [1], "function": "Normal", "args": [{"type":"scalar_literal", "value": 99}, {"type":"scalar_literal", "value": 0}]},
             {
                 "type": "conditional_assignment", "result_index": 2, "line": 5,
                 "condition": {"type": "execution_assignment", "function": "__eq__", "args": [{"type": "variable_index", "value": 0}, {"type": "scalar_literal", "value": 1}]},
@@ -228,35 +228,35 @@ TEST_F(ConditionalLogicTests, ReturnsVectorFromDeeplyNestedBranch)
 TEST_F(ConditionalLogicTests, AllComparisonOperatorsWork)
 {
     // ==
-    create_test_recipe("eq.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"__eq__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":10}]}]})");
+    create_test_recipe("eq.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"__eq__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":10}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("eq.json").run()[0]), true);
     // !=
-    create_test_recipe("neq.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"__neq__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":11}]}]})");
+    create_test_recipe("neq.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"__neq__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":11}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("neq.json").run()[0]), true);
     // >
-    create_test_recipe("gt.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"__gt__","args":[{"type":"scalar_literal","value":11},{"type":"scalar_literal","value":10}]}]})");
+    create_test_recipe("gt.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"__gt__","args":[{"type":"scalar_literal","value":11},{"type":"scalar_literal","value":10}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("gt.json").run()[0]), true);
     // <
-    create_test_recipe("lt.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"__lt__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":11}]}]})");
+    create_test_recipe("lt.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"__lt__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":11}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("lt.json").run()[0]), true);
     // >=
-    create_test_recipe("gte.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"__gte__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":10}]}]})");
+    create_test_recipe("gte.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"__gte__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":10}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("gte.json").run()[0]), true);
     // <=
-    create_test_recipe("lte.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"__lte__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":10}]}]})");
+    create_test_recipe("lte.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"__lte__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":10}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("lte.json").run()[0]), true);
 }
 
 TEST_F(ConditionalLogicTests, AllLogicalOperatorsWork)
 {
     // AND
-    create_test_recipe("and.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"__and__","args":[{"type":"boolean_literal","value":true},{"type":"boolean_literal","value":true}]}]})");
+    create_test_recipe("and.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"__and__","args":[{"type":"boolean_literal","value":true},{"type":"boolean_literal","value":true}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("and.json").run()[0]), true);
     // OR
-    create_test_recipe("or.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"__or__","args":[{"type":"boolean_literal","value":true},{"type":"boolean_literal","value":false}]}]})");
+    create_test_recipe("or.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"__or__","args":[{"type":"boolean_literal","value":true},{"type":"boolean_literal","value":false}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("or.json").run()[0]), true);
     // NOT
-    create_test_recipe("not.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"__not__","args":[{"type":"boolean_literal","value":false}]}]})");
+    create_test_recipe("not.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result_indices":[0],"function":"__not__","args":[{"type":"boolean_literal","value":false}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("not.json").run()[0]), true);
 }
 
@@ -266,7 +266,7 @@ TEST_F(ConditionalLogicTests, HandlesComplexLogicalPrecedence)
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
         "per_trial_steps": [{
-            "type": "execution_assignment", "result_index": 0, "function": "__or__", "args": [
+            "type": "execution_assignment", "result_indices": [0], "function": "__or__", "args": [
                 {"type": "boolean_literal", "value": false},
                 {
                     "type": "execution_assignment", "function": "__and__", "args": [
@@ -397,7 +397,7 @@ TEST_F(ConditionalLogicTests, ThrowsIfLogicalOperatorGetsNonBoolean)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["x"],
-        "per_trial_steps": [{"type": "execution_assignment", "line": 5, "result_index": 0, "function": "__and__",
+        "per_trial_steps": [{"type": "execution_assignment", "line": 5, "result_indices": [0], "function": "__and__",
             "args": [{"type":"boolean_literal", "value": true}, {"type":"scalar_literal", "value": 123}]
         }]
     })";

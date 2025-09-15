@@ -384,7 +384,7 @@ struct InPlaceVisitor
     }
 };
 
-TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> VariadicBaseOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.empty())
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Operation requires at least one argument.");
@@ -427,7 +427,7 @@ TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) c
                 throw EngineException(EngineErrc::UnknownError, "Unsupported variadic op code.");
             }
         }
-        return result;
+        return {result};
     }
 
     // --- VECTOR/MIXED-TYPE OPTIMIZED PATH ---
@@ -457,7 +457,7 @@ TrialValue VariadicBaseOperation::execute(const std::vector<TrialValue> &args) c
         std::visit(InPlaceVisitor{m_code, accumulator}, args[i]);
     }
 
-    return accumulator;
+    return {accumulator};
 }
 
 AddOperation::AddOperation() : VariadicBaseOperation(OpCode::ADD) {}
@@ -466,59 +466,59 @@ MultiplyOperation::MultiplyOperation() : VariadicBaseOperation(OpCode::MULTIPLY)
 DivideOperation::DivideOperation() : VariadicBaseOperation(OpCode::DIVIDE) {}
 PowerOperation::PowerOperation() : VariadicBaseOperation(OpCode::POWER) {}
 
-TrialValue LogOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> LogOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'log' requires 1 argument.");
-    return std::log(std::get<double>(args[0]));
+    return {std::log(std::get<double>(args[0]))};
 }
-TrialValue Log10Operation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> Log10Operation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'log10' requires 1 argument.");
-    return std::log10(std::get<double>(args[0]));
+    return {std::log10(std::get<double>(args[0]))};
 }
-TrialValue ExpOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> ExpOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'exp' requires 1 argument.");
-    return std::exp(std::get<double>(args[0]));
+    return {std::exp(std::get<double>(args[0]))};
 }
-TrialValue SinOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> SinOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'sin' requires 1 argument.");
-    return std::sin(std::get<double>(args[0]));
+    return {std::sin(std::get<double>(args[0]))};
 }
-TrialValue CosOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> CosOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'cos' requires 1 argument.");
-    return std::cos(std::get<double>(args[0]));
+    return {std::cos(std::get<double>(args[0]))};
 }
-TrialValue TanOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> TanOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'tan' requires 1 argument.");
-    return std::tan(std::get<double>(args[0]));
+    return {std::tan(std::get<double>(args[0]))};
 }
-TrialValue IdentityOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> IdentityOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'identity' requires exactly 1 argument.");
-    return args[0];
+    return {args[0]};
 }
 
 // --- Comparison and Logical Operations Implementations ---
 
 ComparisonBaseOperation::ComparisonBaseOperation(OpCode code) : m_code(code) {}
 
-TrialValue ComparisonBaseOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> ComparisonBaseOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Comparison operator requires 2 arguments.");
-    return std::visit([this](auto &&left, auto &&right) -> TrialValue
-                      {
+    TrialValue result = std::visit([this](auto &&left, auto &&right) -> TrialValue
+                                   {
         using T1 = std::decay_t<decltype(left)>;
         using T2 = std::decay_t<decltype(right)>;
 
@@ -545,7 +545,9 @@ TrialValue ComparisonBaseOperation::execute(const std::vector<TrialValue> &args)
                 case OpCode::NEQ: return true;
                 default: throw EngineException(EngineErrc::MismatchedArgumentType, "Unsupported types for this comparison.");
             }
-        } }, args[0], args[1]);
+        } },
+                                   args[0], args[1]);
+    return {result};
 }
 
 EqualsOperation::EqualsOperation() : ComparisonBaseOperation(OpCode::EQ) {}
@@ -555,7 +557,7 @@ LessThanOperation::LessThanOperation() : ComparisonBaseOperation(OpCode::LT) {}
 GreaterOrEqualOperation::GreaterOrEqualOperation() : ComparisonBaseOperation(OpCode::GTE) {}
 LessOrEqualOperation::LessOrEqualOperation() : ComparisonBaseOperation(OpCode::LTE) {}
 
-TrialValue AndOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> AndOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.empty())
         throw EngineException(EngineErrc::IncorrectArgumentCount, "'and' operator requires at least one argument.");
@@ -564,12 +566,12 @@ TrialValue AndOperation::execute(const std::vector<TrialValue> &args) const
         if (!std::holds_alternative<bool>(arg))
             throw EngineException(EngineErrc::LogicalOperatorRequiresBoolean, "'and' operator requires a boolean argument.");
         if (!std::get<bool>(arg))
-            return false;
+            return {false};
     }
-    return true;
+    return {true};
 }
 
-TrialValue OrOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> OrOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.empty())
         throw EngineException(EngineErrc::IncorrectArgumentCount, "'or' operator requires at least one argument.");
@@ -578,16 +580,16 @@ TrialValue OrOperation::execute(const std::vector<TrialValue> &args) const
         if (!std::holds_alternative<bool>(arg))
             throw EngineException(EngineErrc::LogicalOperatorRequiresBoolean, "'or' operator requires a boolean argument.");
         if (std::get<bool>(arg))
-            return true;
+            return {true};
     }
-    return false;
+    return {false};
 }
 
-TrialValue NotOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> NotOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "'not' operator requires 1 argument.");
     if (!std::holds_alternative<bool>(args[0]))
         throw EngineException(EngineErrc::LogicalOperatorRequiresBoolean, "'not' operator requires a boolean argument.");
-    return !std::get<bool>(args[0]);
+    return {!std::get<bool>(args[0])};
 }
