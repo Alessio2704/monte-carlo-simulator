@@ -77,15 +77,26 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
         bytecode_steps = []
         for step in steps_to_rewrite:
             step_type = step["type"]
-            # Handle multi-assignment for built-in functions
             if step_type == "multi_assignment":
-                new_step = {
-                    "type": "multi_execution_assignment",
-                    "result_indices": [name_to_index_map[r] for r in step["results"]],
-                    "line": step.get("line", -1),
-                    "function": step["function"],
-                    "args": [_resolve_expression_to_bytecode(a) for a in step.get("args", [])],
-                }
+                expression = step.get("expression", step)
+
+                if expression.get("type") == "conditional_expression":
+                    new_step = {
+                        "type": "multi_conditional_assignment",
+                        "result_indices": [name_to_index_map[r] for r in step["results"]],
+                        "line": step.get("line", -1),
+                        "condition": _resolve_expression_to_bytecode(expression["condition"]),
+                        "then_expr": _resolve_expression_to_bytecode(expression["then_expr"]),
+                        "else_expr": _resolve_expression_to_bytecode(expression["else_expr"]),
+                    }
+                else:  # It's a standard multi-assignment from a function call
+                    new_step = {
+                        "type": "multi_execution_assignment",
+                        "result_indices": [name_to_index_map[r] for r in step["results"]],
+                        "line": step.get("line", -1),
+                        "function": expression["function"],
+                        "args": [_resolve_expression_to_bytecode(a) for a in expression.get("args", [])],
+                    }
             else:  # Handle single assignment
                 new_step = {
                     "type": step_type,

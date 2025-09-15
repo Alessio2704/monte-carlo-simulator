@@ -82,11 +82,8 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
         temp_step = {"type": "literal_assignment", "value": sub_expr}
         return _infer_expression_type(temp_step, defined_vars, line_num, current_result_var, all_signatures)
 
-    # FIX START: Check for the malformed AST node that represents an illegal tuple assignment.
-    # This check now happens in the correct semantic analysis stage.
     if expression_dict.get("_is_tuple_return"):
         raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=line_num, message="Cannot assign from a tuple literal. Multiple values can only be returned from a function.")
-    # FIX END
 
     expr_type = expression_dict.get("type", "execution_assignment")
 
@@ -117,24 +114,31 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
         then_type = _infer_sub_expression_type(expression_dict["then_expr"], func_name_context)
         else_type = _infer_sub_expression_type(expression_dict["else_expr"], func_name_context)
         if then_type != else_type:
-            raise ValuaScriptError(ErrorCode.IF_ELSE_TYPE_MISMATCH, line=line_num, then_type=then_type, else_type=else_type)
+            # Format types for a clearer error message, especially for tuples
+            then_type_str = f"({', '.join(then_type)})" if isinstance(then_type, list) else then_type
+            else_type_str = f"({', '.join(else_type)})" if isinstance(else_type, list) else else_type
+            raise ValuaScriptError(ErrorCode.IF_ELSE_TYPE_MISMATCH, line=line_num, then_type=then_type_str, else_type=else_type_str)
         return then_type
 
     if expr_type == "execution_assignment" or expr_type == "multi_assignment":
-        if expr_type == "multi_assignment" and "expression" in expression_dict:
-            # This handles the case `let a, b = some_non_function_call`
+        if "expression" in expression_dict:
             sub_expr = expression_dict["expression"]
-            if not (isinstance(sub_expr, dict) and "function" in sub_expr):
-                raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=line_num, message="Right side of a multi-assignment must be a function call.")
-            # Promote the nested function call up
-            expression_dict.update(sub_expr)
-            del expression_dict["expression"]
+            # Case 1: let a, b = if selector then func1() else func2()
+            if sub_expr.get("type") == "conditional_expression":
+                # The type of the whole expression is the type of its branches, which must match.
+                return _infer_expression_type(sub_expr, defined_vars, line_num, current_result_var, all_signatures, func_name_context)
 
-        # FIX START: The KeyError originated here. A non-function-call dict
-        # (like a tuple literal) was being processed. Now it's guarded.
+            # Case 2: let a, b = some_function() -- promote the function call up.
+            if isinstance(sub_expr, dict) and "function" in sub_expr:
+                expression_dict.update(sub_expr)
+                del expression_dict["expression"]
+            else:
+                raise ValuaScriptError(
+                    ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=line_num, message="The right side of a multi-assignment must be a function call or a conditional expression returning functions."
+                )
+
         if "function" not in expression_dict:
             raise TypeError(f"Internal Error: Expression is not a function call: {expression_dict}")
-        # FIX END
 
         func_name = expression_dict["function"]
         args = expression_dict.get("args", [])

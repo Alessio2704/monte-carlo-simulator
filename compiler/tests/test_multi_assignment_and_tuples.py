@@ -1,6 +1,7 @@
 import pytest
 import sys
 import os
+import json
 
 # Make the compiler module available
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -8,7 +9,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError, ErrorCode
 
+# Import fixtures from the main integration test file for end-to-end testing
+from test_integration import find_engine_path, run_preview_integration
+
+
 # --- 1. VALID MULTI-ASSIGNMENT AND TUPLE USAGE ---
+
 
 def test_udf_multi_return_and_assignment():
     """Tests the core feature: defining a UDF with a tuple return type and assigning its result to multiple variables."""
@@ -176,7 +182,6 @@ def test_dce_on_completely_unused_multi_assignment():
             ErrorCode.DUPLICATE_VARIABLE,
             id="duplicate_var_in_multi_assignment",
         ),
-        # This tests that tuple literals are not assignable, only function returns
         pytest.param(
             "let a, b = (1, 2)",
             ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT,
@@ -227,3 +232,97 @@ def test_import_and_use_multi_return_udf(tmp_path):
     assert "y" in recipe["variable_registry"]
     # Check that the UDF was correctly inlined from the module
     assert any(v.startswith("__get_module_pair_") for v in recipe["variable_registry"])
+
+
+# --- 5. ADVANCED SEMANTIC VALIDATION ---
+
+
+def test_multi_assignment_in_conditional_expression():
+    """DEEP TEST: Ensures the type checker can validate that both branches of an if/else return the same tuple signature."""
+    script = """
+    @iterations=1
+    @output=y
+    func high_scenario() -> (scalar, scalar) { return (100, 200) }
+    func low_scenario() -> (scalar, scalar) { return (10, 20) }
+    let selector = true
+    let x, y = if selector then high_scenario() else low_scenario()
+    """
+    recipe = compile_valuascript(script)
+    assert recipe is not None
+    assert "x" in recipe["variable_registry"]
+    assert "y" in recipe["variable_registry"]
+
+
+def test_multi_assignment_conditional_type_mismatch_fails():
+    """DEEP TEST: Ensures the compiler fails if branches of an if/else have different tuple signatures."""
+    script = """
+    @iterations=1
+    @output=y
+    func scenario_a() -> (scalar, scalar) { return (1, 2) }
+    func scenario_b() -> (scalar, vector) { return (3, [4]) }
+    let selector = true
+    let x, y = if selector then scenario_a() else scenario_b()
+    """
+    with pytest.raises(ValuaScriptError) as e:
+        compile_valuascript(script)
+    assert e.value.code == ErrorCode.IF_ELSE_TYPE_MISMATCH
+
+
+# --- 6. BYTECODE GENERATION & LINKER VERIFICATION ---
+
+
+def test_linker_bytecode_for_multi_assignment():
+    """DEEP TEST: Inspects the compiled recipe to ensure the linker generates the correct low-level bytecode for multi-assignment."""
+    # Use a built-in function because UDFs are inlined into single assignments.
+    # Built-ins are not inlined, so they will produce a direct multi-assignment step.
+    script = """
+    @iterations=1
+    @output=b
+    let p = [10]
+    let c = 1
+    let l = 2
+    let a, b = capitalize_expense(c, p, l)
+    """
+    recipe = compile_valuascript(script)
+    assert recipe is not None
+
+    # Find the indices for the result variables
+    registry = recipe["variable_registry"]
+    a_index = registry.index("a")
+    b_index = registry.index("b")
+
+    # Find the step that produces these variables
+    all_steps = recipe["pre_trial_steps"] + recipe["per_trial_steps"]
+    multi_assign_step = None
+    for step in all_steps:
+        # The order of indices might not be guaranteed, so check as a set.
+        if set(step.get("result_indices", [])) == {a_index, b_index}:
+            multi_assign_step = step
+            break
+
+    assert multi_assign_step is not None, "Multi-assignment step was not found in the bytecode"
+    assert multi_assign_step["type"] == "multi_execution_assignment"
+    assert multi_assign_step["function"] == "capitalize_expense"
+    assert len(multi_assign_step["args"]) == 3
+
+
+# --- 7. END-TO-END ENGINE INTEGRATION ---
+
+
+def test_end_to_end_multi_assignment_integration(find_engine_path):
+    """DEEP TEST: Runs the full compiler-to-engine pipeline and verifies the final value of a variable from a multi-assignment."""
+    script = """
+    @iterations=1
+    @output=final_val
+    func get_constants() -> (scalar, scalar) {
+        return (100, 2.5)
+    }
+    let base, multiplier = get_constants()
+    let final_val = base * multiplier
+    """
+    # Use the preview feature to get the value of the final variable
+    result = run_preview_integration(script, "final_val", find_engine_path)
+
+    assert result.get("status") == "success"
+    assert result.get("type") == "scalar"
+    assert pytest.approx(result.get("value")) == 250.0
