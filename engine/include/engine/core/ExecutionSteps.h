@@ -73,6 +73,28 @@ private:
     std::vector<ArgumentPlanner::ResolvedArgument> m_resolved_args;
 };
 
+// --- Concrete Step for `let a, b = func(y, z)` ---
+class MultiExecutionAssignmentStep : public IExecutionStep
+{
+public:
+    MultiExecutionAssignmentStep(
+        std::vector<size_t> result_indices,
+        std::string function_name,
+        int line_num,
+        std::unique_ptr<IExecutable> logic,
+        const nlohmann::json &args,
+        const ArgumentPlanner::ExecutableFactory &factory);
+
+    void execute(TrialContext &context) const override;
+
+private:
+    std::vector<size_t> m_result_indices;
+    std::string m_function_name;
+    int m_line_num;
+    std::unique_ptr<IExecutable> m_logic;
+    std::vector<ArgumentPlanner::ResolvedArgument> m_resolved_args;
+};
+
 // --- Concrete Step for `let x = if cond then expr1 else expr2` ---
 class ConditionalAssignmentStep : public IExecutionStep
 {

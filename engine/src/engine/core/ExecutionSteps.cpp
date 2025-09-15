@@ -209,6 +209,70 @@ void ExecutionAssignmentStep::execute(TrialContext &context) const
 }
 
 // ============================================================================
+// == MultiExecutionAssignmentStep
+// ============================================================================
+
+MultiExecutionAssignmentStep::MultiExecutionAssignmentStep(
+    std::vector<size_t> result_indices,
+    std::string function_name,
+    int line_num,
+    std::unique_ptr<IExecutable> logic,
+    const json &args,
+    const ArgumentPlanner::ExecutableFactory &factory)
+    : m_result_indices(std::move(result_indices)),
+      m_function_name(std::move(function_name)),
+      m_line_num(line_num),
+      m_logic(std::move(logic))
+{
+    m_resolved_args.reserve(args.size());
+    for (const auto &arg_json : args)
+    {
+        m_resolved_args.push_back(ArgumentPlanner::build_argument_plan(arg_json, factory));
+    }
+}
+
+void MultiExecutionAssignmentStep::execute(TrialContext &context) const
+{
+    try
+    {
+        std::vector<TrialValue> final_args;
+        final_args.reserve(m_resolved_args.size());
+        for (const auto &arg_plan : m_resolved_args)
+        {
+            final_args.push_back(ArgumentPlanner::resolve_runtime_value(arg_plan, context));
+        }
+
+        TrialValue multi_result = m_logic->execute(final_args);
+
+        // Expect the result to be a vector that we can unpack.
+        if (!std::holds_alternative<std::vector<double>>(multi_result))
+        {
+            throw EngineException(EngineErrc::MismatchedArgumentType, "Function '" + m_function_name + "' did not return a vector for multi-assignment.");
+        }
+        const auto &result_vec = std::get<std::vector<double>>(multi_result);
+
+        if (result_vec.size() != m_result_indices.size())
+        {
+            throw EngineException(EngineErrc::IncorrectArgumentCount, "Function '" + m_function_name + "' returned " + std::to_string(result_vec.size()) + " values, but " + std::to_string(m_result_indices.size()) + " were expected for assignment.");
+        }
+
+        // Unpack the vector into the context.
+        for (size_t i = 0; i < m_result_indices.size(); ++i)
+        {
+            context[m_result_indices[i]] = result_vec[i];
+        }
+    }
+    catch (const EngineException &e)
+    {
+        throw EngineException(e.code(), "In multi-assignment for function '" + m_function_name + "': " + e.what(), m_line_num);
+    }
+    catch (const std::exception &e)
+    {
+        throw EngineException(EngineErrc::UnknownError, "In multi-assignment for function '" + m_function_name + "': " + e.what(), m_line_num);
+    }
+}
+
+// ============================================================================
 // == ConditionalAssignmentStep
 // ============================================================================
 

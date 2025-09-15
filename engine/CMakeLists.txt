@@ -98,6 +98,7 @@ endmacro()
 add_engine_test(core/test_errors)
 add_engine_test(core/test_preview)
 add_engine_test(core/test_output_writer)
+add_engine_test(core/test_multi_assignment)
 
 # Function Domain Tests
 add_engine_test(functions/core/test_arithmetic_ops)
