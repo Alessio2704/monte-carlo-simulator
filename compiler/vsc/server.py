@@ -24,6 +24,7 @@ from lsprotocol.types import (
     CompletionItem,
     CompletionList,
     CompletionItemKind,
+    InsertTextFormat,
 )
 from pygls.workspace import Document
 
@@ -85,7 +86,6 @@ def _validate(ls, params):
         match = re.match(r"L(\d+):", msg)
         if match:
             line = int(match.group(1)) - 1
-            # Remove the line number and the candidate signature for cleaner diagnostics
             msg_body = msg.split(":", 1)[-1].strip()
             msg = msg_body.split("\n")[0]
         diagnostics.append(Diagnostic(range=Range(start=Position(line, 0), end=Position(line, 100)), message=msg, severity=DiagnosticSeverity.Error))
@@ -152,45 +152,33 @@ def _get_script_analysis(source: str, file_path: str):
     """
     # Defaults
     defined_vars, stochastic_vars, user_functions_with_meta = {}, set(), {}
-
-    # Phase 1 (Resilient): Parse and discover all functions.
-    # This is essential for all features.
     try:
         high_level_ast = parse_valuascript(source)
         user_functions_with_meta = resolve_imports_and_functions(high_level_ast, file_path)
     except Exception:
-        return {}, set(), {}  # If parsing fails, we can do nothing.
-
-    # Phase 2 (Fragile but Complete): Attempt a full semantic validation.
-    # This is the "original" method that provides correct stochasticity info.
+        return {}, set(), {}
     try:
         all_user_function_defs = {k: v["definition"] for k, v in user_functions_with_meta.items()}
         inlined_steps, full_defined_vars, _, _ = validate_semantics(high_level_ast, all_user_function_defs, is_preview_mode=True)
         _, dependents = _build_dependency_graph(inlined_steps)
         stochastic_vars = _find_stochastic_variables(inlined_steps, dependents)
-        # If successful, we have the most accurate information.
         defined_vars = full_defined_vars
     except Exception:
-        # Phase 3 (Fallback for Completions): If full validation fails,
-        # perform a resilient, line-by-line analysis to get variables
-        # defined before the point of error.
         temp_defined_vars = {}
         udf_signatures = {
             name: {"variadic": False, "arg_types": [p["type"] for p in fdef["definition"]["params"]], "return_type": fdef["definition"]["return_type"]}
             for name, fdef in user_functions_with_meta.items()
         }
         all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
-
         for step in high_level_ast.get("execution_steps", []):
             try:
                 var_name = step["result"]
                 var_type = _infer_expression_type(step, temp_defined_vars, step["line"], var_name, all_signatures)
                 temp_defined_vars[var_name] = {"type": var_type, "line": step["line"]}
             except Exception:
-                break  # Stop analysis at the first broken line.
+                break
         defined_vars = temp_defined_vars
-        stochastic_vars = set()  # We cannot reliably determine stochasticity.
-
+        stochastic_vars = set()
     return defined_vars, stochastic_vars, user_functions_with_meta
 
 
@@ -202,7 +190,6 @@ def hover(params):
     file_path = _uri_to_path(params.text_document.uri)
     defined_vars, stochastic_vars, user_functions_with_meta = _get_script_analysis(source, file_path)
     user_functions = {k: v["definition"] for k, v in user_functions_with_meta.items()}
-
     if word in FUNCTION_SIGNATURES:
         sig = FUNCTION_SIGNATURES[word]
         doc = sig.get("doc")
@@ -222,7 +209,6 @@ def hover(params):
             return_type_str = "dynamic" if callable(return_type_val) else return_type_val
             contents.append(f"\n**Returns**: `{return_type_str}` — {returns_doc}")
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
-
     if word in user_functions:
         func_def = user_functions[word]
         is_sto = _is_udf_stochastic(func_def, user_functions)
@@ -234,7 +220,6 @@ def hover(params):
             contents.append("---")
             contents.append(func_def["docstring"])
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
-
     if word in defined_vars:
         var_info = defined_vars[word]
         var_type = var_info.get("type", "unknown")
@@ -309,6 +294,15 @@ def definition(params):
         return Location(uri=_path_to_uri(source_path), range=Range(start=Position(line, 0), end=Position(line, 100)))
     return None
 
+def _create_function_snippet(name: str, params: list) -> str:
+    """Creates an LSP snippet string from a function name and parameter list."""
+    if not params:
+        return f"{name}()"
+
+    # Create placeholders like ${1:param_name}, ${2:another_param}
+    placeholders = [f"${{{i+1}:{p['name']}}}" for i, p in enumerate(params)]
+    return f"{name}({', '.join(placeholders)})"
+
 
 @server.feature(TEXT_DOCUMENT_COMPLETION)
 def completions(params):
@@ -322,12 +316,17 @@ def completions(params):
     for name, sig in FUNCTION_SIGNATURES.items():
         if not name.startswith("__"):
             doc = sig.get("doc", {})
+            params = doc.get("params", [])
+            snippet = _create_function_snippet(name, params)
+
             completion_items.append(
                 CompletionItem(
                     label=name,
                     kind=CompletionItemKind.Function,
                     detail="Built-in Function",
                     documentation=doc.get("summary", "No documentation available."),
+                    insert_text=snippet,
+                    insert_text_format=InsertTextFormat.Snippet,
                 )
             )
 
@@ -335,18 +334,20 @@ def completions(params):
         func_def = meta["definition"]
         source_path = meta.get("source_path", "current file")
         detail_text = f"User-Defined Function in {os.path.basename(source_path)}"
+        params = func_def.get("params", [])
+        snippet = _create_function_snippet(name, params)
+
         completion_items.append(
             CompletionItem(
                 label=name,
                 kind=CompletionItemKind.Function,
                 detail=detail_text,
                 documentation=func_def.get("docstring", "No docstring provided."),
+                insert_text=snippet,
+                insert_text_format=InsertTextFormat.Snippet,
             )
         )
 
-    # --- THIS IS THE CORRECTED BLOCK ---
-    # The `stochastic_vars` information is unreliable in the fallback analysis path,
-    # so we no longer use it here to avoid showing incorrect information.
     for name, info in defined_vars.items():
         var_type = info.get("type", "unknown")
         detail_text = f"Variable ({var_type})"
