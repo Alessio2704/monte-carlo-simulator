@@ -4,8 +4,14 @@ import os
 
 from .exceptions import ValuaScriptError, ErrorCode
 from .parser import _StringLiteral
-from .functions import FUNCTION_SIGNATURES
 from .config import DIRECTIVE_CONFIG
+from .functions import FUNCTION_SIGNATURES
+
+
+def _format_udf_signature(func_def):
+    """Formats a function definition dictionary into a readable signature string."""
+    params_str = ", ".join([f"{p['name']}: {p['type']}" for p in func_def.get("params", [])])
+    return f"func {func_def['name']}({params_str}) -> {func_def['return_type']}"
 
 
 def _check_for_recursive_calls(user_functions):
@@ -211,16 +217,29 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
         func_name = step["function"]
         func_def = user_functions[func_name]
 
-        for i, param in enumerate(func_def["params"]):
-            arg = step["args"][i]
-            arg_node = arg
-            if isinstance(arg, Token):
-                arg_node = {"type": "execution_assignment", "function": "identity", "args": [arg]}
-            elif not isinstance(arg, dict):
-                arg_node = {"type": "literal_assignment", "value": arg}
-            actual_type = _infer_expression_type(arg_node, live_defined_vars, step["line"], "", all_signatures, func_name)
-            if param["type"] != "any" and param["type"] != actual_type:
-                raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=step["line"], arg_num=i + 1, name=func_name, expected=param["type"], provided=actual_type)
+        try:
+            # Check for arity mismatch first
+            if len(step["args"]) != len(func_def["params"]):
+                raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=step["line"], name=func_name, expected=len(func_def["params"]), provided=len(step["args"]))
+
+            # Check for type mismatches
+            for i, param in enumerate(func_def["params"]):
+                arg = step["args"][i]
+                arg_node = arg
+                if isinstance(arg, Token):
+                    arg_node = {"type": "execution_assignment", "function": "identity", "args": [arg]}
+                elif not isinstance(arg, dict):
+                    arg_node = {"type": "literal_assignment", "value": arg}
+
+                actual_type = _infer_expression_type(arg_node, live_defined_vars, step["line"], "", all_signatures, func_name)
+
+                if param["type"] != "any" and param["type"] != actual_type:
+                    raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=step["line"], arg_num=i + 1, name=func_name, expected=param["type"], provided=actual_type)
+        except ValuaScriptError as e:
+            # Catch the error, format the signature, and re-raise with more info.
+            signature = _format_udf_signature(func_def)
+            e.message = f"{e.message}\n      Candidate signature:\n      > {signature}"
+            raise e
 
         call_count += 1
         mangling_prefix = f"__{func_name}_{call_count}__"
@@ -314,7 +333,6 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode, file_path=
                 raise ValuaScriptError(ErrorCode.REDEFINE_BUILTIN_FUNCTION, line=func_def["line"], name=name)
         _check_for_recursive_calls(all_user_functions)
         module_functions = {f["name"]: f for f in main_ast.get("function_definitions", [])}
-        # **Correction:** Call with the correct signature for modules
         validate_and_inline_udfs([], module_functions, all_signatures, initial_defined_vars={})
         return [], {}, {}, None
 
