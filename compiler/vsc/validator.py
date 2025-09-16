@@ -180,7 +180,10 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
 
 
 def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, initial_defined_vars):
-    """Validates user-defined functions and then performs inlining."""
+    """
+    Validates user-defined functions and then performs inlining using a robust,
+    multi-pass approach to handle nested function calls correctly.
+    """
     for func_name, func_def in user_functions.items():
         local_vars = {p["name"]: {"type": p["type"], "line": func_def["line"]} for p in func_def["params"]}
         has_return = False
@@ -188,7 +191,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
             if step.get("type") == "return_statement":
                 has_return = True
                 expected_return_type = func_def["return_type"]
-
                 if "values" in step:
                     returned_values = step["values"]
                     if not isinstance(expected_return_type, list) or len(returned_values) != len(expected_return_type):
@@ -199,7 +201,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                             provided=f"a tuple of {len(returned_values)} items",
                             expected=f"a tuple of {len(expected_return_type)} items",
                         )
-
                     for i, return_val in enumerate(returned_values):
                         temp_node = return_val
                         if isinstance(return_val, Token):
@@ -208,19 +209,16 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                             temp_node["type"] = "execution_assignment"
                         elif not isinstance(return_val, dict):
                             temp_node = {"type": "literal_assignment", "value": return_val}
-
                         actual_type = _infer_expression_type(temp_node, local_vars, func_def["line"], f"return item {i+1}", all_signatures, func_name_context=func_name)
                         if actual_type != expected_return_type[i]:
                             raise ValuaScriptError(
                                 ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=f"{func_name} (return item {i+1})", provided=actual_type, expected=expected_return_type[i]
                             )
-
                 else:
                     if isinstance(expected_return_type, list):
                         raise ValuaScriptError(
                             ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=func_name, provided="a single value", expected=f"a tuple of {len(expected_return_type)} items"
                         )
-
                     return_val = step["value"]
                     temp_node = return_val
                     if isinstance(return_val, Token):
@@ -229,11 +227,9 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                         temp_node["type"] = "execution_assignment"
                     elif not isinstance(return_val, dict):
                         temp_node = {"type": "literal_assignment", "value": return_val}
-
                     actual_type = _infer_expression_type(temp_node, local_vars, func_def["line"], "return", all_signatures, func_name_context=func_name)
                     if actual_type != expected_return_type:
                         raise ValuaScriptError(ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=func_name, provided=actual_type, expected=expected_return_type)
-
             else:
                 line = step["line"]
                 if step.get("type") == "multi_assignment":
@@ -249,7 +245,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                         raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, line=line, name=result_var, func_name=func_name)
                     rhs_type = _infer_expression_type(step, local_vars, line, result_var, all_signatures, func_name_context=func_name)
                     local_vars[result_var] = {"type": rhs_type, "line": line}
-
         if not has_return:
             raise ValuaScriptError(ErrorCode.MISSING_RETURN_STATEMENT, line=func_def["line"], name=func_name)
 
@@ -259,67 +254,83 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
     temp_var_count = 0
 
     while True:
-        made_change_in_pass = False
-        i = 0
-        while i < len(inlined_code):
-            step = inlined_code[i]
-            made_change_in_step = False
-            if step.get("type") in ("execution_assignment", "multi_assignment"):
-                modified_args = []
-                for arg in step.get("args", []):
-                    if isinstance(arg, dict) and arg.get("function") in user_functions:
-                        made_change_in_step = True
+        made_change_in_main_pass = False
+
+        # --- PHASE 1: LIFTING ---
+        # Keep looping until a full pass over the code makes no changes.
+        # This ensures all nested calls are lifted, even those exposed by prior lifts.
+        while True:
+            lifted_in_sub_pass = False
+            i = 0
+            while i < len(inlined_code):
+                step = inlined_code[i]
+                newly_created_steps = []
+
+                def lift_recursive_helper(expression):
+                    nonlocal temp_var_count
+                    if not isinstance(expression, dict):
+                        return expression
+
+                    modified_expr = expression.copy()
+                    if "args" in expression:
+                        modified_expr["args"] = [lift_recursive_helper(arg) for arg in expression["args"]]
+                    if "condition" in expression:
+                        modified_expr["condition"] = lift_recursive_helper(expression["condition"])
+                        modified_expr["then_expr"] = lift_recursive_helper(expression["then_expr"])
+                        modified_expr["else_expr"] = lift_recursive_helper(expression["else_expr"])
+
+                    if modified_expr.get("function") in user_functions:
                         temp_var_count += 1
                         temp_var_name = f"__temp_{temp_var_count}"
-
-                        nested_call_step = {"line": step["line"], "type": "execution_assignment", **arg}
-                        nested_func_def = user_functions[arg.get("function")]
-                        if isinstance(nested_func_def["return_type"], list):
-                            nested_call_step["type"] = "multi_assignment"
-                            num_returns = len(nested_func_def["return_type"])
-                            temp_results = [f"{temp_var_name}_{j}" for j in range(num_returns)]
-                            nested_call_step["results"] = temp_results
+                        lifted_step = {"line": step["line"], "type": "execution_assignment", **modified_expr}
+                        func_def = user_functions[modified_expr["function"]]
+                        if isinstance(func_def["return_type"], list):
+                            lifted_step["type"] = "multi_assignment"
+                            results = [f"{temp_var_name}_{j}" for j in range(len(func_def["return_type"]))]
+                            lifted_step["results"] = results
                         else:
-                            nested_call_step["result"] = temp_var_name
-
-                        inlined_code.insert(i, nested_call_step)
-                        return_types = _infer_expression_type(nested_call_step, live_defined_vars, step["line"], "", all_signatures)
-                        if isinstance(return_types, list):
-                            for j, r_type in enumerate(return_types):
-                                live_defined_vars[temp_results[j]] = {"type": r_type, "line": step["line"]}
-                            modified_args.append([Token("CNAME", tr) for tr in temp_results])
+                            lifted_step["result"] = temp_var_name
+                        rhs_types = _infer_expression_type(lifted_step, live_defined_vars, step["line"], "", all_signatures)
+                        if isinstance(rhs_types, list):
+                            for j, r_var in enumerate(lifted_step["results"]):
+                                live_defined_vars[r_var] = {"type": rhs_types[j], "line": step["line"]}
                         else:
-                            live_defined_vars[temp_var_name] = {"type": return_types, "line": step["line"]}
-                            modified_args.append(Token("CNAME", temp_var_name))
+                            live_defined_vars[lifted_step["result"]] = {"type": rhs_types, "line": step["line"]}
+                        newly_created_steps.append(lifted_step)
+                        return Token("CNAME", temp_var_name)
+                    return modified_expr
 
-                        i += 1
-                    else:
-                        modified_args.append(arg)
-                if made_change_in_step:
-                    made_change_in_pass = True
-                    step["args"] = modified_args
-            i += 1
+                # We only want to lift from inside expressions, not top-level UDF calls.
+                if step.get("function") not in user_functions:
+                    inlined_code[i] = lift_recursive_helper(step)
 
+                if newly_created_steps:
+                    for j, new_step in enumerate(newly_created_steps):
+                        inlined_code.insert(i + j, new_step)
+                    lifted_in_sub_pass = True
+                    made_change_in_main_pass = True
+                    break
+                i += 1
+
+            if not lifted_in_sub_pass:
+                break
+
+        # --- PHASE 2: INLINING ---
         udf_call_index = -1
         for i, step in enumerate(inlined_code):
             if step.get("type") in ("execution_assignment", "multi_assignment") and step.get("function") in user_functions:
                 udf_call_index = i
                 break
 
-        if udf_call_index == -1 and not made_change_in_pass:
-            break
-
         if udf_call_index != -1:
-            made_change_in_pass = True
+            made_change_in_main_pass = True
             step = inlined_code.pop(udf_call_index)
             func_name = step["function"]
             func_def = user_functions[func_name]
-
             call_count += 1
             mangling_prefix = f"__{func_name}_{call_count}__"
             arg_map = {}
             insertion_point = udf_call_index
-
             for i, param in enumerate(func_def["params"]):
                 mangled_param_name = f"{mangling_prefix}{param['name']}"
                 param_assign_step = {"result": mangled_param_name, "type": "execution_assignment", "function": "identity", "args": [step["args"][i]], "line": step["line"]}
@@ -327,7 +338,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                 live_defined_vars[mangled_param_name] = {"type": param["type"], "line": step["line"]}
                 arg_map[param["name"]] = Token("CNAME", mangled_param_name)
                 insertion_point += 1
-
             param_names = {p["name"] for p in func_def["params"]}
             local_var_names = set()
             for s in func_def["body"]:
@@ -392,6 +402,9 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                     for i, r_var in enumerate(res_vars):
                         live_defined_vars[r_var] = {"type": rhs_types[i], "line": mangled_step["line"]}
                     insertion_point += 1
+
+        if not made_change_in_main_pass:
+            break
 
     return inlined_code
 
