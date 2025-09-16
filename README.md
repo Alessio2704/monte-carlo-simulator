@@ -23,58 +23,52 @@ This approach is guided by three principles:
 
 - **Extensible through Contribution:** The language grows by expanding its C++ core. Need a niche financial model or a specific epidemiological simulation? Implement it once in optimized C++, and it instantly becomes a new "word" in the ValuaScript vocabulary for everyone to use. This creates a powerful, community-driven flywheel for growth.
 
-## See it in Action: A Simple Modular DCF Model
+## See it in Action: A Powerful SIR Epidemic Model
 
-This example demonstrates how ValuaScript combines modules, user-defined functions, and stochastic variables to create a model that is clean, readable, and powerful.
-
-#### File: `modules/finance_utils.vs`
+This example demonstrates how ValuaScript's new **tuple and multi-assignment** feature can handle complex, multi-output system models with clarity and power.
 
 ```valuascript
-@module
+# --- SIR Epidemic Model ---
+# This model simulates the spread of a disease through a population.
 
-func calculate_wacc(beta: scalar) -> scalar {
-    """Calculates a simple Weighted Average Cost of Capital."""
-    let equity_premium = 0.05
-    let risk_free_rate = 0.02
-    return risk_free_rate + beta * equity_premium
-}
+@iterations = 500
+@output = peak_infected_count
+@output_file = "sir_model_results.csv"
 
-func present_value(cashflows: vector, discount_rate: scalar) -> scalar {
-    """Discounts a vector of cash flows to their present value."""
-    return npv(discount_rate, cashflows)
-}
-```
+# --- Model Parameters ---
+let population = 1_000_000
+let initial_infected = 10
 
-#### File: `main.vs`
+# The transmission rate is stochastic, making this a Monte Carlo simulation.
+let transmission_rate = Normal(0.35, 0.05)
+let recovery_rate = 1 / 14 # 14-day recovery period
 
-```valuascript
-@import "modules/finance_utils.vs"
+# --- Simulation ---
+# Call the SirModel function, which returns three vectors in a single tuple.
+# We use multi-assignment to unpack the results into three new variables.
+let susceptible, infected, recovered = SirModel(
+    population - initial_infected,
+    initial_infected,
+    0,
+    transmission_rate,
+    recovery_rate,
+    120, # Simulate for 120 days
+    dt = 1.0
+)
 
-@iterations = 50_000
-@output = dcf_value
-@output_file = "dcf_simulation.csv"
-
-# --- Inputs ---
-let initial_revenue = 1000.0
-let asset_beta = 1.2
-
-# Stochastic variable for revenue growth
-let revenue_growth = Normal(0.10, 0.15)
-
-# --- Logic ---
-let discount_rate = calculate_wacc(asset_beta)
-let future_revenues = grow_series(initial_revenue, revenue_growth, 5)
-
-# Call the imported function to get the final result
-let dcf_value = present_value(future_revenues, discount_rate)
+# --- Analysis ---
+# We can now work with the returned vectors. For our output, we can analyze
+# the results. A 'max_series' function would be useful, but for now we
+# will output the entire 'infected' vector.
+let peak_infected_count = infected
 ```
 
 #### Run the Simulation
 
-One command compiles, runs 50,000 trials with optimizations, and plots the results.
+One command compiles, runs 500 trials with optimizations, and plots the results for the first vector.
 
 ```bash
-vsc main.vs --run -O --plot
+vsc sir_model.vs --run -O --plot
 ```
 
 ## Architecture: AOT Compiler & Virtual Machine
@@ -117,6 +111,7 @@ graph TD
 - **Intuitive Syntax:** A clean, declarative language with a familiar, spreadsheet-like formula syntax.
 - **📦 Code Modularity:** Organize models into reusable modules with `@import`. The compiler resolves the entire dependency graph, including nested and shared ("diamond") dependencies.
 - **🔧 User-Defined Functions:** Create reusable, type-safe functions with docstrings, strict lexical scoping, and compile-time recursion detection.
+- **✨ Tuples & Multi-Assignment:** Functions can return multiple values (including mixed types like scalars and vectors), which can be unpacked into multiple variables in a single, clean assignment.
 - **🛡️ Compile-Time Safety:** Catch logical errors like type mismatches, incorrect function arguments, undefined variables, and circular imports before you run.
 - **🎲 Integrated Monte Carlo Support:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, `Beta`, etc.).
 
@@ -218,31 +213,34 @@ let tax_regime = if is_high_income then 0.40 else 0.25
 </details>
 
 <details>
-<summary><strong>User-Defined Functions (UDFs) & Modules</strong></summary>
+<summary><strong>User-Defined Functions (UDFs), Tuples & Modules</strong></summary>
 
-ValuaScript supports fully type-checked, user-defined functions with several key features:
+ValuaScript supports fully type-checked, user-defined functions that can return multiple values using tuples.
 
 - **Strict Scoping:** Functions can only access their own parameters and locally defined variables. They cannot access global variables, ensuring pure, predictable behavior.
 - **Compile-Time Validation:** The compiler checks for correct types, argument counts, and prevents recursion.
 - **Optimization:** Functions are inlined by the compiler to eliminate call overhead.
 
 ```valuascript
-# Define a reusable function with typed parameters and a return type
-func calculate_cogs(sales: vector, gross_margin: scalar) -> vector {
-    """Calculates Cost of Goods Sold from a sales vector and a margin."""
-    let cogs_vector = sales * (1 - gross_margin)
-    return cogs_vector
+# Define a reusable function with typed parameters and a tuple return type.
+# This function returns two values: a scalar and a vector.
+func process_inputs(base_value: scalar, rates: vector) -> (scalar, vector) {
+    """Processes inputs and returns a discounted value and the original vector."""
+    let projected = compound_series(base_value, rates)
+    let total_value = sum_series(projected)
+    let discounted_value = total_value / (1 + 0.05)
+    return (discounted_value, projected)
 }
 
 # --- Main script body ---
 @iterations = 1000
-@output = final_cogs
+@output = final_value
 
-let revenue = grow_series(1000, 0.1, 5)
-let margin = Normal(0.4, 0.05)
+let initial = 100
+let growth_rates = [0.1, 0.12, 0.15]
 
-# Call the user-defined function
-let final_cogs = calculate_cogs(revenue, margin)
+# Use multi-assignment to unpack the tuple returned by the function.
+let final_value, projected_series = process_inputs(initial, growth_rates)
 ```
 
 </details>
@@ -250,15 +248,16 @@ let final_cogs = calculate_cogs(revenue, margin)
 <details>
 <summary><strong>Built-in Function Reference</strong></summary>
 
-A comprehensive library of built-in functions is available for math, series manipulation, I/O, and statistical sampling.
+A comprehensive library of built-in functions is available for math, series manipulation, I/O, and statistical sampling. Functions that return multiple values are noted with a tuple return type.
 
-| Category       | Functions                                                                                                                                                            |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Core**       | `log`, `log10`, `exp`, `sin`, `cos`, `tan`, `identity`                                                                                                               |
-| **Series**     | `grow_series`, `compound_series`, `interpolate_series`, `sum_series`, `series_delta`, `npv`, `get_element`, `delete_element`, `compose_vector`, `capitalize_expense` |
-| **Statistics** | `Normal`, `Lognormal`, `Beta`, `Uniform`, `Bernoulli`, `Pert`, `Triangular`                                                                                          |
-| **Data I/O**   | `read_csv_scalar`, `read_csv_vector`                                                                                                                                 |
-| **Financial**  | `BlackScholes`                                                                                                                                                       |
+| Category       | Functions                                                                                                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Core**       | `log`, `log10`, `exp`, `sin`, `cos`, `tan`, `identity`                                                                                         |
+| **Series**     | `grow_series`, `compound_series`, `interpolate_series`, `sum_series`, `series_delta`, `npv`, `get_element`, `delete_element`, `compose_vector` |
+| **Statistics** | `Normal`, `Lognormal`, `Beta`, `Uniform`, `Bernoulli`, `Pert`, `Triangular`                                                                    |
+| **Data I/O**   | `read_csv_scalar`, `read_csv_vector`                                                                                                           |
+| **Financial**  | `BlackScholes`, `capitalize_expense` -> `(scalar, scalar, string)`                                                                             |
+| **Scientific** | `SirModel` -> `(vector, vector, vector)`                                                                                                       |
 
 </details>
 
@@ -267,7 +266,7 @@ A comprehensive library of built-in functions is available for math, series mani
 Contributions are welcome! The architecture is designed to make adding new functions—or even entirely new domains of science and engineering—as simple and safe as possible.
 
 <details>
-<summary><strong>Tutorial: How to Add a New Function to an Existing Domain</strong></summary>
+<summary><strong>Tutorial: How to Add a New Function (with Single or Multiple Return Values)</strong></summary>
 
 Let's walk through adding a function named `NewFunction` to the `financial` domain.
 
@@ -282,12 +281,13 @@ _File: `engine/include/engine/functions/financial/NewFunction.h`_
 class NewFunctionOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    // All functions now return a vector of TrialValue.
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 ```
 
 **Step 2: Create the C++ Implementation (`.cpp`)**
-Implement the function's logic and its local registration function. The build system will also find this file automatically.
+Implement the function's logic and its local registration function.
 _File: `engine/src/engine/functions/financial/NewFunction.cpp`_
 
 ```cpp
@@ -302,15 +302,20 @@ void register_new_function_operation(FunctionRegistry& registry)
     });
 }
 
-TrialValue NewFunctionOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> NewFunctionOperation::execute(const std::vector<TrialValue> &args) const
 {
-    // Your high-performance C++ logic goes here...
-    return 42.0;
+    // For a single return value, wrap it in a vector:
+    // return { TrialValue(42.0) };
+
+    // For multiple return values (a tuple):
+    double val1 = 123.45;
+    std::string val2 = "status_ok";
+    return { TrialValue(val1), TrialValue(val2) };
 }
 ```
 
 **Step 3: Update the Private Domain Manifest**
-Declare your new function's registrar in the domain's internal manifest. This tells the domain it has a new member.
+Declare your new function's registrar in the domain's internal manifest.
 _File: `engine/src/engine/functions/financial/financial_registration.h`_
 
 ```cpp
@@ -323,7 +328,7 @@ void register_new_function_operation(FunctionRegistry& registry); // Add this li
 ```
 
 **Step 4: Update the Domain Orchestrator**
-Call your new registrar from the domain's main orchestrator file. This plugs the new function into the domain.
+Call your new registrar from the domain's main orchestrator file.
 _File: `engine/src/engine/functions/financial/financial.cpp`_
 
 ```cpp
@@ -347,23 +352,20 @@ SIGNATURES = {
     "BlackScholes": { ... },
     "NewFunction": {
         "variadic": False,
-        "arg_types": ["scalar", "vector"], # Example arguments
-        "return_type": "scalar",
+        "arg_types": ["scalar"], # Example arguments
+        "return_type": ["scalar", "string"], # A tuple return type
         "is_stochastic": False,
         "doc": {
             "summary": "A brief description of what NewFunction does.",
-            "params": [
-                {"name": "param1", "desc": "Description of the first parameter."},
-                {"name": "param2", "desc": "Description of the second parameter."}
-            ],
-            "returns": "Description of the return value.",
+            "params": [ {"name": "param1", "desc": "Description of the first parameter."} ],
+            "returns": "A tuple containing the calculated value and a status message.",
         },
     },
 }
 ```
 
 **Step 6: Add Tests!**
-A pull request must include tests. Add a new test file `engine/test/functions/financial/test_new_function.cpp` and update the `CMakeLists.txt` to include it.
+A pull request must include tests. Add a new test file `engine/test/functions/financial/test_new_function.cpp` and update the `CMakeLists.txt` to include it. Also add a compiler test to `compiler/tests/functions/test_financial_functions.py`.
 
 Your function is now fully integrated!
 
