@@ -62,7 +62,7 @@ static std::shared_ptr<CachedCsv> get_cached_csv(const std::string &file_path)
         throw EngineException(EngineErrc::CsvFileNotFound, "Failed to read or parse CSV file '" + file_path + "'. Error: " + e.what());
     }
 }
-TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'read_csv_vector' requires 2 arguments.");
@@ -95,9 +95,9 @@ TrialValue ReadCsvVectorOperation::execute(const std::vector<TrialValue> &args) 
     {
         throw EngineException(EngineErrc::CsvConversionError, "Error converting data to number in column '" + column_name + "' from file '" + file_path + "'. Please check for non-numeric values. Error: " + e.what());
     }
-    return column_vector;
+    return {column_vector};
 }
-TrialValue ReadCsvScalarOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> ReadCsvScalarOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'read_csv_scalar' requires 3 arguments.");
@@ -124,5 +124,5 @@ TrialValue ReadCsvScalarOperation::execute(const std::vector<TrialValue> &args) 
     {
         throw EngineException(EngineErrc::CsvConversionError, "Error converting data to number at row " + std::to_string(row_index) + ", column '" + column_name + "' in file '" + file_path + "'. Error: " + e.what());
     }
-    return cell_value;
+    return {cell_value};
 }

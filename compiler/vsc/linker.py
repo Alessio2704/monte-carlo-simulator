@@ -8,8 +8,6 @@ def _process_arg_for_json(arg):
     if isinstance(arg, _StringLiteral):
         return {"type": "string_literal", "value": arg.value}
     if isinstance(arg, Token):
-        # This should only happen for non-variable tokens if any exist.
-        # Variable tokens should have been resolved to indices already.
         raise TypeError(f"Internal Error: Unexpected unresolved Token '{arg}' during final JSON serialization.")
     if isinstance(arg, dict) and "args" in arg:
         arg["args"] = [_process_arg_for_json(a) for a in arg["args"]]
@@ -24,28 +22,23 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
     3. Generates the final low-level JSON bytecode.
     """
     all_steps = pre_trial_steps + per_trial_steps
-    all_variable_names = {step["result"] for step in all_steps}
+    all_variable_names = set()
+    for step in all_steps:
+        results = step.get("results") or [step.get("result")]
+        all_variable_names.update(results)
 
-    # 1. Create the canonical, ordered registry. Sorting ensures deterministic output.
     variable_registry_list = sorted(list(all_variable_names))
     name_to_index_map = {name: i for i, name in enumerate(variable_registry_list)}
 
-    # 2. Resolve the output variable string name to its index.
     output_variable_index = None
-    if output_var:  # This will be None for a module file, skipping the block
+    if output_var:
         if output_var not in name_to_index_map:
-            # Re-check existence as DCE might have removed it.
-            if any(s["result"] == output_var for s in all_steps):
-                output_variable_index = name_to_index_map.get(output_var)
-            else:
-                raise ValuaScriptError(f"The final @output variable '{output_var}' was not found in the final execution plan. It may have been eliminated as dead code.")
+             raise ValuaScriptError(f"The final @output variable '{output_var}' was not found. It may have been eliminated as dead code.")
         output_variable_index = name_to_index_map.get(output_var)
 
-    # 3. Define recursive helper to rewrite expressions into bytecode format
     def _resolve_expression_to_bytecode(arg):
-        if isinstance(arg, Token):  # This is a variable name
-            var_name = str(arg)
-            return {"type": "variable_index", "value": name_to_index_map[var_name]}
+        if isinstance(arg, Token):
+            return {"type": "variable_index", "value": name_to_index_map[str(arg)]}
         if isinstance(arg, dict) and arg.get("type") == "conditional_expression":
             return {
                 "type": "conditional_expression",
@@ -53,13 +46,11 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
                 "then_expr": _resolve_expression_to_bytecode(arg["then_expr"]),
                 "else_expr": _resolve_expression_to_bytecode(arg["else_expr"]),
             }
-        if isinstance(arg, dict) and "function" in arg:  # This is a nested function call
+        if isinstance(arg, dict) and "function" in arg:
             new_arg = arg.copy()
             new_arg["type"] = "execution_assignment"
             new_arg["args"] = [_resolve_expression_to_bytecode(a) for a in new_arg["args"]]
             return new_arg
-
-        # It's a literal value, wrap it in a typed dictionary
         if isinstance(arg, bool):
             return {"type": "boolean_literal", "value": arg}
         if isinstance(arg, (int, float)):
@@ -68,37 +59,43 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
             return {"type": "vector_literal", "value": arg}
         if isinstance(arg, _StringLiteral):
             return {"type": "string_literal", "value": arg.value}
-
         raise TypeError(f"Internal Error: Unhandled type '{type(arg).__name__}' during bytecode generation.")
 
-    # 4. Define helper to rewrite a list of steps
     def _rewrite_steps_to_bytecode(steps_to_rewrite):
         bytecode_steps = []
         for step in steps_to_rewrite:
-            new_step = {
-                "type": step["type"],
-                "result_index": name_to_index_map[step["result"]],
-                "line": step.get("line", -1),
-            }
-            if new_step["type"] == "literal_assignment":
-                new_step["value"] = step["value"]
-            elif new_step["type"] == "conditional_expression":
-                new_step["type"] = "conditional_assignment"  # Rename for the engine
-                new_step["condition"] = _resolve_expression_to_bytecode(step["condition"])
-                new_step["then_expr"] = _resolve_expression_to_bytecode(step["then_expr"])
-                new_step["else_expr"] = _resolve_expression_to_bytecode(step["else_expr"])
-            else:  # execution_assignment
-                new_step["function"] = step["function"]
-                new_step["args"] = [_resolve_expression_to_bytecode(a) for a in step.get("args", [])]
-
+            step_type = step["type"]
+            if step_type == "literal_assignment":
+                new_step = {
+                    "type": "literal_assignment",
+                    "result": name_to_index_map[step["result"]],
+                    "line": step.get("line", -1),
+                    "value": step["value"]
+                }
+            elif step_type == "conditional_expression":
+                 new_step = {
+                    "type": "conditional_assignment",
+                    "result": name_to_index_map[step["result"]],
+                    "line": step.get("line", -1),
+                    "condition": _resolve_expression_to_bytecode(step["condition"]),
+                    "then_expr": _resolve_expression_to_bytecode(step["then_expr"]),
+                    "else_expr": _resolve_expression_to_bytecode(step["else_expr"]),
+                }
+            else: # execution_assignment or multi_assignment
+                results = step.get("results") or [step.get("result")]
+                new_step = {
+                    "type": "execution_assignment", # ALWAYS this type
+                    "result": [name_to_index_map[r] for r in results], # ALWAYS this key
+                    "line": step.get("line", -1),
+                    "function": step["function"],
+                    "args": [_resolve_expression_to_bytecode(a) for a in step.get("args", [])],
+                }
             bytecode_steps.append(new_step)
         return bytecode_steps
 
-    # 5. Generate the final bytecode
     bytecode_pre_trial = _rewrite_steps_to_bytecode(pre_trial_steps)
     bytecode_per_trial = _rewrite_steps_to_bytecode(per_trial_steps)
 
-    # 6. Assemble the final recipe object
     return {
         "simulation_config": sim_config,
         "variable_registry": variable_registry_list,

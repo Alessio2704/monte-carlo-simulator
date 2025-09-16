@@ -98,6 +98,7 @@ endmacro()
 add_engine_test(core/test_errors)
 add_engine_test(core/test_preview)
 add_engine_test(core/test_output_writer)
+add_engine_test(core/test_multi_assignment)
 
 # Function Domain Tests
 add_engine_test(functions/core/test_arithmetic_ops)
@@ -107,6 +108,7 @@ add_engine_test(functions/series/test_series_ops)
 add_engine_test(functions/statistics/test_samplers)
 add_engine_test(functions/io/test_io_ops)
 add_engine_test(functions/financial/test_black_scholes)
+add_engine_test(functions/epidemiology/test_sir_model)
 
 # Pass the location of the 'vse' executable to the 'test_preview' compile definitions.
 target_compile_definitions(test_preview PRIVATE VSE_EXECUTABLE_PATH="$<TARGET_FILE:vse>")

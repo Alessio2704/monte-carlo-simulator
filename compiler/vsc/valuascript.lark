@@ -8,13 +8,19 @@ directive_setting: "@" CNAME "=" expression
 valueless_directive: "@" CNAME
 import_directive: IMPORT_KEYWORD STRING
 
-assignment: LET CNAME "=" expression -> assignment
+assignment: LET (CNAME | multi_assignment_vars) "=" expression
+
+multi_assignment_vars: CNAME ("," CNAME)+
 
 // --- FUNCTION DEFINITION ---
-function_def: "func" CNAME "(" [param ("," param)*] ")" "->" CNAME "{" [DOCSTRING] function_body "}"
+function_def: "func" CNAME "(" [param ("," param)*] ")" "->" return_type "{" [DOCSTRING] function_body "}"
+?return_type: CNAME | tuple_type
+tuple_type: "(" CNAME ("," CNAME)* ")"
+
 function_body: (assignment | return_statement)+
 param: CNAME ":" CNAME
-return_statement: "return" expression
+return_statement: "return" (expression | tuple_expression)
+tuple_expression: "(" expression ("," expression)* ")"
 
 // --- HIERARCHY FOR ALL EXPRESSIONS (LOGICAL, COMPARISON, MATH) ---
 // The hierarchy defines operator precedence, from lowest (if/else) to highest (atoms).
@@ -40,6 +46,7 @@ conditional_expression: or_expression | IF or_expression THEN or_expression ELSE
      | element_access
      | delete_element_vector
      | vector
+     | tuple_expression
      | "(" expression ")"
 
 // --- Reusable Rule Definitions ---

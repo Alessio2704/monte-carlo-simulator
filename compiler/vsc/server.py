@@ -159,7 +159,7 @@ def _get_script_analysis(source: str, file_path: str):
         return {}, set(), {}
     try:
         all_user_function_defs = {k: v["definition"] for k, v in user_functions_with_meta.items()}
-        inlined_steps, full_defined_vars, _, _ = validate_semantics(high_level_ast, all_user_function_defs, is_preview_mode=True)
+        inlined_steps, full_defined_vars, _, _ = validate_semantics(high_level_ast, all_user_function_defs, is_preview_mode=True, file_path=file_path)
         _, dependents = _build_dependency_graph(inlined_steps)
         stochastic_vars = _find_stochastic_variables(inlined_steps, dependents)
         defined_vars = full_defined_vars
@@ -172,9 +172,15 @@ def _get_script_analysis(source: str, file_path: str):
         all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
         for step in high_level_ast.get("execution_steps", []):
             try:
-                var_name = step["result"]
-                var_type = _infer_expression_type(step, temp_defined_vars, step["line"], var_name, all_signatures)
-                temp_defined_vars[var_name] = {"type": var_type, "line": step["line"]}
+                if step.get("type") == "multi_assignment":
+                    var_names = step["results"]
+                    var_types = _infer_expression_type(step, temp_defined_vars, step["line"], "", all_signatures)
+                    for i, name in enumerate(var_names):
+                        temp_defined_vars[name] = {"type": var_types[i], "line": step["line"]}
+                else:
+                    var_name = step["result"]
+                    var_type = _infer_expression_type(step, temp_defined_vars, step["line"], var_name, all_signatures)
+                    temp_defined_vars[var_name] = {"type": var_type, "line": step["line"]}
             except Exception:
                 break
         defined_vars = temp_defined_vars
@@ -190,6 +196,8 @@ def hover(params):
     file_path = _uri_to_path(params.text_document.uri)
     defined_vars, stochastic_vars, user_functions_with_meta = _get_script_analysis(source, file_path)
     user_functions = {k: v["definition"] for k, v in user_functions_with_meta.items()}
+
+    # --- Hover for Built-in Function ---
     if word in FUNCTION_SIGNATURES:
         sig = FUNCTION_SIGNATURES[word]
         doc = sig.get("doc")
@@ -203,23 +211,39 @@ def hover(params):
             for p in doc["params"]:
                 param_docs.append(f"- `{p.get('name', '')}`: {p.get('desc', '')}")
             contents.append("\n".join(param_docs))
-        if "returns" in doc:
-            returns_doc = doc.get("returns", "")
-            return_type_val = sig.get("return_type", "any")
+
+        # FIX: Correctly format return type
+        return_type_val = sig.get("return_type", "any")
+        if isinstance(return_type_val, list):
+            return_type_str = f"({', '.join(return_type_val)})"
+        else:
             return_type_str = "dynamic" if callable(return_type_val) else return_type_val
-            contents.append(f"\n**Returns**: `{return_type_str}` — {returns_doc}")
+        contents.append(f"\n**Returns**: `{return_type_str}` — {doc.get('returns', '')}")
+
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
+
+    # --- Hover for User-Defined Function ---
     if word in user_functions:
         func_def = user_functions[word]
         is_sto = _is_udf_stochastic(func_def, user_functions)
         stochastic_tag = " (stochastic)" if is_sto else ""
         params_str = ", ".join([f"{p['name']}: {p['type']}" for p in func_def["params"]])
-        signature = f"(user defined function{stochastic_tag}) {func_def['name']}({params_str}) -> {func_def['return_type']}"
+
+        # FIX: Correctly format return type
+        return_type = func_def["return_type"]
+        if isinstance(return_type, list):
+            return_str = f"({', '.join(return_type)})"
+        else:
+            return_str = return_type
+
+        signature = f"(user defined function{stochastic_tag}) {func_def['name']}({params_str}) -> {return_str}"
         contents = [f"```valuascript\n{signature}\n```"]
         if func_def.get("docstring"):
             contents.append("---")
             contents.append(func_def["docstring"])
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
+
+    # --- Hover for Variable ---
     if word in defined_vars:
         var_info = defined_vars[word]
         var_type = var_info.get("type", "unknown")
@@ -293,6 +317,7 @@ def definition(params):
         line = func_def.get("line", 1) - 1
         return Location(uri=_path_to_uri(source_path), range=Range(start=Position(line, 0), end=Position(line, 100)))
     return None
+
 
 def _create_function_snippet(name: str, params: list) -> str:
     """Creates an LSP snippet string from a function name and parameter list."""

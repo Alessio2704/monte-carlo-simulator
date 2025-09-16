@@ -8,6 +8,7 @@
 #include "include/engine/functions/statistics/samplers.h"
 #include "include/engine/functions/io/operations.h"
 #include "include/engine/functions/financial/financial.h"
+#include "include/engine/functions/epidemiology/epidemiology.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -36,6 +37,7 @@ void SimulationEngine::build_function_registry()
     register_statistics_functions(*m_function_registry);
     register_io_functions(*m_function_registry);
     register_financial_functions(*m_function_registry);
+    register_epidemiology_functions(*m_function_registry);
 
     // Get a pointer to the factory map for use during parsing
     m_executable_factory = &m_function_registry->get_factory_map();
@@ -83,11 +85,11 @@ void SimulationEngine::parse_and_build(const std::string &path)
         auto build_step_from_json = [&](const json &step_json) -> std::unique_ptr<IExecutionStep>
         {
             std::string type = step_json.at("type");
-            size_t result_index = step_json.at("result_index");
             int line = step_json.value("line", -1);
 
             if (type == "literal_assignment")
             {
+                size_t result_index = step_json.at("result");
                 const auto &val_json = step_json.at("value");
                 TrialValue value;
                 if (val_json.is_array())
@@ -114,6 +116,12 @@ void SimulationEngine::parse_and_build(const std::string &path)
             }
             else if (type == "execution_assignment")
             {
+                std::vector<size_t> result_indices = step_json.at("result").get<std::vector<size_t>>();
+                if (result_indices.empty())
+                {
+                    throw EngineException(EngineErrc::RecipeParseError, "Execution assignment step requires at least one 'result index'.", line);
+                }
+
                 std::string function_name = step_json.at("function");
                 auto factory_it = m_executable_factory->find(function_name);
                 if (factory_it == m_executable_factory->end())
@@ -122,11 +130,12 @@ void SimulationEngine::parse_and_build(const std::string &path)
                 }
                 auto executable_logic = factory_it->second();
                 return std::make_unique<ExecutionAssignmentStep>(
-                    result_index, function_name, line,
+                    result_indices, function_name, line,
                     std::move(executable_logic), step_json.at("args"), *m_executable_factory);
             }
             else if (type == "conditional_assignment")
             {
+                size_t result_index = step_json.at("result");
                 return std::make_unique<ConditionalAssignmentStep>(
                     result_index, line,
                     step_json.at("condition"), step_json.at("then_expr"), step_json.at("else_expr"),

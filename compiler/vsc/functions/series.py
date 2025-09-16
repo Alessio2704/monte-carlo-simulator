@@ -109,7 +109,7 @@ SIGNATURES = {
     "capitalize_expense": {
         "variadic": False,
         "arg_types": ["scalar", "vector", "scalar"],
-        "return_type": "vector",
+        "return_type": ["scalar", "scalar"],
         "is_stochastic": False,
         "doc": {
             "summary": "Calculates the value of capitalized assets (e.g., R&D) and the amortization for the current year.",
@@ -118,7 +118,7 @@ SIGNATURES = {
                 {"name": "past_expenses", "desc": "A vector of expenses from prior periods, oldest first."},
                 {"name": "amortization_period", "desc": "The number of years over which the expense is amortized."},
             ],
-            "returns": "A two-element vector: [total_asset_value, amortization_for_current_year].",
+            "returns": "The total capitalized asset value (scalar) and the amortization for the current year (scalar).",
         },
     },
 }

@@ -14,7 +14,7 @@ TEST_F(EngineFileOutputTest, WritesScalarOutputCorrectly)
         "output_variable_index": 0,
         "variable_registry": ["A"],
         "per_trial_steps": [
-            {"type": "literal_assignment", "result_index": 0, "value": 123.45}
+            {"type": "literal_assignment", "result": 0, "value": 123.45}
         ]
     })";
     create_test_recipe("recipe.json", recipe_content);
@@ -41,7 +41,7 @@ TEST_F(EngineFileOutputTest, WritesVectorOutputCorrectly)
         "output_variable_index": 0,
         "variable_registry": ["A"],
         "per_trial_steps": [
-            {"type": "literal_assignment", "result_index": 0, "value": [10.1, 20.2, 30.3]}
+            {"type": "literal_assignment", "result": 0, "value": [10.1, 20.2, 30.3]}
         ]
     })";
     create_test_recipe("recipe.json", recipe_content);
@@ -64,7 +64,7 @@ TEST_F(EngineFileOutputTest, DoesNotWriteFileWhenNotSpecified)
         "simulation_config": {"num_trials": 1},
         "output_variable_index": 0,
         "variable_registry": ["A"],
-        "per_trial_steps": [{"type": "literal_assignment", "result_index": 0, "value": 10}]
+        "per_trial_steps": [{"type": "literal_assignment", "result": 0, "value": 10}]
     })";
     create_test_recipe("recipe.json", recipe_content);
 

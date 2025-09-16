@@ -189,8 +189,19 @@ def test_deterministic_if_is_moved_to_pre_trial():
     assert recipe is not None
 
     registry = recipe["variable_registry"]
-    pre_trial_vars = {registry[step["result_index"]] for step in recipe["pre_trial_steps"]}
-    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
+    pre_trial_vars = {
+        registry[index]
+        for step in recipe["pre_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
+
+    per_trial_vars = {
+        registry[index]
+        for step in recipe["per_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
 
     assert "result" in pre_trial_vars
     assert not per_trial_vars
@@ -213,8 +224,19 @@ def test_stochastic_if_branch_taints_result():
     assert recipe is not None
 
     registry = recipe["variable_registry"]
-    pre_trial_vars = {registry[step["result_index"]] for step in recipe["pre_trial_steps"]}
-    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
+    pre_trial_vars = {
+        registry[index]
+        for step in recipe["pre_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
+
+    per_trial_vars = {
+        registry[index]
+        for step in recipe["per_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
 
     assert "a" in pre_trial_vars
     assert "b_sto" in per_trial_vars

@@ -11,7 +11,7 @@ TEST_F(BlackScholesTest, CallPriceIsCorrect)
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["price"],
         "per_trial_steps": [{
-            "type": "execution_assignment", "result_index": 0, "function": "BlackScholes",
+            "type": "execution_assignment", "result": [0], "function": "BlackScholes",
             "args": [
                 {"type": "scalar_literal", "value": 100.0}, 
                 {"type": "scalar_literal", "value": 105.0}, 
@@ -35,7 +35,7 @@ TEST_F(BlackScholesTest, PutPriceIsCorrect)
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["price"],
         "per_trial_steps": [{
-            "type": "execution_assignment", "result_index": 0, "function": "BlackScholes",
+            "type": "execution_assignment", "result": [0], "function": "BlackScholes",
             "args": [
                 {"type": "scalar_literal", "value": 100.0},
                 {"type": "scalar_literal", "value": 105.0},
@@ -55,7 +55,7 @@ TEST_F(BlackScholesTest, PutPriceIsCorrect)
 
 TEST_F(BlackScholesTest, ThrowsOnIncorrectArity)
 {
-    const std::string recipe = R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["p"],"per_trial_steps":[{"type":"execution_assignment","result_index":0,"function":"BlackScholes","args":[]}]})";
+    const std::string recipe = R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["p"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"BlackScholes","args":[]}]})";
     create_test_recipe("err.json", recipe);
     try
     {
@@ -74,7 +74,7 @@ TEST_F(BlackScholesTest, ThrowsOnInvalidOptionType)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["price"],
-        "per_trial_steps": [{"type": "execution_assignment", "result_index": 0, "function": "BlackScholes",
+        "per_trial_steps": [{"type": "execution_assignment", "result": [0], "function": "BlackScholes",
             "args": [
                 {"type": "scalar_literal", "value": 100}, {"type": "scalar_literal", "value": 105},
                 {"type": "scalar_literal", "value": 0.05}, {"type": "scalar_literal", "value": 1},

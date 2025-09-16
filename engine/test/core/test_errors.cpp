@@ -33,7 +33,7 @@ TEST_F(CoreEngineErrorTest, ThrowsOnStepVariableIndexOutOfBounds)
         "output_variable_index": 0,
         "variable_registry": ["A"],
         "per_trial_steps": [
-            {"type": "execution_assignment", "result_index": 0, "function": "identity", "args": [
+            {"type": "execution_assignment", "result": [0], "function": "identity", "args": [
                 {"type": "variable_index", "value": 1}
             ]}
         ]

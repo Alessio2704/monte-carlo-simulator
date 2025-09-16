@@ -51,12 +51,13 @@ struct ArgumentPlanner
     static TrialValue resolve_runtime_value(const ResolvedArgument &arg, const TrialContext &context);
 };
 
-// --- Concrete Step for `let x = add(y, z)` ---
+// --- Concrete Step for `let x = add(y, z)` OR `let a, b = func(y, z)` ---
+// This class is unified and handles both single and multi-assignment.
 class ExecutionAssignmentStep : public IExecutionStep
 {
 public:
     ExecutionAssignmentStep(
-        size_t result_index,
+        std::vector<size_t> result_indices, // Now always takes a vector of indices.
         std::string function_name,
         int line_num,
         std::unique_ptr<IExecutable> logic,
@@ -66,7 +67,7 @@ public:
     void execute(TrialContext &context) const override;
 
 private:
-    size_t m_result_index;
+    std::vector<size_t> m_result_indices; // Stores one or more indices.
     std::string m_function_name;
     int m_line_num;
     std::unique_ptr<IExecutable> m_logic;

@@ -47,7 +47,14 @@ TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, c
                 }
                 try
                 {
-                    return nested_call.logic->execute(nested_final_args);
+                    // execute() now returns a vector. For a nested expression,
+                    // we expect it to behave like a single-return function.
+                    std::vector<TrialValue> result_vec = nested_call.logic->execute(nested_final_args);
+                    if (result_vec.size() != 1)
+                    {
+                        throw EngineException(EngineErrc::MismatchedArgumentType, "Nested function '" + nested_call.function_name + "' used in an expression must return exactly one value, but it returned " + std::to_string(result_vec.size()) + ".", nested_call.line_num);
+                    }
+                    return result_vec[0];
                 }
                 catch (const EngineException &e)
                 {
@@ -159,13 +166,13 @@ ArgumentPlanner::ResolvedArgument ArgumentPlanner::build_argument_plan(
 // ============================================================================
 
 ExecutionAssignmentStep::ExecutionAssignmentStep(
-    size_t result_index,
+    std::vector<size_t> result_indices,
     std::string function_name,
     int line_num,
     std::unique_ptr<IExecutable> logic,
     const json &args,
     const ArgumentPlanner::ExecutableFactory &factory)
-    : m_result_index(result_index),
+    : m_result_indices(std::move(result_indices)),
       m_function_name(std::move(function_name)),
       m_line_num(line_num),
       m_logic(std::move(logic))
@@ -188,22 +195,31 @@ void ExecutionAssignmentStep::execute(TrialContext &context) const
             final_args.push_back(ArgumentPlanner::resolve_runtime_value(arg_plan, context));
         }
 
-        context[m_result_index] = m_logic->execute(final_args);
+        std::vector<TrialValue> results = m_logic->execute(final_args);
+
+        if (results.size() != m_result_indices.size())
+        {
+            throw EngineException(
+                EngineErrc::IncorrectArgumentCount,
+                "Function '" + m_function_name + "' returned " + std::to_string(results.size()) +
+                    " values, but " + std::to_string(m_result_indices.size()) + " were expected for assignment.");
+        }
+
+        for (size_t i = 0; i < results.size(); ++i)
+        {
+            context[m_result_indices[i]] = results[i];
+        }
     }
     catch (const std::out_of_range &)
     {
-        // Add specific catch for out_of_range to provide a better error code.
         throw EngineException(EngineErrc::IndexOutOfBounds, std::string("In function '") + m_function_name + "': " + "Variable index out of bounds.", m_line_num);
     }
     catch (const EngineException &e)
     {
-        // This is a key location. We catch an exception from a function (like 'divide')
-        // and add the line number and function name context before re-throwing.
         throw EngineException(e.code(), std::string("In function '") + m_function_name + "': " + e.what(), m_line_num);
     }
     catch (const std::exception &e)
     {
-        // Fallback for any other unexpected standard exceptions.
         throw EngineException(EngineErrc::UnknownError, std::string("In function '") + m_function_name + "': " + e.what(), m_line_num);
     }
 }

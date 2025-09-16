@@ -78,8 +78,20 @@ def test_comprehensive_boolean_and_conditional_logic():
 
     # ASSERT: Inspect the recipe to validate the compiler's internal logic
     registry = recipe["variable_registry"]
-    pre_trial_vars = {registry[step["result_index"]] for step in recipe["pre_trial_steps"]}
-    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
+
+    pre_trial_vars = {
+        registry[index]
+        for step in recipe["pre_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
+
+    per_trial_vars = {
+        registry[index]
+        for step in recipe["per_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
 
     # Assertions for Phases 1, 2, 3a, 3b, and 4: All these variables are deterministic
     # and should have been moved to the pre-trial phase by the optimizer.
@@ -156,7 +168,13 @@ def test_deeply_nested_stochastic_conditional():
     assert recipe is not None
 
     registry = recipe["variable_registry"]
-    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
+
+    per_trial_vars = {
+        registry[index]
+        for step in recipe["per_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
 
     # The stochastic variable 'a' must be in the per-trial set.
     assert "a" in per_trial_vars
@@ -185,7 +203,12 @@ def test_complex_logical_precedence():
     assert recipe is not None
 
     registry = recipe["variable_registry"]
-    pre_trial_vars = {registry[step["result_index"]] for step in recipe["pre_trial_steps"]}
+    pre_trial_vars = {
+        registry[index]
+        for step in recipe["pre_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
 
     # The entire calculation is deterministic, so it should be in the pre-trial phase.
     assert "result" in pre_trial_vars

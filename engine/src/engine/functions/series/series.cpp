@@ -73,7 +73,7 @@ inline std::vector<double> series_delta_simd(const std::vector<double> &series)
 // == Vector and Series Operations
 // =====================================================================================
 
-TrialValue GrowSeriesOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> GrowSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'grow_series' requires 3 arguments.");
@@ -82,7 +82,7 @@ TrialValue GrowSeriesOperation::execute(const std::vector<TrialValue> &args) con
     int num_years = static_cast<int>(std::get<double>(args[2]));
     std::vector<double> series;
     if (num_years < 1)
-        return series;
+        return {series};
     series.reserve(num_years);
     double current_val = base_val;
     double growth_factor = 1.0 + growth_rate;
@@ -91,9 +91,9 @@ TrialValue GrowSeriesOperation::execute(const std::vector<TrialValue> &args) con
         current_val *= growth_factor;
         series.push_back(current_val);
     }
-    return series;
+    return {series};
 }
-TrialValue CompoundSeriesOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> CompoundSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'compound_series' requires 2 arguments.");
@@ -106,9 +106,9 @@ TrialValue CompoundSeriesOperation::execute(const std::vector<TrialValue> &args)
         current_val *= (1.0 + growth_rates[i]);
         series[i] = current_val;
     }
-    return series;
+    return {series};
 }
-TrialValue NpvOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> NpvOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'npv' requires 2 arguments.");
@@ -123,16 +123,16 @@ TrialValue NpvOperation::execute(const std::vector<TrialValue> &args) const
         npv += cashflow / discount_factor;
         discount_factor *= (1.0 + rate);
     }
-    return npv;
+    return {npv};
 }
-TrialValue SumSeriesOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> SumSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'sum_series' requires 1 argument.");
     const auto &series = std::get<std::vector<double>>(args[0]);
-    return std::reduce(series.begin(), series.end(), 0.0);
+    return {std::reduce(series.begin(), series.end(), 0.0)};
 }
-TrialValue GetElementOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> GetElementOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'get_element' requires 2 arguments.");
@@ -144,9 +144,9 @@ TrialValue GetElementOperation::execute(const std::vector<TrialValue> &args) con
         index = static_cast<int>(series.size()) + index;
     if (index < 0 || static_cast<size_t>(index) >= series.size())
         throw EngineException(EngineErrc::IndexOutOfBounds, "Index out of bounds.");
-    return series[static_cast<size_t>(index)];
+    return {series[static_cast<size_t>(index)]};
 }
-TrialValue DeleteElementOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> DeleteElementOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 2)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'delete_element' requires 2 arguments.");
@@ -169,56 +169,52 @@ TrialValue DeleteElementOperation::execute(const std::vector<TrialValue> &args) 
             result_vector.push_back(input_vector[i]);
         }
     }
-    return result_vector;
+    return {result_vector};
 }
-TrialValue SeriesDeltaOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> SeriesDeltaOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 1)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'series_delta' requires 1 argument.");
     const auto &series = std::get<std::vector<double>>(args[0]);
-    return series_delta_simd(series);
+    return {series_delta_simd(series)};
 }
-TrialValue ComposeVectorOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> ComposeVectorOperation::execute(const std::vector<TrialValue> &args) const
 {
     std::vector<double> composed_vector;
 
     for (const auto &arg_variant : args)
     {
-        // Visit the current argument to determine its type
         std::visit(
             [&composed_vector](auto &&arg)
             {
                 using T = std::decay_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, double>)
                 {
-                    // If it's a scalar, just add it.
                     composed_vector.push_back(arg);
                 }
                 else if constexpr (std::is_same_v<T, std::vector<double>>)
                 {
-                    // If it's a vector, flatten it by inserting its elements.
                     composed_vector.insert(composed_vector.end(), arg.begin(), arg.end());
                 }
                 else
                 {
-                    // Any other type is an error.
                     throw EngineException(EngineErrc::MismatchedArgumentType, "Function 'compose_vector' can only accept scalars and vectors.");
                 }
             },
             arg_variant);
     }
-    return composed_vector;
+    return {composed_vector};
 }
-TrialValue InterpolateSeriesOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> InterpolateSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'interpolate_series' requires 3 arguments.");
     double start_value = std::get<double>(args[0]);
     double end_value = std::get<double>(args[1]);
     int num_years = static_cast<int>(std::get<double>(args[2]));
-    return interpolate_series_simd(start_value, end_value, num_years);
+    return {interpolate_series_simd(start_value, end_value, num_years)};
 }
-TrialValue CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &args) const
+std::vector<TrialValue> CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &args) const
 {
     if (args.size() != 3)
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Function 'capitalize_expense' requires 3 arguments.");
@@ -246,5 +242,7 @@ TrialValue CapitalizeExpenseOperation::execute(const std::vector<TrialValue> &ar
             amortization_this_year += past_expenses[i] / period;
         }
     }
-    return std::vector<double>{research_asset, amortization_this_year};
+    return {
+        TrialValue(research_asset),
+        TrialValue(amortization_this_year)};
 }

@@ -9,10 +9,10 @@ void register_io_functions(FunctionRegistry &registry);
 class ReadCsvVectorOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
 class ReadCsvScalarOperation : public IExecutable
 {
 public:
-    TrialValue execute(const std::vector<TrialValue> &args) const override;
+    std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const override;
 };
