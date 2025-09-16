@@ -68,7 +68,7 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
             if step_type == "literal_assignment":
                 new_step = {
                     "type": "literal_assignment",
-                    "result_index": name_to_index_map[step["result"]],
+                    "result": name_to_index_map[step["result"]],
                     "line": step.get("line", -1),
                     "value": step["value"]
                 }

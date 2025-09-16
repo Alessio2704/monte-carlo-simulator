@@ -271,7 +271,12 @@ def test_stochastic_function_taints_caller():
     recipe = compile_valuascript(script)
     assert recipe is not None
     registry = recipe["variable_registry"]
-    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
+    per_trial_vars = {
+        registry[index]
+        for step in recipe["per_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
     # Check that all relevant variables were moved to the per_trial phase
     assert "__get_random_1__r" in per_trial_vars
     assert "sto" in per_trial_vars
@@ -289,7 +294,13 @@ def test_deterministic_function_with_stochastic_input():
     recipe = compile_valuascript(script)
     assert recipe is not None
     registry = recipe["variable_registry"]
-    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
+    per_trial_vars = {
+        registry[index]
+        for step in recipe["per_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
+
     assert "rand_in" in per_trial_vars
     assert "result" in per_trial_vars
     assert "__add_one_1__x" in per_trial_vars
@@ -447,7 +458,13 @@ def test_stochasticity_propagates_through_deep_chain():
     recipe = compile_valuascript(script)
     assert recipe is not None
     registry = recipe["variable_registry"]
-    per_trial_vars = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
+
+    per_trial_vars = {
+        registry[index]
+        for step in recipe["per_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
 
     # Check that initial_value is pre-trial (deterministic)
     assert "initial_value" not in per_trial_vars
@@ -464,5 +481,7 @@ def test_stochasticity_propagates_through_deep_chain():
             break
 
     assert normal_call_step is not None, "Normal call step not found in bytecode"
-    normal_call_result_var = registry[normal_call_step["result_index"]]
+
+    # Here i used [0] because I know that the normal function returns NO TUPLE
+    normal_call_result_var = registry[normal_call_step["result"][0]]
     assert normal_call_result_var in per_trial_vars, "Stochastic source from Normal() was not moved to per_trial phase"

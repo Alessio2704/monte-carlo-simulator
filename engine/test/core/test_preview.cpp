@@ -14,7 +14,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForDeterministicScalar)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry":["a"],
-        "per_trial_steps": [{"type": "literal_assignment", "result_index": 0, "value": 123.45678}]
+        "per_trial_steps": [{"type": "literal_assignment", "result": 0, "value": 123.45678}]
     })";
     create_test_recipe("preview_test.json", recipe);
 
@@ -31,7 +31,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForStochasticScalar)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 100}, "output_variable_index": 0, "variable_registry":["a"],
-        "per_trial_steps": [{"type": "execution_assignment", "result_indices": [0], "function": "Normal", "args": [{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":0}]}]
+        "per_trial_steps": [{"type": "execution_assignment", "result": [0], "function": "Normal", "args": [{"type":"scalar_literal","value":100},{"type":"scalar_literal","value":0}]}]
     })";
     create_test_recipe("preview_test.json", recipe);
 
@@ -48,7 +48,7 @@ TEST_F(EnginePreviewModeTest, OutputsCorrectJsonForVector)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry":["a"],
-        "per_trial_steps": [{"type": "literal_assignment", "result_index": 0, "value": [1.11111, 2.22222, 3.33333]}]
+        "per_trial_steps": [{"type": "literal_assignment", "result": 0, "value": [1.11111, 2.22222, 3.33333]}]
     })";
     create_test_recipe("preview_test.json", recipe);
 
@@ -68,7 +68,7 @@ TEST_F(EnginePreviewModeTest, OutputsErrorJsonOnRuntimeError)
 {
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry":["a"],
-        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result_indices": [0], "function": "divide", "args": [{"type":"scalar_literal","value":1}, {"type":"scalar_literal","value":0}]}]
+        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result": [0], "function": "divide", "args": [{"type":"scalar_literal","value":1}, {"type":"scalar_literal","value":0}]}]
     })";
     create_test_recipe("preview_test.json", recipe);
 

@@ -87,7 +87,7 @@ void SimulationEngine::parse_and_build(const std::string &path)
 
             if (type == "literal_assignment")
             {
-                size_t result_index = step_json.at("result_index");
+                size_t result_index = step_json.at("result");
                 const auto &val_json = step_json.at("value");
                 TrialValue value;
                 if (val_json.is_array())
@@ -114,10 +114,10 @@ void SimulationEngine::parse_and_build(const std::string &path)
             }
             else if (type == "execution_assignment")
             {
-                std::vector<size_t> result_indices = step_json.at("result_indices").get<std::vector<size_t>>();
+                std::vector<size_t> result_indices = step_json.at("result").get<std::vector<size_t>>();
                 if (result_indices.empty())
                 {
-                    throw EngineException(EngineErrc::RecipeParseError, "Execution assignment step requires at least one 'result_indices'.", line);
+                    throw EngineException(EngineErrc::RecipeParseError, "Execution assignment step requires at least one 'result index'.", line);
                 }
 
                 std::string function_name = step_json.at("function");
@@ -133,7 +133,7 @@ void SimulationEngine::parse_and_build(const std::string &path)
             }
             else if (type == "conditional_assignment")
             {
-                size_t result_index = step_json.at("result_index");
+                size_t result_index = step_json.at("result");
                 return std::make_unique<ConditionalAssignmentStep>(
                     result_index, line,
                     step_json.at("condition"), step_json.at("then_expr"), step_json.at("else_expr"),

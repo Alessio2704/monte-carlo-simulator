@@ -93,9 +93,8 @@ def test_linker_bytecode_for_multi_assignment():
     assign_step = next((s for s in all_steps if s.get("function") == "capitalize_expense"), None)
 
     assert assign_step is not None, "capitalize_expense step not found in bytecode"
-    assert assign_step["type"] == "execution_assignment"  # Unified type
-    assert "result_index" not in assign_step  # Old key is gone
-    assert assign_step["result_indices"] == [a_idx, b_idx]  # New key is correct
+    assert assign_step["type"] == "execution_assignment"
+    assert assign_step["result"] == [a_idx, b_idx]
 
 
 # --- 4. END-TO-END ENGINE INTEGRATION ---

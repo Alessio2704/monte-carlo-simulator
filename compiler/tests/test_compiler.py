@@ -135,11 +135,11 @@ def test_linker_handles_nested_function_calls():
 
     # Find the 'result' step in the bytecode
     registry = recipe["variable_registry"]
-    result_index = registry.index("result")
+    result = registry.index("result")
 
     # The step could be in pre_trial or per_trial, so we search both.
     all_steps = recipe["pre_trial_steps"] + recipe["per_trial_steps"]
-    result_step = next(s for s in all_steps if s["result_index"] == result_index)
+    result_step = next(s for s in all_steps if (result in s["result"] if isinstance(s["result"], list) else s["result"] == result))
 
     assert result_step is not None
     assert result_step["function"] == "log"
@@ -180,8 +180,19 @@ def test_optimization_step_partitioning(script_body, expected_pre_trial_names, e
 
     # In the new bytecode, we verify by looking up the names from the indices
     registry = recipe["variable_registry"]
-    actual_pre_trial_names = {registry[step["result_index"]] for step in recipe["pre_trial_steps"]}
-    actual_per_trial_names = {registry[step["result_index"]] for step in recipe["per_trial_steps"]}
+    actual_pre_trial_names = {
+        registry[index]
+        for step in recipe["pre_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
+
+    actual_per_trial_names = {
+        registry[index]
+        for step in recipe["per_trial_steps"]
+        # This inner loop iterates over our normalized list
+        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
+    }
 
     assert set(actual_pre_trial_names) == set(expected_pre_trial_names)
     assert set(actual_per_trial_names) == set(expected_per_trial_names)

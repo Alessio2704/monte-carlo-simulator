@@ -16,7 +16,7 @@ class MultiAssignmentTest : public FileCleanupTest
 //         "per_trial_steps": [
 //             {
 //                 "type": "execution_assignment",
-//                 "result_indices": [0, 1, 2],
+//                 "result": [0, 1, 2],
 //                 "function": "capitalize_expense",
 //                 "args": [
 //                     {"type": "scalar_literal", "value": 100.0},
@@ -25,13 +25,13 @@ class MultiAssignmentTest : public FileCleanupTest
 //                 ]
 //             },
 //             {
-//                 "type": "execution_assignment", "result_indices": [3], "function": "identity", "args": [{"type": "variable_index", "value": 0}]
+//                 "type": "execution_assignment", "result": [3], "function": "identity", "args": [{"type": "variable_index", "value": 0}]
 //             },
 //             {
-//                 "type": "execution_assignment", "result_indices": [4], "function": "identity", "args": [{"type": "variable_index", "value": 1}]
+//                 "type": "execution_assignment", "result": [4], "function": "identity", "args": [{"type": "variable_index", "value": 1}]
 //             },
 //             {
-//                 "type": "execution_assignment", "result_indices": [5], "function": "identity", "args": [{"type": "variable_index", "value": 2}]
+//                 "type": "execution_assignment", "result": [5], "function": "identity", "args": [{"type": "variable_index", "value": 2}]
 //             }
 //         ]
 //     })";
@@ -77,7 +77,7 @@ TEST_F(MultiAssignmentTest, SingleAssignmentStillWorksWithUnifiedStep)
         "per_trial_steps": [
             {
                 "type": "execution_assignment",
-                "result_indices": [0],
+                "result": [0],
                 "function": "add",
                 "args": [
                     {"type": "scalar_literal", "value": 10.0},
@@ -98,7 +98,7 @@ TEST_F(MultiAssignmentTest, ThrowsOnResultCountMismatchTooMany)
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0,
         "variable_registry": ["a", "b", "c"],
-        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result_indices": [0, 1, 2], "function": "capitalize_expense",
+        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result": [0, 1, 2], "function": "capitalize_expense",
             "args": [{"type": "scalar_literal", "value": 1}, {"type": "vector_literal", "value": [1]}, {"type": "scalar_literal", "value": 1}]
         }]
     })";
@@ -124,7 +124,7 @@ TEST_F(MultiAssignmentTest, ThrowsOnResultCountMismatchTooFew)
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0,
         "variable_registry": ["a"],
-        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result_indices": [0], "function": "capitalize_expense",
+        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result": [0], "function": "capitalize_expense",
             "args": [{"type": "scalar_literal", "value": 1}, {"type": "vector_literal", "value": [1]}, {"type": "scalar_literal", "value": 1}]
         }]
     })";
@@ -146,11 +146,11 @@ TEST_F(MultiAssignmentTest, ThrowsOnResultCountMismatchTooFew)
 
 TEST_F(MultiAssignmentTest, ThrowsWhenSingleAssignmentFunctionReturnsMultipleValues)
 {
-    // We use a single 'result_indices' but the function returns multiple values.
+    // We use a single 'result' but the function returns multiple values.
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0,
         "variable_registry": ["a"],
-        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result_indices": [0], "function": "capitalize_expense",
+        "per_trial_steps": [{"type": "execution_assignment", "line": 42, "result": [0], "function": "capitalize_expense",
             "args": [{"type": "scalar_literal", "value": 1}, {"type": "vector_literal", "value": [1]}, {"type": "scalar_literal", "value": 1}]
         }]
     })";
