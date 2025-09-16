@@ -15,7 +15,7 @@ void register_black_scholes_operation(FunctionRegistry &registry)
 
 // --- BlackScholesOperation Implementation ---
 
-// Helper for the Cumulative Normal Distribution Function (CNDF) (unchanged)
+// Helper for the Cumulative Normal Distribution Function (CNDF)
 double cndf(double x)
 {
     return 0.5 * std::erfc(-x / std::sqrt(2.0));

@@ -18,7 +18,7 @@ public:
     std::string get_output_file_path() const;
 
 private:
-    void build_function_registry(); // <-- Modified
+    void build_function_registry();
     void parse_and_build(const std::string &path);
     void run_pre_trial_phase();
     void run_batch(int num_trials, std::vector<TrialValue> &results, std::exception_ptr &out_exception);
@@ -30,7 +30,7 @@ private:
     bool m_is_preview;
 
     // --- Core Engine Components ---
-    std::unique_ptr<FunctionRegistry> m_function_registry; // <-- Modified
+    std::unique_ptr<FunctionRegistry> m_function_registry;
     // The factory map will be a reference to the one in the registry
     const std::unordered_map<std::string, FunctionRegistry::FactoryFunc>* m_executable_factory; 
 

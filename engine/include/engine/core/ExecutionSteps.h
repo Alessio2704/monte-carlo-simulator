@@ -57,7 +57,7 @@ class ExecutionAssignmentStep : public IExecutionStep
 {
 public:
     ExecutionAssignmentStep(
-        std::vector<size_t> result_indices, // Now always takes a vector of indices.
+        std::vector<size_t> result_indices,
         std::string function_name,
         int line_num,
         std::unique_ptr<IExecutable> logic,

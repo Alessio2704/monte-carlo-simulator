@@ -47,8 +47,6 @@ TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, c
                 }
                 try
                 {
-                    // execute() now returns a vector. For a nested expression,
-                    // we expect it to behave like a single-return function.
                     std::vector<TrialValue> result_vec = nested_call.logic->execute(nested_final_args);
                     if (result_vec.size() != 1)
                     {

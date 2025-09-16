@@ -24,8 +24,6 @@ void register_statistics_functions(FunctionRegistry &registry)
                                { return std::make_unique<TriangularSampler>(); });
 }
 
-// --- Implementations (from original samplers.cpp) ---
-
 // Helper to provide a thread-safe random number generator.
 // Each thread will have its own generator instance.
 inline std::mt19937 &get_thread_local_generator()

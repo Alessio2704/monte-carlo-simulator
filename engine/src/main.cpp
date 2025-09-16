@@ -9,7 +9,7 @@
 #include <cmath>
 #include <variant>
 #include <fstream>
-#include <iomanip> // For std::setprecision
+#include <iomanip>
 
 void print_statistics(const std::vector<TrialValue> &results);
 

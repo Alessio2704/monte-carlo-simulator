@@ -6,8 +6,6 @@
 #include <numeric>
 #include <algorithm>
 
-
-// Local function to register just this operation
 void register_sir_model_operation(FunctionRegistry &registry)
 {
     registry.register_function("SirModel", []

@@ -25,8 +25,6 @@ void register_io_functions(FunctionRegistry &registry)
                                { return std::make_unique<ReadCsvVectorOperation>(); });
 }
 
-// --- Implementations (from original io_operations.cpp) ---
-
 // --- CSV Reading ---
 struct CachedCsv
 {

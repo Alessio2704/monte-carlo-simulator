@@ -29,14 +29,9 @@ void register_series_functions(FunctionRegistry &registry)
                                { return std::make_unique<CapitalizeExpenseOperation>(); });
 }
 
-// --- Implementations (from original series_operations.cpp) ---
-
 // =====================================================================================
 // == SIMD-FRIENDLY HELPERS
-// =====================================================================================
 
-// Each calculation in this loop is independent, making it a perfect target
-// for compiler auto-vectorization into SIMD instructions.
 inline std::vector<double> interpolate_series_simd(double start_value, double end_value, int num_steps)
 {
     if (num_steps < 1)
@@ -54,8 +49,6 @@ inline std::vector<double> interpolate_series_simd(double start_value, double en
     return series;
 }
 
-// This loop is also free of dependencies and can be easily vectorized.
-// It performs a simple subtraction on adjacent elements.
 inline std::vector<double> series_delta_simd(const std::vector<double> &series)
 {
     if (series.size() < 2)

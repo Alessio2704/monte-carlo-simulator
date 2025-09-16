@@ -1,6 +1,5 @@
 #pragma once
 
-// Centralized, strongly-typed error codes for the entire simulation engine.
 enum class EngineErrc
 {
     // General Errors
