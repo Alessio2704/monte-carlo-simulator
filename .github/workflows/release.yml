@@ -83,7 +83,7 @@ jobs:
               echo '--- Configuring CMake inside container ---'
               cmake -B build -DCMAKE_BUILD_TYPE=Release
               echo '--- Building project inside container ---'
-              cmake --build build --config Release
+              cmake --build build -j --config Release
               echo '--- Running C++ tests inside container ---'
               cd build
               ctest --verbose --output-on-failure
@@ -108,7 +108,7 @@ jobs:
 
       - name: Build CMake Project (non-Linux)
         if: runner.os != 'Linux'
-        run: cmake --build build --config Release
+        run: cmake --build build -j --config Release
 
       # --- Non-Linux Test Step ---
       - name: Run C++ Engine Tests (macOS & Windows)
