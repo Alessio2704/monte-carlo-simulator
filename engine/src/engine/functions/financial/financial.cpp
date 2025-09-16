@@ -1,6 +1,5 @@
 #include "include/engine/functions/financial/financial.h"
 #include "include/engine/functions/financial/financial_registration.h"
-
 #include "include/engine/functions/FunctionRegistry.h"
 
 // --- Domain Orchestrator ---

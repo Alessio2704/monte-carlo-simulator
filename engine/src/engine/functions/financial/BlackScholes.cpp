@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cctype>
 
-// Local function to register just this operation (unchanged)
+// Local function to register just this operation
 void register_black_scholes_operation(FunctionRegistry &registry)
 {
     registry.register_function("BlackScholes", []

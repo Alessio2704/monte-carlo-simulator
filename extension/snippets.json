@@ -26,6 +26,16 @@
     "body": ["@iterations = ${1:10000}"],
     "description": "Set the number of simulation trials"
   },
+  "@module directive": {
+    "prefix": "@module",
+    "body": ["@module"],
+    "description": "Set the current file as a module"
+  },
+  "@import directive": {
+    "prefix": "@import",
+    "body": ["@import \"${1:}\""],
+    "description": "Imports a module file into the current one"
+  },
   "@output directive": {
     "prefix": "@output",
     "body": ["@output = ${1:result_variable}"],

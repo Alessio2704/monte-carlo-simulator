@@ -8,6 +8,7 @@
 #include "include/engine/functions/statistics/samplers.h"
 #include "include/engine/functions/io/operations.h"
 #include "include/engine/functions/financial/financial.h"
+#include "include/engine/functions/epidemiology/epidemiology.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -36,6 +37,7 @@ void SimulationEngine::build_function_registry()
     register_statistics_functions(*m_function_registry);
     register_io_functions(*m_function_registry);
     register_financial_functions(*m_function_registry);
+    register_epidemiology_functions(*m_function_registry);
 
     // Get a pointer to the factory map for use during parsing
     m_executable_factory = &m_function_registry->get_factory_map();
