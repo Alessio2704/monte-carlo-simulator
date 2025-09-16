@@ -235,11 +235,20 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                         raise ValuaScriptError(ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=func_name, provided=actual_type, expected=expected_return_type)
 
             else:
-                line, result_var = step["line"], step["result"]
-                if result_var in local_vars:
-                    raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, line=line, name=result_var, func_name=func_name)
-                rhs_type = _infer_expression_type(step, local_vars, line, result_var, all_signatures, func_name_context=func_name)
-                local_vars[result_var] = {"type": rhs_type, "line": line}
+                line = step["line"]
+                if step.get("type") == "multi_assignment":
+                    results = step.get("results", [])
+                    rhs_types = _infer_expression_type(step, local_vars, line, "", all_signatures, func_name_context=func_name)
+                    for i, result_var in enumerate(results):
+                        if result_var in local_vars:
+                            raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, line=line, name=result_var, func_name=func_name)
+                        local_vars[result_var] = {"type": rhs_types[i], "line": line}
+                else:
+                    result_var = step["result"]
+                    if result_var in local_vars:
+                        raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, line=line, name=result_var, func_name=func_name)
+                    rhs_type = _infer_expression_type(step, local_vars, line, result_var, all_signatures, func_name_context=func_name)
+                    local_vars[result_var] = {"type": rhs_type, "line": line}
 
         if not has_return:
             raise ValuaScriptError(ErrorCode.MISSING_RETURN_STATEMENT, line=func_def["line"], name=func_name)
@@ -320,7 +329,13 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                 insertion_point += 1
 
             param_names = {p["name"] for p in func_def["params"]}
-            local_var_names = {s["result"] for s in func_def["body"] if s.get("type") not in ("return_statement")}
+            local_var_names = set()
+            for s in func_def["body"]:
+                if s.get("type") not in ("return_statement"):
+                    if "results" in s:
+                        local_var_names.update(s["results"])
+                    elif "result" in s:
+                        local_var_names.add(s["result"])
 
             def mangle_expression(expr):
                 if isinstance(expr, Token):
