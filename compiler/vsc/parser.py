@@ -210,8 +210,6 @@ class ValuaScriptTransformer(Transformer):
         print("---------------------------------------------------------\n")
         # --- END DEBUGGING ---
 
-        # Original (buggy) logic is temporarily restored to ensure we see the error.
-        # We will replace this once we analyze the debug output.
         func_name_token = items[0]
         body_list = items[-1]
         docstring = items[-2]
