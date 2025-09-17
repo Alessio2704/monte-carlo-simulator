@@ -100,6 +100,21 @@ def test_non_boolean_logical_operator(tmp_path):
     run_validation_with_error(script, file_path, ErrorCode.ARGUMENT_TYPE_MISMATCH)
 
 
+@pytest.mark.parametrize("expression", ['1 + "a"', '"a" - 1', "1 * true", "false / 1", '2 ^ "a"'])
+def test_mathematical_operator_with_non_numeric_type(tmp_path, expression):
+    """
+    This is a regression test for the bug where the validator failed to check
+    argument types for mathematical operators.
+    """
+    script = f"""
+    @iterations=1
+    @output=x
+    let x = {expression}
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    run_validation_with_error(script, file_path, ErrorCode.OPERATOR_TYPE_MISMATCH)
+
+
 # --- 3. Structural and Scope Edge Cases ---
 
 

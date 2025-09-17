@@ -16,6 +16,7 @@ class ErrorCode(Enum):
     INVALID_DIRECTIVE_VALUE = "L{line}: {error_msg}"
     DIRECTIVE_NOT_ALLOWED_IN_MODULE = "L{line}: The @{name} directive is not allowed when @module is declared."
     MODULE_WITH_VALUE = "L{line}: The @module directive does not accept a value. It should be used as '@module'."
+    OPERATOR_TYPE_MISMATCH = "L{line}: The '{op}' operator cannot be used with a non-numeric type '{provided_type}'."
 
     # --- Module-Specific Errors ---
     GLOBAL_LET_IN_MODULE = "L{line}: Global 'let' statements are not allowed in a module file. Only function definitions are permitted."

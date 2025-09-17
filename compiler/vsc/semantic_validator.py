@@ -98,7 +98,6 @@ class SemanticValidator:
                     context_str = "the global scope"
                 else:
                     context_str = f"function '{self.current_scope_name}'"
-
                 raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, line=line, name=node.value, context=context_str)
             return
 
@@ -146,8 +145,16 @@ class SemanticValidator:
                 raise ValuaScriptError(ErrorCode.UNKNOWN_FUNCTION, line=line, name=func_name)
 
             arg_nodes = node.get("args", [])
-            is_variadic = sig.get("variadic", False)
 
+            MATH_OPERATORS = {"add": "+", "subtract": "-", "multiply": "*", "divide": "/", "power": "^"}
+            if func_name in MATH_OPERATORS:
+                arg_types = [self._get_node_type(arg, scope) for arg in arg_nodes]
+                for arg_type in arg_types:
+                    if arg_type not in ("scalar", "vector", "any"):
+                        raise ValuaScriptError(ErrorCode.OPERATOR_TYPE_MISMATCH, line=line, op=MATH_OPERATORS[func_name], provided_type=arg_type)
+                return
+
+            is_variadic = sig.get("variadic", False)
             if not is_variadic:
                 if len(arg_nodes) != len(sig["arg_types"]):
                     raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=func_name, expected=len(sig["arg_types"]), provided=len(arg_nodes))
@@ -173,13 +180,12 @@ class SemanticValidator:
         Calculates the type of any node. For variables, it looks up the pre-computed
         type. For expressions, it calculates the type recursively.
         """
-        # --- Base Cases: Literals and Variables ---
         if isinstance(node, bool):
             return "boolean"
-        if isinstance(node, Token):
-            return scope.get(node.value, {}).get("inferred_type", "any")
         if isinstance(node, (int, float)):
             return "scalar"
+        if isinstance(node, Token):
+            return scope.get(node.value, {}).get("inferred_type", "any")
         if isinstance(node, _StringLiteral):
             return "string"
         if isinstance(node, list):
@@ -190,7 +196,6 @@ class SemanticValidator:
         if not isinstance(node, dict):
             return "any"
 
-        # --- Recursive Cases: Expressions ---
         if node.get("type") == "conditional_expression":
             return self._get_node_type(node["then_expr"], scope)
 
@@ -198,7 +203,7 @@ class SemanticValidator:
             func_name = node["function"]
             sig = self.all_signatures.get(func_name)
             if not sig:
-                return "any"  # Error will be caught by validator
+                return "any"
 
             return_type_rule = sig["return_type"]
             if callable(return_type_rule):
@@ -207,7 +212,6 @@ class SemanticValidator:
             else:
                 return return_type_rule
 
-        # Fallback for assignment nodes (e.g., let x = y)
         var_name = node.get("result")
         if var_name:
             if self.current_scope_name == "global":
