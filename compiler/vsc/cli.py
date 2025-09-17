@@ -27,14 +27,13 @@ def main():
         parser.add_argument("input_file", nargs="?", default=None, help="The path to the input .vs file. Omit to read from stdin.")
         parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file.")
 
-        # --- New, unified flag for compilation stage ---
         parser.add_argument(
             "-c",
             "--compile",
             type=int,
-            choices=[1, 2, 3, 4, 5],
+            choices=[1, 2, 3, 4, 5, 6],
             help="Compile up to a specific stage and save the intermediate artifact. "
-            "1: AST, 2: Semantic Model, 3: IR, 4: Optimized IR, 5: Recipe (Bytecode). "
+            "1: AST, 2: Symbol Table, 3: Semantic Model, 4: IR, 5: Optimized IR, 6: Recipe (Bytecode). "
             "Omitting this flag runs the full pipeline to generate the final .json file.",
         )
 
@@ -69,10 +68,11 @@ def main():
 
             STAGE_MAP = {
                 1: "ast",
-                2: "semantic_model",
-                3: "ir",
-                4: "optimized_ir",
-                5: "recipe",
+                2: "symbol_table",
+                3: "semantic_model",
+                4: "ir",
+                5: "optimized_ir",
+                6: "recipe",
             }
 
             stop_after_stage = STAGE_MAP.get(args.compile)

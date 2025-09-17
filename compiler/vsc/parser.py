@@ -202,13 +202,13 @@ class ValuaScriptTransformer(Transformer):
         return items
 
     def function_def(self, items):
-        # --- DEBUGGING PRINT ---
-        # This code will print the exact structure of `items` to the console.
-        print("\n--- DEBUG: Items received by function_def transformer ---")
-        for i, item in enumerate(items):
-            print(f"  Item {i}: {repr(item)} (Type: {type(item).__name__})")
-        print("---------------------------------------------------------\n")
-        # --- END DEBUGGING ---
+        # # --- DEBUGGING PRINT ---
+        # # This code will print the exact structure of `items` to the console.
+        # print("\n--- DEBUG: Items received by function_def transformer ---")
+        # for i, item in enumerate(items):
+        #     print(f"  Item {i}: {repr(item)} (Type: {type(item).__name__})")
+        # print("---------------------------------------------------------\n")
+        # # --- END DEBUGGING ---
 
         func_name_token = items[0]
         body_list = items[-1]

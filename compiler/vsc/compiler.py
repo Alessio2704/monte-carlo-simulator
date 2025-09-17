@@ -3,6 +3,7 @@ import json
 from typing import List, Optional, Dict, Any
 from .exceptions import ValuaScriptError
 from .parser import parse_valuascript
+from .symbol_discovery import discover_symbols
 from .semantic_analyzer import build_and_validate_model
 from .ir_generator import generate_ir
 from .ir_optimizer import optimize_ir
@@ -13,6 +14,9 @@ from .bytecode_generator import generate_bytecode
 class CompilerArtifactEncoder(json.JSONEncoder):
     def default(self, o):
         from .data_structures import Scope
+
+        if isinstance(o, set):
+            return list(o)
 
         if isinstance(o, Scope):
             return {"symbols": o.symbols, "parent": "<PARENT_SCOPE_OMITTED_FOR_SERIALIZATION>" if o.parent else None}
@@ -48,15 +52,19 @@ class CompilationPipeline:
         if self.stop_after_stage == "ast":
             return ast
 
-        # STAGE 2 & 3: Semantic Analysis & Validation
+        # --- STAGE 2: Symbol Discovery ---
+        symbol_table = self._run_stage("symbol_table", discover_symbols, ast, self.file_path)
+        if self.stop_after_stage == "symbol_table":
+            return symbol_table
+
+        # STAGE 3: Semantic Analysis & Validation (Note: This stage will need refactoring later to use the symbol_table)
         validated_model = self._run_stage("semantic_model", build_and_validate_model, ast, self.file_path)
         self.model = validated_model
         if self.stop_after_stage == "semantic_model":
             return validated_model
 
         # STAGE 4: Intermediate Representation (IR) Generation
-        # FIX: Pass the 'ast' artifact to the 'generate_ir' stage.
-        ir = self._run_stage("ir", generate_ir, validated_model, ast)
+        ir = self._run_stage("ir", generate_ir, validated_model)
         if self.stop_after_stage == "ir":
             return ir
 
