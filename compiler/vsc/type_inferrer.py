@@ -54,9 +54,14 @@ class TypeInferrer:
                 self.processed_vars.add(param_name)
             self._process_scope(func_info["ast_body"], func_info["discovered_body"], param_scope)
 
+        # Attach the completed signature map to the symbol table so the next
+        # phase (validation) can use it.
+        self.symbol_table["all_signatures"] = self.all_signatures
+
         return self.symbol_table
 
     def _is_udf_body_stochastic(self, func_info: Dict, local_scope: Dict) -> bool:
+        """Determines if a UDF is inherently stochastic based on its body."""
         return_node = next((s for s in func_info["ast_body"] if s.get("type") == "return_statement"), None)
         if not return_node:
             return False
@@ -74,6 +79,7 @@ class TypeInferrer:
         return is_stochastic
 
     def _process_scope(self, execution_steps: List[Dict], symbol_scope: Dict, local_context: Dict = None):
+        """Processes a list of assignments, enriching the symbol_scope."""
         if local_context is None:
             local_context = self.symbol_table["global_variables"]
 
@@ -91,11 +97,11 @@ class TypeInferrer:
                         self.processed_vars.add(name)
 
     def _infer_expression_details(self, node: Any, scope: Dict) -> Tuple[Union[str, List[str]], bool]:
+        """Recursively determines the type and stochasticity of any AST node or expression."""
         if isinstance(node, bool):
             return "boolean", False
         if isinstance(node, (int, float)):
             return "scalar", False
-
         if isinstance(node, _StringLiteral):
             return "string", False
 
@@ -152,6 +158,7 @@ class TypeInferrer:
         return inferred_type, expression_stochasticity
 
     def _build_combined_signatures(self) -> Dict:
+        """Merges built-in and user-defined function signatures for easy lookup."""
         udf_signatures = {}
         for name, fdef in self.symbol_table["user_defined_functions"].items():
             udf_signatures[name] = {"variadic": False, "arg_types": [p["type"] for p in fdef["params"]], "return_type": fdef["return_type"], "is_stochastic": fdef.get("is_stochastic", False)}
@@ -159,5 +166,6 @@ class TypeInferrer:
 
 
 def infer_types_and_taint(symbol_table: Dict[str, Any]) -> Dict[str, Any]:
+    """High-level entry point for the type inference and stochasticity tainting stage."""
     inferrer = TypeInferrer(symbol_table)
     return inferrer.infer()

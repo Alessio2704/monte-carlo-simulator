@@ -6,9 +6,11 @@ from enum import Enum
 
 
 class ErrorCode(Enum):
+
     # --- Structural & Directive Errors ---
-    MISSING_ITERATIONS_DIRECTIVE = "The @iterations directive is mandatory (e.g., '@iterations = 10000')."
-    MISSING_OUTPUT_DIRECTIVE = "The @output directive is mandatory (e.g., '@output = final_result')."
+    MISSING_ITERATIONS_DIRECTIVE = "In file '{file_path}': The @iterations directive is mandatory (e.g., '@iterations = 10000')."
+    MISSING_OUTPUT_DIRECTIVE = "In file '{file_path}': The @output directive is mandatory (e.g., '@output = final_result')."
+
     UNKNOWN_DIRECTIVE = "L{line}: Unknown directive '@{name}'."
     DUPLICATE_DIRECTIVE = "L{line}: The directive '@{name}' is defined more than once."
     INVALID_DIRECTIVE_VALUE = "L{line}: {error_msg}"
@@ -35,7 +37,9 @@ class ErrorCode(Enum):
     MISSING_RETURN_STATEMENT = "L{line}: Function '{name}' is missing a return statement."
     INVALID_ITEM_IN_VECTOR = "L{line}: Invalid item {value} in vector literal for '{name}'."
     IF_CONDITION_NOT_BOOLEAN = "L{line}: The condition for an 'if' expression must be a boolean (true/false) value, but got a '{provided}'."
-    IF_ELSE_TYPE_MISMATCH = "L{line}: The 'then' and 'else' branches of an 'if' expression must return the same type. The 'then' branch has type '{then_type}' but the 'else' branch has type '{else_type}'."
+    IF_ELSE_TYPE_MISMATCH = (
+        "L{line}: The 'then' and 'else' branches of an 'if' expression must return the same type. The 'then' branch has type '{then_type}' but the 'else' branch has type '{else_type}'."
+    )
     LOGICAL_OPERATOR_TYPE_MISMATCH = "L{line}: The '{op}' operator can only be used with boolean values, but got a '{provided}'."
     COMPARISON_TYPE_MISMATCH = "L{line}: The '{op}' operator cannot be used to compare a '{left_type}' and a '{right_type}'."
 

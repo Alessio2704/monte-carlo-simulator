@@ -33,10 +33,9 @@ def main():
             type=int,
             choices=[1, 2, 3, 4, 5, 6, 7],
             help="Compile up to a specific stage and save the intermediate artifact. "
-            "1: AST, 2: Symbol Table, 3: Type Inference, 4: Semantic Model, 5: IR, 6: Optimized IR, 7: Recipe. "  # <-- UPDATED HELP TEXT
+            "1: AST, 2: Symbol Table, 3: Type Inference, 4: Semantic Validation, 5: IR, 6: Optimized IR, 7: Recipe. "
             "Omitting this flag runs the full pipeline to generate the final .json file.",
         )
-
         parser.add_argument("--run", action="store_true", help="Execute the simulation engine after a successful compilation.")
         parser.add_argument("--plot", action="store_true", help="Generate and display a histogram of the simulation results.")
         parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output during compilation.")
@@ -70,7 +69,7 @@ def main():
                 1: "ast",
                 2: "symbol_table",
                 3: "type_inference",
-                4: "semantic_model",
+                4: "semantic_validation",
                 5: "ir",
                 6: "optimized_ir",
                 7: "recipe",
