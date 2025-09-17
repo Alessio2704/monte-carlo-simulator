@@ -31,9 +31,9 @@ def main():
             "-c",
             "--compile",
             type=int,
-            choices=[1, 2, 3, 4, 5, 6],
+            choices=[1, 2, 3, 4, 5, 6, 7],
             help="Compile up to a specific stage and save the intermediate artifact. "
-            "1: AST, 2: Symbol Table, 3: Semantic Model, 4: IR, 5: Optimized IR, 6: Recipe (Bytecode). "
+            "1: AST, 2: Symbol Table, 3: Type Inference, 4: Semantic Model, 5: IR, 6: Optimized IR, 7: Recipe. "  # <-- UPDATED HELP TEXT
             "Omitting this flag runs the full pipeline to generate the final .json file.",
         )
 
@@ -69,10 +69,11 @@ def main():
             STAGE_MAP = {
                 1: "ast",
                 2: "symbol_table",
-                3: "semantic_model",
-                4: "ir",
-                5: "optimized_ir",
-                6: "recipe",
+                3: "type_inference",
+                4: "semantic_model",
+                5: "ir",
+                6: "optimized_ir",
+                7: "recipe",
             }
 
             stop_after_stage = STAGE_MAP.get(args.compile)

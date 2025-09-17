@@ -46,6 +46,8 @@ class SymbolDiscoverer:
                 message=f"L{var_info['line']}: Variable '{colliding_name}' cannot be defined because a function with the same name already exists.",
             )
 
+        self.symbol_table["processed_asts"] = self.processed_asts
+
         return self.symbol_table
 
     def _process_file(self, file_path: str, ast: Dict[str, Any], is_main_file: bool = False, import_line: Optional[int] = None):

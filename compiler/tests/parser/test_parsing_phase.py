@@ -368,7 +368,7 @@ def test_vector_edge_cases():
     """Tests empty, single, and complex vectors."""
     script = "let my_vector = [1, some_var, Normal(0, 1)]"
     ast = parse_valuascript(script)
-    vector_node = ast["execution_steps"][0]["value"]  # The vector itself is the value
+    vector_node = ast["execution_steps"][0]["items"]  # The vector itself is the value
     assert isinstance(vector_node, list)
     assert len(vector_node) == 3
     assert vector_node[0] == 1
@@ -384,7 +384,7 @@ def test_empty_vector_and_string():
     """
     ast = parse_valuascript(script)
     steps = ast["execution_steps"]
-    assert steps[0]["value"] == []
+    assert steps[0]["items"] == []
     assert steps[1]["value"].value == ""  # Access the value inside the _StringLiteral class
 
 

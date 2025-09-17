@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 from .exceptions import ValuaScriptError
 from .parser import parse_valuascript
 from .symbol_discovery import discover_symbols
+from .type_inferrer import infer_types_and_taint
 from .semantic_analyzer import build_and_validate_model
 from .ir_generator import generate_ir
 from .ir_optimizer import optimize_ir
@@ -52,28 +53,33 @@ class CompilationPipeline:
         if self.stop_after_stage == "ast":
             return ast
 
-        # --- STAGE 2: Symbol Discovery ---
+        # STAGE 2: Symbol Discovery
         symbol_table = self._run_stage("symbol_table", discover_symbols, ast, self.file_path)
         if self.stop_after_stage == "symbol_table":
             return symbol_table
 
-        # STAGE 3: Semantic Analysis & Validation (Note: This stage will need refactoring later to use the symbol_table)
-        validated_model = self._run_stage("semantic_model", build_and_validate_model, ast, self.file_path)
+        # --- STAGE 3: Type Inference & Stochasticity Tainting ---
+        enriched_symbol_table = self._run_stage("type_inference", infer_types_and_taint, symbol_table)
+        if self.stop_after_stage == "type_inference":
+            return enriched_symbol_table
+
+        # STAGE 4: Semantic Analysis & Validation (Now uses the enriched table)
+        validated_model = self._run_stage("semantic_model", build_and_validate_model, ast, self.file_path)  # This function will need to be adapted to use the enriched table
         self.model = validated_model
         if self.stop_after_stage == "semantic_model":
             return validated_model
 
-        # STAGE 4: Intermediate Representation (IR) Generation
+        # STAGE 5: Intermediate Representation (IR) Generation
         ir = self._run_stage("ir", generate_ir, validated_model)
         if self.stop_after_stage == "ir":
             return ir
 
-        # STAGE 5: Optimization
+        # STAGE 6: Optimization
         optimized_ir = self._run_stage("optimized_ir", optimize_ir, ir, self.model, self.optimize)
         if self.stop_after_stage == "optimized_ir":
             return optimized_ir
 
-        # STAGE 6: Bytecode Generation (Linking)
+        # STAGE 7: Bytecode Generation (Linking)
         final_recipe = self._run_stage("recipe", generate_bytecode, optimized_ir, self.model)
         # If stop_after_stage is "recipe", this will be the return value.
 
@@ -82,6 +88,12 @@ class CompilationPipeline:
     def _run_stage(self, stage_name: str, stage_func, *args, **kwargs):
         """Executes a single stage, stores its artifact, and handles dumping."""
         try:
+            # For the new stage, we pass a copy to avoid mutation issues if we re-run logic
+            if stage_name == "type_inference":
+                import copy
+
+                args = (copy.deepcopy(args[0]),)
+
             result = stage_func(*args, **kwargs)
             self.artifacts[stage_name] = result
             if stage_name in self.dump_stages:

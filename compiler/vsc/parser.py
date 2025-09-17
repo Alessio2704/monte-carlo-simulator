@@ -153,7 +153,10 @@ class ValuaScriptTransformer(Transformer):
         return {"function": str(func_name_token), "args": args, "line": func_name_token.line}
 
     def vector(self, items):
-        return [item for item in items if item is not None]
+        # Wrap the vector literal in a specific dictionary. This makes it
+        # structurally different from the raw list of values used in a
+        # multi-value return statement, removing ambiguity for later phases.
+        return {"_is_vector_literal": True, "items": [item for item in items if item is not None]}
 
     def element_access(self, items):
         var_token, index_expression = items

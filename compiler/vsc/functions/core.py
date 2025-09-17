@@ -2,6 +2,14 @@
 Signatures for core mathematical, logical, and comparison functions.
 """
 
+
+def _math_return_type(types: list) -> str:
+    """Determines the return type for a math operation."""
+    if "any" in types:
+        return "any"
+    return "vector" if "vector" in types else "scalar"
+
+
 SIGNATURES = {
     # --- Internal Boolean & Comparison Operations (from operators) ---
     "__eq__": {"variadic": False, "arg_types": ["any", "any"], "return_type": "boolean", "is_stochastic": False},
@@ -17,7 +25,7 @@ SIGNATURES = {
     "add": {
         "variadic": True,
         "arg_types": [],
-        "return_type": lambda types: "vector" if "vector" in types else "scalar",
+        "return_type": _math_return_type,
         "is_stochastic": False,
         "doc": {
             "summary": "Performs element-wise addition on two or more scalars or vectors.",
@@ -28,7 +36,7 @@ SIGNATURES = {
     "subtract": {
         "variadic": True,
         "arg_types": [],
-        "return_type": lambda types: "vector" if "vector" in types else "scalar",
+        "return_type": _math_return_type,
         "is_stochastic": False,
         "doc": {
             "summary": "Performs element-wise subtraction on two or more scalars or vectors.",
@@ -39,7 +47,7 @@ SIGNATURES = {
     "multiply": {
         "variadic": True,
         "arg_types": [],
-        "return_type": lambda types: "vector" if "vector" in types else "scalar",
+        "return_type": _math_return_type,
         "is_stochastic": False,
         "doc": {
             "summary": "Performs element-wise multiplication on two or more scalars or vectors.",
@@ -50,7 +58,7 @@ SIGNATURES = {
     "divide": {
         "variadic": True,
         "arg_types": [],
-        "return_type": lambda types: "vector" if "vector" in types else "scalar",
+        "return_type": _math_return_type,
         "is_stochastic": False,
         "doc": {
             "summary": "Performs element-wise division on two or more scalars or vectors.",
@@ -61,7 +69,7 @@ SIGNATURES = {
     "power": {
         "variadic": True,
         "arg_types": [],
-        "return_type": lambda types: "vector" if "vector" in types else "scalar",
+        "return_type": _math_return_type,
         "is_stochastic": False,
         "doc": {
             "summary": "Raises the first argument to the power of the second.",
