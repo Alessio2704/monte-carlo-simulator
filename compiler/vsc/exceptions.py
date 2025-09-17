@@ -21,7 +21,7 @@ class ErrorCode(Enum):
     GLOBAL_LET_IN_MODULE = "L{line}: Global 'let' statements are not allowed in a module file. Only function definitions are permitted."
 
     # --- Variable & Definition Errors ---
-    UNDEFINED_VARIABLE = "The final @output variable '{name}' is not defined."
+    UNDEFINED_VARIABLE = "L{line}: Variable '{name}' used in {context} is not defined."
     UNDEFINED_VARIABLE_IN_FUNC = "L{line}: Variable '{name}' used in function '{func_name}' is not defined."
     DUPLICATE_VARIABLE = "L{line}: Variable '{name}' is defined more than once."
     DUPLICATE_VARIABLE_IN_FUNC = "L{line}: Variable '{name}' is defined more than once in function '{func_name}'."

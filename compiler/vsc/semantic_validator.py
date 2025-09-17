@@ -94,7 +94,12 @@ class SemanticValidator:
         if isinstance(node, Token):
             line = node.line if hasattr(node, "line") else -1
             if node.value not in scope:
-                raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE_IN_FUNC, line=line, name=node.value, func_name=self.current_scope_name)
+                if self.current_scope_name == "global":
+                    context_str = "the global scope"
+                else:
+                    context_str = f"function '{self.current_scope_name}'"
+
+                raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, line=line, name=node.value, context=context_str)
             return
 
         if not isinstance(node, dict):

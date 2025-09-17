@@ -97,7 +97,7 @@ def test_catches_global_let_in_module(tmp_path):
 @pytest.mark.parametrize(
     "script_body, code",
     [
-        ("let x = y", ErrorCode.UNDEFINED_VARIABLE_IN_FUNC),
+        ("let x = y", ErrorCode.UNDEFINED_VARIABLE),
         ("let x = unknown_func()", ErrorCode.UNKNOWN_FUNCTION),
         ("let x = Normal(1)", ErrorCode.ARGUMENT_COUNT_MISMATCH),
         ("let x = Normal(1, 2, 3)", ErrorCode.ARGUMENT_COUNT_MISMATCH),
