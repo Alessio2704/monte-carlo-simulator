@@ -31,7 +31,7 @@ from pygls.workspace import Document
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vsc.compiler import compile_valuascript, resolve_imports_and_functions
 from vsc.parser import parse_valuascript
-from vsc.validator import validate_semantics, _infer_expression_type
+from vsc.validator import SemanticAnalyzer
 from vsc.optimizer import _build_dependency_graph, _find_stochastic_variables
 from vsc.functions import FUNCTION_SIGNATURES
 from vsc.exceptions import ValuaScriptError
@@ -71,10 +71,9 @@ def _validate(ls, params):
     def strip_ansi(text):
         return ansi_escape.sub("", text)
 
-    original_stdout = sys.stdout
     try:
-        sys.stdout = open(os.devnull, "w")
         file_path = _uri_to_path(params.text_document.uri)
+        # Run the full compilation pipeline to get validation errors
         compile_valuascript(source, context="lsp", file_path=file_path)
     except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
         line, col = e.line - 1, e.column - 1
@@ -82,16 +81,12 @@ def _validate(ls, params):
         diagnostics.append(Diagnostic(range=Range(start=Position(line, col), end=Position(line, col + 100)), message=msg, severity=DiagnosticSeverity.Error))
     except ValuaScriptError as e:
         msg = strip_ansi(str(e))
-        line = 0
-        match = re.match(r"L(\d+):", msg)
-        if match:
-            line = int(match.group(1)) - 1
-            msg_body = msg.split(":", 1)[-1].strip()
-            msg = msg_body.split("\n")[0]
+        line = e.line - 1 if e.line > 0 else 0
         diagnostics.append(Diagnostic(range=Range(start=Position(line, 0), end=Position(line, 100)), message=msg, severity=DiagnosticSeverity.Error))
-    finally:
-        sys.stdout.close()
-        sys.stdout = original_stdout
+    except Exception:
+        # Catch-all for other unexpected errors during validation
+        pass
+
     ls.publish_diagnostics(params.text_document.uri, diagnostics)
 
 
@@ -115,77 +110,18 @@ def _get_word_at_position(document: Document, position: Position) -> str:
     return line[start:end]
 
 
-def _is_udf_stochastic(func_def, all_user_functions, checked_functions=None):
-    """
-    Recursively checks if a UDF is stochastic, either directly or by calling
-    another function that is stochastic.
-    """
-    if checked_functions is None:
-        checked_functions = set()
-    if func_def["name"] in checked_functions:
-        return False
-
-    checked_functions.add(func_def["name"])
-
-    queue = deque(func_def.get("body", []))
-    while queue:
-        current = queue.popleft()
-        if isinstance(current, dict):
-            func_name = current.get("function")
-            if func_name and FUNCTION_SIGNATURES.get(func_name, {}).get("is_stochastic"):
-                return True
-            if func_name in all_user_functions:
-                if _is_udf_stochastic(all_user_functions[func_name], all_user_functions, checked_functions):
-                    return True
-            for value in current.values():
-                if isinstance(value, list):
-                    queue.extend(value)
-                elif isinstance(value, dict):
-                    queue.append(value)
-    return False
-
-
 def _get_script_analysis(source: str, file_path: str):
     """
-    Performs a hybrid analysis. It provides "best-effort" results for completions
-    even on broken code, while providing full, deep analysis for hovers on valid code.
+    Performs a full, deep analysis of the script and its imports, returning
+    the rich symbol table structure. Returns None on syntax error.
     """
-    # Defaults
-    defined_vars, stochastic_vars, user_functions_with_meta = {}, set(), {}
     try:
-        high_level_ast = parse_valuascript(source)
-        user_functions_with_meta = resolve_imports_and_functions(high_level_ast, file_path)
-    except Exception:
-        return {}, set(), {}
-    try:
-        all_user_function_defs = {k: v["definition"] for k, v in user_functions_with_meta.items()}
-        inlined_steps, full_defined_vars, _, _ = validate_semantics(high_level_ast, all_user_function_defs, is_preview_mode=True, file_path=file_path)
-        _, dependents = _build_dependency_graph(inlined_steps)
-        stochastic_vars = _find_stochastic_variables(inlined_steps, dependents)
-        defined_vars = full_defined_vars
-    except Exception:
-        temp_defined_vars = {}
-        udf_signatures = {
-            name: {"variadic": False, "arg_types": [p["type"] for p in fdef["definition"]["params"]], "return_type": fdef["definition"]["return_type"]}
-            for name, fdef in user_functions_with_meta.items()
-        }
-        all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
-        for step in high_level_ast.get("execution_steps", []):
-            try:
-                if step.get("type") == "multi_assignment":
-                    var_names = step["results"]
-                    var_types = _infer_expression_type(step, temp_defined_vars, step["line"], "", all_signatures)
-                    for i, name in enumerate(var_names):
-                        temp_defined_vars[name] = {"type": var_types[i], "line": step["line"]}
-                else:
-                    var_name = step["result"]
-                    var_type = _infer_expression_type(step, temp_defined_vars, step["line"], var_name, all_signatures)
-                    temp_defined_vars[var_name] = {"type": var_type, "line": step["line"]}
-            except Exception:
-                break
-        defined_vars = temp_defined_vars
-        stochastic_vars = set()
-    return defined_vars, stochastic_vars, user_functions_with_meta
+        main_ast = parse_valuascript(source)
+        all_user_functions = resolve_imports_and_functions(main_ast, file_path)
+        analyzer = SemanticAnalyzer(main_ast, all_user_functions, file_path)
+        return analyzer.analyze(), all_user_functions, main_ast
+    except (ValuaScriptError, UnexpectedInput, UnexpectedCharacters, UnexpectedToken):
+        return None, {}, None
 
 
 @server.feature(TEXT_DOCUMENT_HOVER)
@@ -194,8 +130,10 @@ def hover(params):
     word = _get_word_at_position(document, params.position)
     source = document.source
     file_path = _uri_to_path(params.text_document.uri)
-    defined_vars, stochastic_vars, user_functions_with_meta = _get_script_analysis(source, file_path)
-    user_functions = {k: v["definition"] for k, v in user_functions_with_meta.items()}
+
+    analysis, all_user_functions, _ = _get_script_analysis(source, file_path)
+    if not analysis:
+        return None
 
     # --- Hover for Built-in Function ---
     if word in FUNCTION_SIGNATURES:
@@ -206,96 +144,29 @@ def hover(params):
         param_names = [p["name"] for p in doc.get("params", [])]
         signature_str = f"{word}({', '.join(param_names)})"
         contents = [f"```valuascript\n(function) {signature_str}\n```", "---", f"**{doc.get('summary', '')}**"]
-        if "params" in doc and doc["params"]:
-            param_docs = ["\n#### Parameters:"]
-            for p in doc["params"]:
-                param_docs.append(f"- `{p.get('name', '')}`: {p.get('desc', '')}")
-            contents.append("\n".join(param_docs))
-
-        # FIX: Correctly format return type
-        return_type_val = sig.get("return_type", "any")
-        if isinstance(return_type_val, list):
-            return_type_str = f"({', '.join(return_type_val)})"
-        else:
-            return_type_str = "dynamic" if callable(return_type_val) else return_type_val
-        contents.append(f"\n**Returns**: `{return_type_str}` — {doc.get('returns', '')}")
-
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
 
     # --- Hover for User-Defined Function ---
-    if word in user_functions:
-        func_def = user_functions[word]
-        is_sto = _is_udf_stochastic(func_def, user_functions)
-        stochastic_tag = " (stochastic)" if is_sto else ""
+    if word in all_user_functions:
+        func_def = all_user_functions[word]
         params_str = ", ".join([f"{p['name']}: {p['type']}" for p in func_def["params"]])
-
-        # FIX: Correctly format return type
-        return_type = func_def["return_type"]
-        if isinstance(return_type, list):
-            return_str = f"({', '.join(return_type)})"
-        else:
-            return_str = return_type
-
-        signature = f"(user defined function{stochastic_tag}) {func_def['name']}({params_str}) -> {return_str}"
+        return_str = str(func_def["return_type"])
+        signature = f"(user defined function) {func_def['name']}({params_str}) -> {return_str}"
         contents = [f"```valuascript\n{signature}\n```"]
         if func_def.get("docstring"):
-            contents.append("---")
-            contents.append(func_def["docstring"])
+            contents.extend(["---", func_def["docstring"]])
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
 
-    # --- Hover for Variable ---
-    if word in defined_vars:
-        var_info = defined_vars[word]
+    # --- Hover for Variable (needs context) ---
+    # This part is complex because a variable name can exist in multiple scopes.
+    # A full implementation would find the specific scope of the cursor.
+    # For now, we check global scope as a priority.
+    if word in analysis["global_scope"]["variables"]:
+        var_info = analysis["global_scope"]["variables"][word]
         var_type = var_info.get("type", "unknown")
-        if var_type == "error":
-            header = f"```valuascript\n(variable) {word}: error\n```"
-            return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*This line contains an error. Cannot compute value.*"))
-        is_stochastic = word in stochastic_vars
-        kind = "stochastic" if is_stochastic else "deterministic"
-        header = f"```valuascript\n(variable) {word}: {var_type} ({kind})\n```"
-        tmp_recipe_file = None
-        try:
-            recipe = compile_valuascript(source, context="lsp", preview_variable=word, file_path=file_path)
-            engine_path = find_engine_executable(None)
-            if not engine_path:
-                return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error: Simulation engine 'vse' not found.*"))
-            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp_recipe_file:
-                json.dump(recipe, tmp_recipe_file)
-                recipe_path = tmp_recipe_file.name
-            run_proc = subprocess.run([engine_path, "--preview", recipe_path], text=True, capture_output=True, timeout=15)
-            if run_proc.stdout:
-                try:
-                    result_json = json.loads(run_proc.stdout)
-                    if result_json.get("status") == "error":
-                        message = result_json.get("message", "An unknown error occurred in the engine.")
-                        return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Engine Runtime Error:*\n```\n{message}\n```"))
-                except json.JSONDecodeError:
-                    pass
-            if run_proc.returncode != 0:
-                error_output = run_proc.stderr.strip() or "Process failed without an error message."
-                return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error during value preview:*\n```\n{error_output}\n```"))
-            try:
-                result_json = json.loads(run_proc.stdout)
-            except json.JSONDecodeError:
-                return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*Error: Could not parse preview result from engine.*"))
-            value = result_json.get("value")
-            value_label = "Mean Value (5000 trials)" if is_stochastic else "Value"
-            formatted_value = value
-            if isinstance(value, bool):
-                formatted_value = "True" if value is True else "False"
-            elif isinstance(value, (int, float)):
-                formatted_value = _format_number_with_separators(value)
-            elif isinstance(value, list):
-                formatted_value = [_format_number_with_separators(item) for item in value]
-            value_str = json.dumps(formatted_value, indent=2)
-            clean_value_str = value_str.replace('"', "")
-            md_value = f"**{value_label}:**\n```\n{clean_value_str}\n```"
-            return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n{md_value}"))
-        except Exception as e:
-            return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=f"{header}\n\n---\n*An error occurred while fetching live value: {e}*"))
-        finally:
-            if tmp_recipe_file and os.path.exists(tmp_recipe_file.name):
-                os.remove(tmp_recipe_file.name)
+        header = f"```valuascript\n(variable) {word}: {var_type}\n```"
+        return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value=header))
+
     return None
 
 
@@ -305,28 +176,26 @@ def definition(params):
     word = _get_word_at_position(document, params.position)
     if not word:
         return None
+
     source = document.source
     file_path = _uri_to_path(params.text_document.uri)
-    _, _, user_functions_with_meta = _get_script_analysis(source, file_path)
-    if word in user_functions_with_meta:
-        func_meta = user_functions_with_meta[word]
-        func_def = func_meta["definition"]
-        source_path = func_meta["source_path"]
+    _, all_user_functions, _ = _get_script_analysis(source, file_path)
+
+    if word in all_user_functions:
+        func_def = all_user_functions[word]
+        source_path = func_def.get("source_path")
         if not source_path:
             return None
         line = func_def.get("line", 1) - 1
         return Location(uri=_path_to_uri(source_path), range=Range(start=Position(line, 0), end=Position(line, 100)))
+
     return None
 
 
 def _create_function_snippet(name: str, params: list) -> str:
     """Creates an LSP snippet string from a function name and parameter list."""
-    if not params:
-        return f"{name}()"
-
-    # Create placeholders like ${1:param_name}, ${2:another_param}
     placeholders = [f"${{{i+1}:{p['name']}}}" for i, p in enumerate(params)]
-    return f"{name}({', '.join(placeholders)})"
+    return f"{name}({', '.join(placeholders)})" if placeholders else f"{name}()"
 
 
 @server.feature(TEXT_DOCUMENT_COMPLETION)
@@ -334,55 +203,74 @@ def completions(params):
     document = server.workspace.get_document(params.text_document.uri)
     source = document.source
     file_path = _uri_to_path(params.text_document.uri)
+    cursor_pos = params.position
 
-    defined_vars, _, user_functions_with_meta = _get_script_analysis(source, file_path)
+    analysis, all_user_functions, ast = _get_script_analysis(source, file_path)
+    if not analysis:
+        return CompletionList(items=[], is_incomplete=False)
+
     completion_items = []
 
+    # --- Add Global Symbols ---
+    # Built-in functions
     for name, sig in FUNCTION_SIGNATURES.items():
         if not name.startswith("__"):
-            doc = sig.get("doc", {})
-            params = doc.get("params", [])
-            snippet = _create_function_snippet(name, params)
-
+            snippet = _create_function_snippet(name, sig.get("doc", {}).get("params", []))
             completion_items.append(
                 CompletionItem(
                     label=name,
                     kind=CompletionItemKind.Function,
                     detail="Built-in Function",
-                    documentation=doc.get("summary", "No documentation available."),
+                    documentation=sig.get("doc", {}).get("summary"),
                     insert_text=snippet,
                     insert_text_format=InsertTextFormat.Snippet,
                 )
             )
 
-    for name, meta in user_functions_with_meta.items():
-        func_def = meta["definition"]
-        source_path = meta.get("source_path", "current file")
-        detail_text = f"User-Defined Function in {os.path.basename(source_path)}"
-        params = func_def.get("params", [])
-        snippet = _create_function_snippet(name, params)
-
+    # All UDFs are global
+    for name, func_def in all_user_functions.items():
+        source_file = os.path.basename(func_def.get("source_path", "unknown file"))
+        snippet = _create_function_snippet(name, func_def.get("params", []))
         completion_items.append(
             CompletionItem(
                 label=name,
                 kind=CompletionItemKind.Function,
-                detail=detail_text,
-                documentation=func_def.get("docstring", "No docstring provided."),
+                detail=f"User-Defined Function in {source_file}",
+                documentation=func_def.get("docstring"),
                 insert_text=snippet,
                 insert_text_format=InsertTextFormat.Snippet,
             )
         )
 
-    for name, info in defined_vars.items():
-        var_type = info.get("type", "unknown")
-        detail_text = f"Variable ({var_type})"
-        completion_items.append(
-            CompletionItem(
-                label=name,
-                kind=CompletionItemKind.Variable,
-                detail=detail_text,
-            )
-        )
+    # Global variables
+    for name, info in analysis["global_scope"]["variables"].items():
+        completion_items.append(CompletionItem(label=name, kind=CompletionItemKind.Variable, detail=f"Variable ({info.get('type', 'unknown')})"))
+
+    # --- Add UDF-Scoped Symbols if inside a function ---
+    if ast:
+        for func_def in ast.get("function_definitions", []):
+            start_line = func_def.get("line", 0) - 1
+            # Find the line of the closing brace '}' to define the scope boundary
+            # This is tricky without a full parser context, so we approximate
+            # by finding the line of the last statement in the function body.
+            end_line = start_line
+            if func_def.get("body"):
+                last_statement = func_def["body"][-1]
+                end_line = last_statement.get("line", start_line + 1)
+
+            if start_line <= cursor_pos.line <= end_line + 1:
+                scope_name = func_def["name"]
+                udf_scope = analysis["udf_scopes"].get(scope_name)
+                if udf_scope:
+                    # Add parameters
+                    for param in udf_scope.get("params", []):
+                        completion_items.append(CompletionItem(label=param["name"], kind=CompletionItemKind.Variable, detail=f"Parameter ({param['type']})"))
+
+                    # Add local variables defined *before* the cursor
+                    for var_name, var_info in udf_scope.get("variables", {}).items():
+                        if var_info["line"] - 1 < cursor_pos.line:
+                            completion_items.append(CompletionItem(label=var_name, kind=CompletionItemKind.Variable, detail=f"Local Variable ({var_info.get('type')})"))
+                break  # Found the scope, no need to check other functions
 
     return CompletionList(items=completion_items, is_incomplete=False)
 

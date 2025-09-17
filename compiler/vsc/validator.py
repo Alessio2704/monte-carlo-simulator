@@ -8,540 +8,348 @@ from .config import DIRECTIVE_CONFIG
 from .functions import FUNCTION_SIGNATURES
 
 
-def _format_udf_signature(func_def):
-    """Formats a function definition dictionary into a readable signature string."""
-    params_str = ", ".join([f"{p['name']}: {p['type']}" for p in func_def.get("params", [])])
-    return_type = func_def["return_type"]
-    if isinstance(return_type, list):
-        return_str = f"({', '.join(return_type)})"
-    else:
-        return_str = return_type
-    return f"func {func_def['name']}({params_str}) -> {return_str}"
-
-
-def _check_for_recursive_calls(user_functions):
-    """Builds a call graph and detects cycles to prevent infinite recursion during inlining."""
-    call_graph = {name: set() for name in user_functions}
-
-    for func_name, func_def in user_functions.items():
-        queue = deque(func_def["body"])
-        while queue:
-            item = queue.popleft()
-            if isinstance(item, dict):
-                if "function" in item and item["function"] in user_functions:
-                    call_graph[func_name].add(item["function"])
-                for value in item.values():
-                    if isinstance(value, list):
-                        queue.extend(value)
-                    elif isinstance(value, dict):
-                        queue.append(value)
-
-    visiting = set()
-    visited = set()
-
-    def has_cycle(node, path):
-        visiting.add(node)
-        path.append(node)
-        for neighbor in sorted(list(call_graph.get(node, []))):
-            if neighbor in visiting:
-                path.append(neighbor)
-                return True, path
-            if neighbor not in visited:
-                is_cyclic, final_path = has_cycle(neighbor, path)
-                if is_cyclic:
-                    return True, final_path
-        visiting.remove(node)
-        visited.add(node)
-        path.pop()
-        return False, []
-
-    for func_name in sorted(list(user_functions.keys())):
-        if func_name not in visited:
-            is_cyclic, path = has_cycle(func_name, [])
-            if is_cyclic:
-                cycle_path_str = " -> ".join(path)
-                raise ValuaScriptError(ErrorCode.RECURSIVE_CALL_DETECTED, path=cycle_path_str)
-
-
-def _infer_expression_type(expression_dict, defined_vars, line_num, current_result_var, all_signatures={}, func_name_context=None):
+class SemanticAnalyzer:
     """
-    Recursively infers the type of a variable based on the expression it is assigned to.
-    Can return a string for a single type or a list of strings for a multi-return type.
+    Performs a deep, non-destructive analysis of a script and its imports.
+    It builds a rich symbol table containing types, scopes, and locations
+    for all variables and functions, which can be used by the LSP and compiler.
     """
 
-    def _infer_sub_expression_type(sub_expr, func_name_context=None):
-        if isinstance(sub_expr, Token):
-            var_name = str(sub_expr)
-            if var_name not in defined_vars:
-                if func_name_context:
-                    raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE_IN_FUNC, line=line_num, name=var_name, func_name=func_name_context)
-                raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE_IN_FUNC, line=line_num, name=var_name, func_name="expression")
-            return defined_vars[var_name]["type"]
-        if isinstance(sub_expr, dict):
-            return _infer_expression_type(sub_expr, defined_vars, line_num, "", all_signatures, func_name_context)
-        temp_step = {"type": "literal_assignment", "value": sub_expr}
-        return _infer_expression_type(temp_step, defined_vars, line_num, current_result_var, all_signatures)
+    def __init__(self, main_ast, all_user_functions, file_path):
+        self.main_ast = main_ast
+        self.all_user_functions = all_user_functions
+        self.file_path = file_path
+        self.is_module = any(d["name"] == "module" for d in main_ast.get("directives", []))
+        self.udf_signatures = {name: {"variadic": False, "arg_types": [p["type"] for p in fdef["params"]], "return_type": fdef["return_type"]} for name, fdef in self.all_user_functions.items()}
+        self.all_signatures = {**FUNCTION_SIGNATURES, **self.udf_signatures}
 
-    if expression_dict.get("_is_tuple_return"):
-        raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=line_num, message="Cannot assign from a tuple literal. Multiple values can only be returned from a function.")
+        # This will store the final, rich analysis result.
+        self.analysis = {"global_scope": {"variables": {}, "functions": {}}, "udf_scopes": {}}
 
-    expr_type = expression_dict.get("type", "execution_assignment")
+    def analyze(self):
+        """Main entry point for the analysis."""
+        self._validate_directives()
+        self._validate_function_definitions()
+        self._analyze_scopes()
+        return self.analysis
 
-    if expr_type == "literal_assignment":
-        value = expression_dict.get("value")
-        # Bool is evaluated first in order to not confuse it with an int later. It is mandatory it is here at the beginning
-        if isinstance(value, bool):
-            return "boolean"
-        if isinstance(value, (int, float)):
-            return "scalar"
-        if isinstance(value, list):
-            for item in value:
-                if not isinstance(item, (int, float)):
-                    error_val = f'"{item.value}"' if isinstance(item, _StringLiteral) else str(item)
-                    raise ValuaScriptError(ErrorCode.INVALID_ITEM_IN_VECTOR, line=line_num, value=error_val, name=current_result_var)
-            return "vector"
-        if isinstance(value, _StringLiteral):
-            return "string"
-        if isinstance(value, Token):
-            identity_step = {"type": "execution_assignment", "function": "identity", "args": [value]}
-            return _infer_expression_type(identity_step, defined_vars, line_num, current_result_var, all_signatures, func_name_context)
-        raise TypeError(f"Internal Error: Unhandled literal value '{value}' of type '{type(value).__name__}'")
+    def _validate_directives(self):
+        directives = {}
+        for d in self.main_ast.get("directives", []):
+            name, line = d["name"], d["line"]
+            if name not in DIRECTIVE_CONFIG:
+                raise ValuaScriptError(ErrorCode.UNKNOWN_DIRECTIVE, line=line, name=name)
+            if name in directives:
+                raise ValuaScriptError(ErrorCode.DUPLICATE_DIRECTIVE, line=line, name=name)
+            directives[name] = d
 
-    if expr_type == "conditional_expression":
-        condition_type = _infer_sub_expression_type(expression_dict["condition"], func_name_context)
-        if condition_type != "boolean":
-            raise ValuaScriptError(ErrorCode.IF_CONDITION_NOT_BOOLEAN, line=line_num, provided=condition_type)
-        then_type = _infer_sub_expression_type(expression_dict["then_expr"], func_name_context)
-        else_type = _infer_sub_expression_type(expression_dict["else_expr"], func_name_context)
-        if then_type != else_type:
-            # Format types for a clearer error message, especially for tuples
-            then_type_str = f"({', '.join(then_type)})" if isinstance(then_type, list) else then_type
-            else_type_str = f"({', '.join(else_type)})" if isinstance(else_type, list) else else_type
-            raise ValuaScriptError(ErrorCode.IF_ELSE_TYPE_MISMATCH, line=line_num, then_type=then_type_str, else_type=else_type_str)
-        return then_type
-
-    if expr_type == "execution_assignment" or expr_type == "multi_assignment":
-        if "expression" in expression_dict:
-            sub_expr = expression_dict["expression"]
-            # Case 1: let a, b = if selector then func1() else func2()
-            if sub_expr.get("type") == "conditional_expression":
-                # The type of the whole expression is the type of its branches, which must match.
-                return _infer_expression_type(sub_expr, defined_vars, line_num, current_result_var, all_signatures, func_name_context)
-
-            # Case 2: let a, b = some_function() -- promote the function call up.
-            if isinstance(sub_expr, dict) and "function" in sub_expr:
-                expression_dict.update(sub_expr)
-                del expression_dict["expression"]
-            else:
-                raise ValuaScriptError(
-                    ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=line_num, message="The right side of a multi-assignment must be a function call or a conditional expression returning functions."
-                )
-
-        if "function" not in expression_dict:
-            raise TypeError(f"Internal Error: Expression is not a function call: {expression_dict}")
-
-        func_name = expression_dict["function"]
-        args = expression_dict.get("args", [])
-        signature = all_signatures.get(func_name)
-        if not signature:
-            raise ValuaScriptError(ErrorCode.UNKNOWN_FUNCTION, line=line_num, name=func_name)
-
-        inferred_arg_types = [_infer_sub_expression_type(arg, func_name_context=func_name) for arg in args]
-
-        if signature.get("variadic"):
-            if signature["arg_types"]:
-                expected_type = signature["arg_types"][0]
-                for i, actual_type in enumerate(inferred_arg_types):
-                    if expected_type != "any" and expected_type != actual_type:
-                        op_name = func_name.strip("_")
-                        if op_name in ("and", "or", "not"):
-                            raise ValuaScriptError(ErrorCode.LOGICAL_OPERATOR_TYPE_MISMATCH, line=line_num, op=op_name, provided=actual_type)
-                        raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line_num, arg_num=i + 1, name=func_name, expected=expected_type, provided=actual_type)
+        if self.is_module:
+            if self.main_ast.get("execution_steps"):
+                raise ValuaScriptError(ErrorCode.GLOBAL_LET_IN_MODULE, line=self.main_ast["execution_steps"][0]["line"])
+            for name, d in directives.items():
+                if not DIRECTIVE_CONFIG[name]["allowed_in_module"]:
+                    raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=d["line"], name=name)
         else:
-            if len(args) != len(signature["arg_types"]):
-                raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line_num, name=func_name, expected=len(signature["arg_types"]), provided=len(args))
-            if func_name in ("__eq__", "__neq__") and len(inferred_arg_types) == 2 and inferred_arg_types[0] != inferred_arg_types[1]:
-                raise ValuaScriptError(ErrorCode.COMPARISON_TYPE_MISMATCH, line=line_num, op=func_name.strip("_"), left_type=inferred_arg_types[0], right_type=inferred_arg_types[1])
-            for i, expected_type in enumerate(signature["arg_types"]):
-                actual_type = inferred_arg_types[i]
-                if expected_type != "any" and actual_type != expected_type:
-                    op_name = func_name.strip("_")
-                    if op_name in ("and", "or", "not"):
-                        raise ValuaScriptError(ErrorCode.LOGICAL_OPERATOR_TYPE_MISMATCH, line=line_num, op=op_name, provided=actual_type)
-                    raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line_num, arg_num=i + 1, name=func_name, expected=expected_type, provided=actual_type)
+            for name, config in DIRECTIVE_CONFIG.items():
+                if name in ["import", "module"]:
+                    continue
+                is_req = config["required"](directives) if callable(config["required"]) else config["required"]
+                if is_req and name not in directives:
+                    code = ErrorCode.MISSING_ITERATIONS_DIRECTIVE if name == "iterations" else ErrorCode.MISSING_OUTPUT_DIRECTIVE
+                    raise ValuaScriptError(code)
 
-        return_type_rule = signature["return_type"]
-        return return_type_rule(inferred_arg_types) if callable(return_type_rule) else return_type_rule
-
-    if "function" in expression_dict:
-        return _infer_expression_type({**expression_dict, "type": "execution_assignment"}, defined_vars, line_num, current_result_var, all_signatures, func_name_context)
-
-    raise TypeError(f"Internal Error: Unhandled expression AST node: {expression_dict}")
-
-
-def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, initial_defined_vars):
-    """
-    Validates user-defined functions and then performs inlining using a robust,
-    multi-pass approach to handle nested function calls correctly.
-    """
-    for func_name, func_def in user_functions.items():
-        local_vars = {p["name"]: {"type": p["type"], "line": func_def["line"]} for p in func_def["params"]}
-        has_return = False
-        for step in func_def["body"]:
-            if step.get("type") == "return_statement":
-                has_return = True
-                expected_return_type = func_def["return_type"]
-                if "values" in step:
-                    returned_values = step["values"]
-                    if not isinstance(expected_return_type, list) or len(returned_values) != len(expected_return_type):
-                        raise ValuaScriptError(
-                            ErrorCode.RETURN_TYPE_MISMATCH,
-                            line=func_def["line"],
-                            name=func_name,
-                            provided=f"a tuple of {len(returned_values)} items",
-                            expected=f"a tuple of {len(expected_return_type)} items",
-                        )
-                    for i, return_val in enumerate(returned_values):
-                        temp_node = return_val
-                        if isinstance(return_val, Token):
-                            temp_node = {"type": "execution_assignment", "function": "identity", "args": [return_val]}
-                        elif isinstance(return_val, dict) and "function" in temp_node and "type" not in temp_node:
-                            temp_node["type"] = "execution_assignment"
-                        elif not isinstance(return_val, dict):
-                            temp_node = {"type": "literal_assignment", "value": return_val}
-                        actual_type = _infer_expression_type(temp_node, local_vars, func_def["line"], f"return item {i+1}", all_signatures, func_name_context=func_name)
-                        if actual_type != expected_return_type[i]:
-                            raise ValuaScriptError(
-                                ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=f"{func_name} (return item {i+1})", provided=actual_type, expected=expected_return_type[i]
-                            )
-                else:
-                    if isinstance(expected_return_type, list):
-                        raise ValuaScriptError(
-                            ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=func_name, provided="a single value", expected=f"a tuple of {len(expected_return_type)} items"
-                        )
-                    return_val = step["value"]
-                    temp_node = return_val
-                    if isinstance(return_val, Token):
-                        temp_node = {"type": "execution_assignment", "function": "identity", "args": [return_val]}
-                    elif isinstance(return_val, dict) and "function" in temp_node and "type" not in temp_node:
-                        temp_node["type"] = "execution_assignment"
-                    elif not isinstance(return_val, dict):
-                        temp_node = {"type": "literal_assignment", "value": return_val}
-                    actual_type = _infer_expression_type(temp_node, local_vars, func_def["line"], "return", all_signatures, func_name_context=func_name)
-                    if actual_type != expected_return_type:
-                        raise ValuaScriptError(ErrorCode.RETURN_TYPE_MISMATCH, line=func_def["line"], name=func_name, provided=actual_type, expected=expected_return_type)
-            else:
-                line = step["line"]
-                if step.get("type") == "multi_assignment":
-                    results = step.get("results", [])
-                    rhs_types = _infer_expression_type(step, local_vars, line, "", all_signatures, func_name_context=func_name)
-                    for i, result_var in enumerate(results):
-                        if result_var in local_vars:
-                            raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, line=line, name=result_var, func_name=func_name)
-                        local_vars[result_var] = {"type": rhs_types[i], "line": line}
-                else:
-                    result_var = step["result"]
-                    if result_var in local_vars:
-                        raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE_IN_FUNC, line=line, name=result_var, func_name=func_name)
-                    rhs_type = _infer_expression_type(step, local_vars, line, result_var, all_signatures, func_name_context=func_name)
-                    local_vars[result_var] = {"type": rhs_type, "line": line}
-        if not has_return:
-            raise ValuaScriptError(ErrorCode.MISSING_RETURN_STATEMENT, line=func_def["line"], name=func_name)
-
-    inlined_code = list(execution_steps)
-    live_defined_vars = initial_defined_vars.copy()
-    call_count = 0
-    temp_var_count = 0
-
-    while True:
-        made_change_in_main_pass = False
-
-        # --- PHASE 1: LIFTING ---
-        # Keep looping until a full pass over the code makes no changes.
-        # This ensures all nested calls are lifted, even those exposed by prior lifts.
-        while True:
-            lifted_in_sub_pass = False
-            i = 0
-            while i < len(inlined_code):
-                step = inlined_code[i]
-                newly_created_steps = []
-
-                def lift_recursive_helper(expression):
-                    nonlocal temp_var_count
-                    if not isinstance(expression, dict):
-                        return expression
-
-                    modified_expr = expression.copy()
-                    if "args" in expression:
-                        modified_expr["args"] = [lift_recursive_helper(arg) for arg in expression["args"]]
-                    if "condition" in expression:
-                        modified_expr["condition"] = lift_recursive_helper(expression["condition"])
-                        modified_expr["then_expr"] = lift_recursive_helper(expression["then_expr"])
-                        modified_expr["else_expr"] = lift_recursive_helper(expression["else_expr"])
-
-                    if modified_expr.get("function") in user_functions:
-                        temp_var_count += 1
-                        temp_var_name = f"__temp_{temp_var_count}"
-                        lifted_step = {"line": step["line"], "type": "execution_assignment", **modified_expr}
-                        func_def = user_functions[modified_expr["function"]]
-                        if isinstance(func_def["return_type"], list):
-                            lifted_step["type"] = "multi_assignment"
-                            results = [f"{temp_var_name}_{j}" for j in range(len(func_def["return_type"]))]
-                            lifted_step["results"] = results
-                        else:
-                            lifted_step["result"] = temp_var_name
-                        rhs_types = _infer_expression_type(lifted_step, live_defined_vars, step["line"], "", all_signatures)
-                        if isinstance(rhs_types, list):
-                            for j, r_var in enumerate(lifted_step["results"]):
-                                live_defined_vars[r_var] = {"type": rhs_types[j], "line": step["line"]}
-                        else:
-                            live_defined_vars[lifted_step["result"]] = {"type": rhs_types, "line": step["line"]}
-                        newly_created_steps.append(lifted_step)
-                        return Token("CNAME", temp_var_name)
-                    return modified_expr
-
-                # We only want to lift from inside expressions, not top-level UDF calls.
-                if step.get("function") not in user_functions:
-                    inlined_code[i] = lift_recursive_helper(step)
-
-                if newly_created_steps:
-                    for j, new_step in enumerate(newly_created_steps):
-                        inlined_code.insert(i + j, new_step)
-                    lifted_in_sub_pass = True
-                    made_change_in_main_pass = True
-                    break
-                i += 1
-
-            if not lifted_in_sub_pass:
-                break
-
-        # --- PHASE 2: INLINING ---
-        udf_call_index = -1
-        for i, step in enumerate(inlined_code):
-            if step.get("type") in ("execution_assignment", "multi_assignment") and step.get("function") in user_functions:
-                udf_call_index = i
-                break
-
-        if udf_call_index != -1:
-            made_change_in_main_pass = True
-            step = inlined_code.pop(udf_call_index)
-            func_name = step["function"]
-            func_def = user_functions[func_name]
-            call_count += 1
-            mangling_prefix = f"__{func_name}_{call_count}__"
-            arg_map = {}
-            insertion_point = udf_call_index
-            for i, param in enumerate(func_def["params"]):
-                mangled_param_name = f"{mangling_prefix}{param['name']}"
-                param_assign_step = {"result": mangled_param_name, "type": "execution_assignment", "function": "identity", "args": [step["args"][i]], "line": step["line"]}
-                inlined_code.insert(insertion_point, param_assign_step)
-                live_defined_vars[mangled_param_name] = {"type": param["type"], "line": step["line"]}
-                arg_map[param["name"]] = Token("CNAME", mangled_param_name)
-                insertion_point += 1
-            param_names = {p["name"] for p in func_def["params"]}
-            local_var_names = set()
-            for s in func_def["body"]:
-                if s.get("type") not in ("return_statement"):
-                    if "results" in s:
-                        local_var_names.update(s["results"])
-                    elif "result" in s:
-                        local_var_names.add(s["result"])
-
-            def mangle_expression(expr):
-                if isinstance(expr, Token):
-                    var_name = str(expr)
-                    if var_name in param_names:
-                        return arg_map[var_name]
-                    if var_name in local_var_names:
-                        return Token("CNAME", f"{mangling_prefix}{var_name}")
-                elif isinstance(expr, dict):
-                    new_expr = expr.copy()
-                    if "args" in new_expr:
-                        new_expr["args"] = [mangle_expression(a) for a in new_expr["args"]]
-                    if "results" in new_expr:
-                        new_expr["results"] = [f"{mangling_prefix}{r}" for r in new_expr["results"]]
-                    if "result" in new_expr:
-                        new_expr["result"] = f"{mangling_prefix}{new_expr['result']}"
-                    if new_expr.get("type") == "conditional_expression":
-                        new_expr["condition"] = mangle_expression(new_expr["condition"])
-                        new_expr["then_expr"] = mangle_expression(new_expr["then_expr"])
-                        new_expr["else_expr"] = mangle_expression(new_expr["else_expr"])
-                    return new_expr
-                elif isinstance(expr, list):
-                    return [mangle_expression(e) for e in expr]
-                return expr
-
-            for body_step in func_def["body"]:
-                if body_step.get("type") == "return_statement":
-                    if "values" in body_step:
-                        mangled_return_values = mangle_expression(body_step["values"])
-                        for i, res_var in enumerate(step["results"]):
-                            final_assignment = {"result": res_var, "line": step["line"], "type": "execution_assignment", "function": "identity", "args": [mangled_return_values[i]]}
-                            inlined_code.insert(insertion_point, final_assignment)
-                            insertion_point += 1
-                    else:
-                        mangled_return_value = mangle_expression(body_step["value"])
-                        final_assignment = {"result": step["result"], "line": step["line"]}
-                        if isinstance(mangled_return_value, dict) and mangled_return_value.get("type") == "conditional_expression":
-                            final_assignment.update(mangled_return_value)
-                        elif isinstance(mangled_return_value, dict):
-                            final_assignment.update({"type": "execution_assignment", **mangled_return_value})
-                        elif isinstance(mangled_return_value, Token):
-                            final_assignment.update({"type": "execution_assignment", "function": "identity", "args": [mangled_return_value]})
-                        else:
-                            final_assignment.update({"type": "literal_assignment", "value": mangled_return_value})
-                        inlined_code.insert(insertion_point, final_assignment)
-                        insertion_point += 1
-                else:
-                    mangled_step = mangle_expression(body_step)
-                    inlined_code.insert(insertion_point, mangled_step)
-                    res_vars = mangled_step.get("results") or [mangled_step.get("result")]
-                    rhs_types = _infer_expression_type(mangled_step, live_defined_vars, mangled_step["line"], "", all_signatures, func_name)
-                    if not isinstance(rhs_types, list):
-                        rhs_types = [rhs_types]
-                    for i, r_var in enumerate(res_vars):
-                        live_defined_vars[r_var] = {"type": rhs_types[i], "line": mangled_step["line"]}
-                    insertion_point += 1
-
-        if not made_change_in_main_pass:
-            break
-
-    return inlined_code
-
-
-def validate_semantics(main_ast, all_user_functions, is_preview_mode, file_path=None):
-    """Performs all semantic validation for a runnable script or a module file."""
-    execution_steps = main_ast.get("execution_steps", [])
-    directives = {}
-    is_module = any(d["name"] == "module" for d in main_ast.get("directives", []))
-
-    for d in main_ast.get("directives", []):
-        name, line = d["name"], d["line"]
-        if name not in DIRECTIVE_CONFIG:
-            raise ValuaScriptError(ErrorCode.UNKNOWN_DIRECTIVE, line=line, name=name)
-        if name in directives and not is_preview_mode:
-            raise ValuaScriptError(ErrorCode.DUPLICATE_DIRECTIVE, line=line, name=name)
-        config = DIRECTIVE_CONFIG[name]
-        if not config["value_allowed"] and d["value"] is not True:
-            raise ValuaScriptError(ErrorCode.MODULE_WITH_VALUE, line=line)
-        directives[name] = d
-
-    udf_signatures = {name: {"variadic": False, "arg_types": [p["type"] for p in fdef["params"]], "return_type": fdef["return_type"]} for name, fdef in all_user_functions.items()}
-    all_signatures = {**FUNCTION_SIGNATURES, **udf_signatures}
-
-    if is_module:
-        if execution_steps:
-            raise ValuaScriptError(ErrorCode.GLOBAL_LET_IN_MODULE, line=execution_steps[0]["line"])
-        for name, d in directives.items():
-            if not DIRECTIVE_CONFIG[name]["allowed_in_module"]:
-                raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=d["line"], name=name)
+    def _validate_function_definitions(self):
         RESERVED_NAMES = set(FUNCTION_SIGNATURES.keys())
-        for name, func_def in all_user_functions.items():
+        for name, func_def in self.all_user_functions.items():
             if name in RESERVED_NAMES:
                 raise ValuaScriptError(ErrorCode.REDEFINE_BUILTIN_FUNCTION, line=func_def["line"], name=name)
-        _check_for_recursive_calls(all_user_functions)
-        module_functions = {f["name"]: f for f in main_ast.get("function_definitions", [])}
-        validate_and_inline_udfs([], module_functions, all_signatures, initial_defined_vars={})
-        return [], {}, {}, None
+        self._check_for_recursive_calls()
 
-    if not is_preview_mode:
-        for name, config in DIRECTIVE_CONFIG.items():
-            if name in ["import", "module"]:
-                continue
-            is_req = config["required"](directives) if callable(config["required"]) else config["required"]
-            if is_req and name not in directives:
-                code = ErrorCode.MISSING_ITERATIONS_DIRECTIVE if name == "iterations" else ErrorCode.MISSING_OUTPUT_DIRECTIVE
-                raise ValuaScriptError(code)
+    def _analyze_scopes(self):
+        # --- Analyze Global Scope ---
+        global_vars = self.analysis["global_scope"]["variables"]
+        for step in self.main_ast.get("execution_steps", []):
+            self._analyze_assignment(step, global_vars, "global")
 
-    RESERVED_NAMES = set(FUNCTION_SIGNATURES.keys())
-    for name, func_def in all_user_functions.items():
-        if name in RESERVED_NAMES:
-            raise ValuaScriptError(ErrorCode.REDEFINE_BUILTIN_FUNCTION, line=func_def["line"], name=name)
-    _check_for_recursive_calls(all_user_functions)
+        # --- Analyze UDF Scopes ---
+        for func_name, func_def in self.all_user_functions.items():
+            if func_def.get("source_path") != self.file_path:
+                continue  # Only analyze functions defined in the current file
 
-    defined_vars = {}
-    for step in execution_steps:
-        line = step["line"]
+            scope_name = func_name
+            self.analysis["udf_scopes"][scope_name] = {
+                "name": func_name,
+                "line": func_def["line"],
+                "params": func_def["params"],
+                "return_type": func_def["return_type"],
+                "docstring": func_def.get("docstring"),
+                "variables": {},
+            }
+            local_vars = self.analysis["udf_scopes"][scope_name]["variables"]
 
-        # Check for duplicate variables before defining them
-        if step.get("type") == "multi_assignment":
-            for r in step["results"]:
-                if r in defined_vars:
-                    raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name=r)
-            if len(set(step["results"])) != len(step["results"]):
-                raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name="a variable in the same assignment")
+            # Add parameters to the local scope
+            for param in func_def.get("params", []):
+                local_vars[param["name"]] = {
+                    "name": param["name"],
+                    "type": param["type"],
+                    "is_stochastic": False,
+                    "line": func_def["line"],
+                }
 
-        else:  # Single assignment
-            if step["result"] in defined_vars:
-                raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name=step["result"])
-
-        # Check for assignment arity mismatch
-        if "function" in step:
-            func_name = step["function"]
-            if func_name not in all_signatures:
-                raise ValuaScriptError(ErrorCode.UNKNOWN_FUNCTION, line=line, name=func_name)
-            return_type = all_signatures[func_name]["return_type"]
-            is_multi_return = isinstance(return_type, list)
-
-            if step.get("type") == "multi_assignment":
-                if not is_multi_return:
-                    raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment for '{func_name}'", expected=1, provided=len(step["results"]))
-                if len(step["results"]) != len(return_type):
-                    raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment for '{func_name}'", expected=len(return_type), provided=len(step["results"]))
-            else:  # Single assignment
-                if is_multi_return:
-                    raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment for '{func_name}'", expected=len(return_type), provided=1)
-
-        # Infer types and add to defined_vars
-        if step.get("type") == "multi_assignment":
-            rhs_types = _infer_expression_type(step, defined_vars, line, "", all_signatures)
-            for i, result_var in enumerate(step["results"]):
-                defined_vars[result_var] = {"type": rhs_types[i], "line": line}
-        else:
-            rhs_type = _infer_expression_type(step, defined_vars, line, step["result"], all_signatures)
-            defined_vars[step["result"]] = {"type": rhs_type, "line": line}
-
-    inlined_steps = validate_and_inline_udfs(execution_steps, all_user_functions, all_signatures, initial_defined_vars=defined_vars)
-
-    final_defined_vars = {}
-    for step in inlined_steps:
-        line = step["line"]
-        if step.get("type") == "multi_assignment":
-            results = step["results"]
-            rhs_types = _infer_expression_type(step, final_defined_vars, line, "", all_signatures)
-            for i, result_var in enumerate(results):
-                final_defined_vars[result_var] = {"type": rhs_types[i], "line": line}
-        else:
-            result_var = step["result"]
-            if result_var not in final_defined_vars:
-                rhs_type = _infer_expression_type(step, final_defined_vars, line, result_var, all_signatures)
-                final_defined_vars[result_var] = {"type": rhs_type, "line": line}
-
-    sim_config, output_var = {}, ""
-    for name, d in directives.items():
-        config = DIRECTIVE_CONFIG.get(name)
-        if config and config["value_allowed"]:
-            raw_value = d["value"]
-            value = raw_value.value if isinstance(raw_value, _StringLiteral) else (str(raw_value) if isinstance(raw_value, Token) else raw_value)
-            if config.get("value_type") is int and not isinstance(value, int):
-                raise ValuaScriptError(ErrorCode.INVALID_DIRECTIVE_VALUE, line=d["line"], error_msg=config["error_type"])
-            if config.get("value_type") is str:
-                if (name == "output_file" and not isinstance(raw_value, _StringLiteral)) or (name == "output" and not isinstance(raw_value, Token)):
-                    raise ValuaScriptError(ErrorCode.INVALID_DIRECTIVE_VALUE, line=d["line"], error_msg=config["error_type"])
-
-            if name == "iterations":
-                sim_config["num_trials"] = value
-            elif name == "output":
-                output_var = value
-            elif name == "output_file":
-                if file_path:
-                    base_dir = os.path.dirname(file_path)
-                    sim_config["output_file"] = os.path.abspath(os.path.join(base_dir, value))
+            # Analyze the function body
+            has_return = False
+            for step in func_def.get("body", []):
+                if step.get("type") == "return_statement":
+                    has_return = True
+                    self._validate_return_statement(step, local_vars, func_def)
                 else:
-                    sim_config["output_file"] = value
+                    self._analyze_assignment(step, local_vars, scope_name)
 
-    if not is_preview_mode and output_var not in final_defined_vars:
-        if output_var not in defined_vars:
-            raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=output_var)
+            if not has_return:
+                raise ValuaScriptError(ErrorCode.MISSING_RETURN_STATEMENT, line=func_def["line"], name=func_name)
 
-    return inlined_steps, final_defined_vars, sim_config, output_var
+    def _analyze_assignment(self, step, scope_vars, scope_name):
+        line = step["line"]
+        is_multi = step["type"] == "multi_assignment"
+
+        var_names = step["results"] if is_multi else [step["result"]]
+        for var_name in var_names:
+            if var_name in scope_vars:
+                err_code = ErrorCode.DUPLICATE_VARIABLE_IN_FUNC if scope_name != "global" else ErrorCode.DUPLICATE_VARIABLE
+                raise ValuaScriptError(err_code, line=line, name=var_name, func_name=scope_name)
+
+        inferred_types = self._infer_expression_type(step["expression"], scope_vars, line, scope_name)
+
+        if is_multi:
+            if not isinstance(inferred_types, list) or len(inferred_types) != len(var_names):
+                raise ValuaScriptError(
+                    ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment", expected=len(var_names), provided=len(inferred_types) if isinstance(inferred_types, list) else 1
+                )
+            for i, var_name in enumerate(var_names):
+                scope_vars[var_name] = {"name": var_name, "type": inferred_types[i], "line": line, "is_stochastic": False}
+        else:
+            if isinstance(inferred_types, list):
+                raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment", expected=1, provided=len(inferred_types))
+            scope_vars[var_names[0]] = {"name": var_names[0], "type": inferred_types, "line": line, "is_stochastic": False}
+
+    def _validate_return_statement(self, step, local_vars, func_def):
+        line, func_name = step["line"], func_def["name"]
+        expected_type = func_def["return_type"]
+
+        if "values" in step:  # Tuple return
+            actual_types = [self._infer_expression_type(val, local_vars, line, func_name) for val in step["values"]]
+            if not isinstance(expected_type, list) or len(expected_type) != len(actual_types):
+                raise ValuaScriptError(ErrorCode.RETURN_TYPE_MISMATCH, line=line, name=func_name, expected=f"a tuple of {len(expected_type)} items", provided=f"a tuple of {len(actual_types)} items")
+            for i, (exp, act) in enumerate(zip(expected_type, actual_types)):
+                if exp != act:
+                    raise ValuaScriptError(ErrorCode.RETURN_TYPE_MISMATCH, line=line, name=f"{func_name} (return item {i+1})", expected=exp, provided=act)
+        else:  # Single return
+            actual_type = self._infer_expression_type(step["value"], local_vars, line, func_name)
+            if isinstance(expected_type, list) or actual_type != expected_type:
+                raise ValuaScriptError(ErrorCode.RETURN_TYPE_MISMATCH, line=line, name=func_name, expected=str(expected_type), provided=str(actual_type))
+
+    def _infer_expression_type(self, expr, scope_vars, line, scope_name):
+        """Recursively infers the type of any expression."""
+        expr_type = expr.get("type")
+
+        if expr_type == "literal_scalar":
+            return "scalar"
+        if expr_type == "literal_boolean":
+            return "boolean"
+        if expr_type == "literal_vector":
+            return "vector"
+        if isinstance(expr, _StringLiteral):
+            return "string"
+
+        if isinstance(expr, Token):  # Variable reference
+            var_name = str(expr)
+            if var_name not in scope_vars:
+                err_code = ErrorCode.UNDEFINED_VARIABLE_IN_FUNC if scope_name != "global" else ErrorCode.UNDEFINED_VARIABLE
+                raise ValuaScriptError(err_code, line=line, name=var_name, func_name=scope_name)
+            return scope_vars[var_name]["type"]
+
+        if expr_type == "conditional_expression":
+            cond_type = self._infer_expression_type(expr["condition"], scope_vars, line, scope_name)
+            if cond_type != "boolean":
+                raise ValuaScriptError(ErrorCode.IF_CONDITION_NOT_BOOLEAN, line=line, provided=cond_type)
+            then_type = self._infer_expression_type(expr["then_expr"], scope_vars, line, scope_name)
+            else_type = self._infer_expression_type(expr["else_expr"], scope_vars, line, scope_name)
+            if then_type != else_type:
+                raise ValuaScriptError(ErrorCode.IF_ELSE_TYPE_MISMATCH, line=line, then_type=str(then_type), else_type=str(else_type))
+            return then_type
+
+        if "function" in expr:  # Function call
+            func_name = expr["function"]
+            args = expr.get("args", [])
+            signature = self.all_signatures.get(func_name)
+            if not signature:
+                raise ValuaScriptError(ErrorCode.UNKNOWN_FUNCTION, line=line, name=func_name)
+
+            inferred_arg_types = [self._infer_expression_type(arg, scope_vars, line, scope_name) for arg in args]
+
+            # Type check arguments
+            if not signature.get("variadic"):
+                if len(inferred_arg_types) != len(signature["arg_types"]):
+                    raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=func_name, expected=len(signature["arg_types"]), provided=len(inferred_arg_types))
+                for i, (expected, actual) in enumerate(zip(signature["arg_types"], inferred_arg_types)):
+                    if expected != "any" and expected != actual:
+                        raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line, arg_num=i + 1, name=func_name, expected=expected, provided=actual)
+
+            return_type_rule = signature["return_type"]
+            return return_type_rule(inferred_arg_types) if callable(return_type_rule) else return_type_rule
+
+        raise ValuaScriptError(f"Internal compiler error: Cannot infer type for expression: {expr}")
+
+    def _check_for_recursive_calls(self):
+        """Builds a call graph and detects cycles."""
+        call_graph = {name: set() for name in self.all_user_functions}
+        for func_name, func_def in self.all_user_functions.items():
+            queue = deque(func_def["body"])
+            while queue:
+                item = queue.popleft()
+                if isinstance(item, dict):
+                    if "function" in item and item["function"] in self.all_user_functions:
+                        call_graph[func_name].add(item["function"])
+                    for value in item.values():
+                        if isinstance(value, list):
+                            queue.extend(value)
+                        elif isinstance(value, dict):
+                            queue.append(value)
+
+        # Check for cycles
+        path, visited = set(), set()
+
+        def visit(node):
+            path.add(node)
+            visited.add(node)
+            for neighbour in call_graph.get(node, []):
+                if neighbour in path or (neighbour not in visited and visit(neighbour)):
+                    return True
+            path.remove(node)
+            return False
+
+        for node in self.all_user_functions:
+            if node not in visited and visit(node):
+                raise ValuaScriptError(ErrorCode.RECURSIVE_CALL_DETECTED, path=f"involving {node}")
+
+
+def _promote_expressions_to_assignments(steps):
+    """
+    Transforms the AST by "lifting" nested function calls into temporary
+    variable assignments. This simplifies the later compilation stages.
+    """
+    final_steps = []
+    temp_var_count = 0
+
+    def lift_recursive_helper(expression):
+        nonlocal temp_var_count
+        if not isinstance(expression, dict) or "function" not in expression:
+            return expression
+
+        # First, recurse and lift arguments
+        lifted_args = [lift_recursive_helper(arg) for arg in expression.get("args", [])]
+        modified_expr = {**expression, "args": lifted_args}
+
+        # Now, check if the current expression itself needs lifting
+        if expression.get("parent_is_arg", False):
+            temp_var_count += 1
+            temp_var_name = f"__temp_{temp_var_count}"
+
+            # The lifted expression is now a top-level assignment
+            lifted_step = {"type": "assignment", "result": temp_var_name, "expression": {k: v for k, v in modified_expr.items() if k != "parent_is_arg"}, "line": expression["line"]}
+            final_steps.append(lifted_step)
+
+            # It is replaced by a token referencing the new temporary variable
+            return Token("CNAME", temp_var_name)
+
+        return modified_expr
+
+    def mark_children(expression, is_arg):
+        if not isinstance(expression, dict):
+            return
+        expression["parent_is_arg"] = is_arg
+        for arg in expression.get("args", []):
+            mark_children(arg, True)
+        if "condition" in expression:
+            mark_children(expression["condition"], True)
+            mark_children(expression["then_expr"], True)
+            mark_children(expression["else_expr"], True)
+
+    for step in steps:
+        mark_children(step["expression"], False)
+        final_steps.append({**step, "expression": lift_recursive_helper(step["expression"])})
+
+    return final_steps
+
+
+def inline_and_flatten_udfs(steps, analysis, all_user_functions):
+    """
+    Performs UDF inlining and flattens the execution flow into a simple
+    list of assignments, using the pre-computed analysis for context.
+    """
+    call_count = {}
+    inlined_steps = []
+
+    def mangle(name, func_name, count):
+        return f"__{func_name}_{count}__{name}"
+
+    for step in steps:
+        expr = step["expression"]
+        if isinstance(expr, dict) and expr.get("function") in all_user_functions:
+            func_name = expr["function"]
+            func_def = all_user_functions[func_name]
+
+            count = call_count.get(func_name, 0) + 1
+            call_count[func_name] = count
+
+            # 1. Create assignments for parameters
+            for i, param in enumerate(func_def["params"]):
+                inlined_steps.append(
+                    {
+                        "type": "assignment",
+                        "result": mangle(param["name"], func_name, count),
+                        "expression": expr["args"][i],
+                        "line": step["line"],
+                    }
+                )
+
+            # 2. Process and mangle the function body
+            for body_step in func_def["body"]:
+                if body_step["type"] == "return_statement":
+                    # Create the final assignment to the original variable
+                    inlined_steps.append(
+                        {
+                            "type": "assignment",
+                            "result": step["result"],
+                            "expression": body_step["value"],  # This value will be mangled in the next pass
+                            "line": step["line"],
+                        }
+                    )
+                else:
+                    inlined_steps.append(body_step)  # Add body step to be mangled
+
+            # 3. Mangle all variables within the just-added body steps
+            for i in range(len(inlined_steps) - len(func_def["body"]), len(inlined_steps)):
+                s = inlined_steps[i]
+
+                # Mangle result
+                if "result" in s:
+                    s["result"] = mangle(s["result"], func_name, count)
+
+                # Mangle expression side
+                q = deque([s["expression"]])
+                while q:
+                    item = q.popleft()
+                    if isinstance(item, Token) and item.type == "CNAME":
+                        if item.value in analysis["udf_scopes"][func_name]["variables"]:
+                            item.value = mangle(item.value, func_name, count)
+                    elif isinstance(item, dict):
+                        for k, v in item.items():
+                            if isinstance(v, (dict, Token)):
+                                q.append(v)
+                            elif isinstance(v, list):
+                                q.extend(v)
+        else:
+            inlined_steps.append(step)
+
+    return _promote_expressions_to_assignments(inlined_steps)

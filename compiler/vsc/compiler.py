@@ -1,130 +1,109 @@
 import os
-from .exceptions import ValuaScriptError, ErrorCode
+import json
+from typing import List, Optional, Dict, Any
+from .exceptions import ValuaScriptError
 from .parser import parse_valuascript
-from .validator import validate_semantics
-from .optimizer import optimize_steps
-from .linker import link_and_generate_bytecode
+from .semantic_analyzer import build_and_validate_model
+from .ir_generator import generate_ir
+from .ir_optimizer import optimize_ir
+from .bytecode_generator import generate_bytecode
 
 
-def _load_and_validate_module(module_path: str, base_dir: str, all_user_functions: dict, processed_files: set, visiting_stack: set, import_line: int):
+# A custom JSON encoder will be needed for complex objects like Lark Tokens
+class CompilerArtifactEncoder(json.JSONEncoder):
+    def default(self, o):
+        from .data_structures import Scope
+
+        if isinstance(o, Scope):
+            return {"symbols": o.symbols, "parent": "<PARENT_SCOPE_OMITTED_FOR_SERIALIZATION>" if o.parent else None}
+
+        if hasattr(o, "__dict__"):
+            if type(o).__name__ == "Token":
+                return {"type": "Token", "value": o.value}
+            return o.__dict__
+
+        return str(o)
+
+
+class CompilationPipeline:
     """
-    Recursively reads, parses, and validates a module, correctly handling both
-    circular dependencies and shared dependencies (diamond problem).
+    Orchestrates the full compilation process, managing the flow through
+    each stage and allowing for the inspection of intermediate artifacts.
     """
-    abs_module_path = os.path.abspath(os.path.join(base_dir, module_path))
 
-    if abs_module_path in visiting_stack:
-        raise ValuaScriptError(ErrorCode.CIRCULAR_IMPORT, line=import_line, path=module_path)
-    if abs_module_path in processed_files:
-        return
+    def __init__(self, source_content: str, file_path: Optional[str], dump_stages: List[str] = [], optimize: bool = False, stop_after_stage: Optional[str] = None):
+        self.source_content = source_content
+        self.file_path = os.path.abspath(file_path) if file_path else "<stdin>"
+        self.dump_stages = dump_stages
+        self.optimize = optimize
+        self.stop_after_stage = stop_after_stage
+        self.artifacts = {}
+        self.model = None
 
-    visiting_stack.add(abs_module_path)
+    def run(self) -> Dict[str, Any]:
+        """Executes the compilation pipeline, halting after the specified stage if requested."""
 
-    try:
-        with open(abs_module_path, "r") as f:
-            module_content = f.read()
-    except FileNotFoundError:
-        raise ValuaScriptError(ErrorCode.IMPORT_FILE_NOT_FOUND, line=import_line, path=module_path)
+        # STAGE 1: Parsing
+        ast = self._run_stage("ast", parse_valuascript, self.source_content)
+        if self.stop_after_stage == "ast":
+            return ast
 
-    module_ast = parse_valuascript(module_content)
-    module_base_dir = os.path.dirname(abs_module_path)
+        # STAGE 2 & 3: Semantic Analysis & Validation
+        validated_model = self._run_stage("semantic_model", build_and_validate_model, ast, self.file_path)
+        self.model = validated_model
+        if self.stop_after_stage == "semantic_model":
+            return validated_model
 
-    if not any(d["name"] == "module" for d in module_ast.get("directives", [])):
-        raise ValuaScriptError(ErrorCode.IMPORT_NOT_A_MODULE, line=import_line, path=module_path)
+        # STAGE 4: Intermediate Representation (IR) Generation
+        # FIX: Pass the 'ast' artifact to the 'generate_ir' stage.
+        ir = self._run_stage("ir", generate_ir, validated_model, ast)
+        if self.stop_after_stage == "ir":
+            return ir
 
-    for imp in module_ast.get("imports", []):
-        _load_and_validate_module(imp["path"], module_base_dir, all_user_functions, processed_files, visiting_stack, imp.get("line", 1))
+        # STAGE 5: Optimization
+        optimized_ir = self._run_stage("optimized_ir", optimize_ir, ir, self.model, self.optimize)
+        if self.stop_after_stage == "optimized_ir":
+            return optimized_ir
 
-    module_internal_functions = {}
-    for func_def in module_ast.get("function_definitions", []):
-        name = func_def["name"]
-        if name in module_internal_functions:
-            raise ValuaScriptError(ErrorCode.DUPLICATE_FUNCTION, line=func_def["line"], name=name)
-        module_internal_functions[name] = func_def
+        # STAGE 6: Bytecode Generation (Linking)
+        final_recipe = self._run_stage("recipe", generate_bytecode, optimized_ir, self.model)
+        # If stop_after_stage is "recipe", this will be the return value.
 
-    for name, func_def in module_internal_functions.items():
-        if name in all_user_functions:
-            raise ValuaScriptError(ErrorCode.FUNCTION_NAME_COLLISION, line=func_def["line"], name=name, path=module_path)
-        # Store the function definition AND its source path.
-        all_user_functions[name] = {"definition": func_def, "source_path": abs_module_path}
+        return final_recipe
 
-    # Pass only the definitions to the validator.
-    validate_semantics(module_ast, {k: v["definition"] for k, v in all_user_functions.items()}, is_preview_mode=True)
+    def _run_stage(self, stage_name: str, stage_func, *args, **kwargs):
+        """Executes a single stage, stores its artifact, and handles dumping."""
+        try:
+            result = stage_func(*args, **kwargs)
+            self.artifacts[stage_name] = result
+            if stage_name in self.dump_stages:
+                self.save_artifact(stage_name, result)
+            return result
+        except ValuaScriptError as e:
+            raise e
+        except Exception as e:
+            raise Exception(f"An unexpected error occurred in the '{stage_name}' stage: {e}") from e
 
-    visiting_stack.remove(abs_module_path)
-    processed_files.add(abs_module_path)
+    def save_artifact(self, name: str, data: Any):
+        """Saves an intermediate artifact to a JSON file."""
+        if not self.file_path or self.file_path == "<stdin>":
+            base_name = "stdin_output"
+        else:
+            base_name = os.path.splitext(self.file_path)[0]
+
+        output_path = f"{base_name}.{name}.json"
+
+        try:
+            with open(output_path, "w") as f:
+                json.dump(data, f, indent=2, cls=CompilerArtifactEncoder)
+            print(f"--- Artifact '{name}' saved to {output_path} ---")
+        except Exception as e:
+            print(f"Error: Could not save artifact '{name}': {e}")
 
 
-def resolve_imports_and_functions(main_ast, file_path):
+def compile_valuascript(script_content: str, file_path=None, dump_stages=[], optimize=False, stop_after_stage=None):
     """
-    Parses the import graph and gathers all user-defined functions from the
-    main file and all imported modules, checking for duplicates and collisions.
-    Returns a dictionary of all user-defined functions with their source paths.
+    High-level entry point for the compilation pipeline.
     """
-    all_user_functions = {}
-    visiting_stack = {os.path.abspath(file_path)} if file_path else set()
-    processed_files = set()
-    base_dir = os.path.dirname(file_path) if file_path else ""
-    main_file_path_for_error = file_path or "<stdin>"
-
-    for imp in main_ast.get("imports", []):
-        if not file_path:
-            raise ValuaScriptError(ErrorCode.CANNOT_IMPORT_FROM_STDIN, line=imp.get("line", 1))
-        _load_and_validate_module(imp["path"], base_dir, all_user_functions, processed_files, visiting_stack, imp.get("line", 1))
-
-    main_file_functions = {}
-    for func_def in main_ast.get("function_definitions", []):
-        name = func_def["name"]
-        if name in main_file_functions:
-            raise ValuaScriptError(ErrorCode.DUPLICATE_FUNCTION, line=func_def["line"], name=name)
-        main_file_functions[name] = func_def
-
-    for name, func_def in main_file_functions.items():
-        if name in all_user_functions:
-            raise ValuaScriptError(ErrorCode.FUNCTION_NAME_COLLISION, line=func_def["line"], name=name, path=main_file_path_for_error)
-        # Store the function definition AND its source path for main file functions.
-        all_user_functions[name] = {"definition": func_def, "source_path": os.path.abspath(file_path) if file_path else None}
-
-    return all_user_functions
-
-
-def compile_valuascript(script_content: str, optimize=False, verbose=False, preview_variable=None, context="cli", file_path=None):
-    """
-    Orchestrates the full compilation pipeline from a script string to a JSON bytecode recipe.
-    """
-    is_preview_mode = preview_variable is not None
-    if is_preview_mode:
-        optimize = True
-
-    if context == "lsp" and not script_content.strip():
-        return None
-
-    main_ast = parse_valuascript(script_content)
-
-    # The resolver now returns a map of {name: {definition, source_path}}.
-    all_user_functions_with_meta = resolve_imports_and_functions(main_ast, file_path)
-    # The validator only needs the definitions.
-    all_user_function_defs = {k: v["definition"] for k, v in all_user_functions_with_meta.items()}
-
-    if any(d["name"] == "module" for d in main_ast.get("directives", [])):
-        validate_semantics(main_ast, all_user_function_defs, is_preview_mode=True, file_path=file_path)
-        return {"simulation_config": {}, "variable_registry": [], "output_variable_index": None, "pre_trial_steps": [], "per_trial_steps": []}
-
-    inlined_steps, defined_vars, sim_config, output_var = validate_semantics(main_ast, all_user_function_defs, is_preview_mode, file_path=file_path)
-
-    if is_preview_mode:
-        output_var = preview_variable
-        if output_var not in defined_vars:
-            raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=output_var)
-
-    pre_trial_steps, per_trial_steps, stochastic_vars, final_defined_vars = optimize_steps(
-        execution_steps=inlined_steps, output_var=output_var, defined_vars=defined_vars, do_dce=optimize, verbose=verbose
-    )
-
-    if is_preview_mode:
-        is_stochastic = preview_variable in stochastic_vars
-        sim_config["num_trials"] = 5000 if is_stochastic else 1
-        if preview_variable not in final_defined_vars:
-            raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, name=preview_variable)
-
-    return link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, output_var)
+    pipeline = CompilationPipeline(script_content, file_path, dump_stages, optimize, stop_after_stage)
+    return pipeline.run()
