@@ -38,8 +38,15 @@ class SemanticValidator:
             self.current_scope_name = func_name
             param_scope = {p["name"]: {"inferred_type": p["type"]} for p in func_info["params"]}
             local_scope = {**param_scope, **func_info["discovered_body"]}
+
+            has_return_statement = False
             for step in func_info["ast_body"]:
                 self._validate_expression(step, local_scope)
+                if step.get("type") == "return_statement":
+                    has_return_statement = True
+
+            if not has_return_statement:
+                raise ValuaScriptError(ErrorCode.MISSING_RETURN_STATEMENT, line=func_info["line"], name=func_name)
 
         return self.table
 
@@ -162,12 +169,12 @@ class SemanticValidator:
         type. For expressions, it calculates the type recursively.
         """
         # --- Base Cases: Literals and Variables ---
+        if isinstance(node, bool):
+            return "boolean"
         if isinstance(node, Token):
             return scope.get(node.value, {}).get("inferred_type", "any")
         if isinstance(node, (int, float)):
             return "scalar"
-        if isinstance(node, bool):
-            return "boolean"
         if isinstance(node, _StringLiteral):
             return "string"
         if isinstance(node, list):
