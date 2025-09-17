@@ -469,3 +469,35 @@ def test_empty_and_whitespace_only_files():
         assert len(ast["directives"]) == 0
         assert len(ast["execution_steps"]) == 0
         assert len(ast["function_definitions"]) == 0
+
+
+def test_delete_element_syntax():
+    """Tests the special syntax for deleting an element from a vector."""
+    script = "let shorter_vector = my_vector[:2]"
+    ast = parse_valuascript(script)
+    step = ast["execution_steps"][0]
+
+    assert step["type"] == "execution_assignment"
+    assert step["result"] == "shorter_vector"
+    assert step["function"] == "delete_element"
+    assert len(step["args"]) == 2
+    assert step["args"][0].value == "my_vector"
+    assert step["args"][1] == 2
+
+
+def test_expression_as_vector_index():
+    """Tests that a complex expression is correctly parsed as a vector index."""
+    script = "let item = my_vector[some_index + 1]"
+    ast = parse_valuascript(script)
+    step = ast["execution_steps"][0]
+
+    assert step["type"] == "execution_assignment"
+    assert step["result"] == "item"
+    assert step["function"] == "get_element"
+
+    # The second argument should be the AST for the 'some_index + 1' expression
+    index_expression_node = step["args"][1]
+    assert isinstance(index_expression_node, dict)
+    assert index_expression_node["function"] == "add"
+    assert index_expression_node["args"][0].value == "some_index"
+    assert index_expression_node["args"][1] == 1
