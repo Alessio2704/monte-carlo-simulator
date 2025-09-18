@@ -1,7 +1,6 @@
 from typing import List, Dict, Any, Optional
 from lark import Token
 
-# from .data_structures import FileSemanticModel # The model is treated as a dict
 from .parser import _StringLiteral
 
 
@@ -44,14 +43,11 @@ class IRGenerator:
             self._process_execution_assignment(step, context)
 
     def _add_literal_assignment(self, step: Dict[str, Any], context: Optional[Dict[str, str]]):
-        """Handles `let x = 1`, `let y = [1,2,3]`, etc."""
         result_vars = [step["result"]]
         value = self._transform_expression(step["value"], context)
-
         self.ir.append({"type": "literal_assignment", "result": self._mangle_vars(result_vars, context), "value": value, "line": step["line"]})
 
     def _add_conditional_assignment(self, step: Dict[str, Any], context: Optional[Dict[str, str]]):
-        """Handles `let x = if cond then 1 else 0`."""
         result_vars = [step["result"]]
         self.ir.append(
             {
@@ -65,13 +61,10 @@ class IRGenerator:
         )
 
     def _process_execution_assignment(self, step: Dict[str, Any], context: Optional[Dict[str, str]]):
-        """Handles function calls, dispatching to UDF inlining if necessary."""
         func_name = step.get("function")
-
         if func_name in self.model["user_defined_functions"]:
             self._inline_udf_call(step, context)
         else:
-            # This is a built-in function call
             result_vars = step.get("results") or [step.get("result")]
             self.ir.append(
                 {
@@ -84,13 +77,8 @@ class IRGenerator:
             )
 
     def _inline_udf_call(self, call_step: Dict[str, Any], context: Optional[Dict[str, str]]):
-        """
-        The core of the IR generator. Replaces a UDF call with its body,
-        mangling all local variables and parameters to prevent name collisions.
-        """
         func_name = call_step["function"]
         func_def = self.model["user_defined_functions"][func_name]
-
         call_id = self.udf_call_counters.get(func_name, 0) + 1
         self.udf_call_counters[func_name] = call_id
 
@@ -116,58 +104,21 @@ class IRGenerator:
                 original_results = call_step.get("results") or [call_step.get("result")]
                 return_node = body_step.get("value") or body_step.get("values")
                 line = call_step["line"]
-
                 transformed_return_expr = self._transform_expression(return_node, mangled_context)
+                self.ir.append(
+                    {
+                        "type": "execution_assignment",
+                        "result": self._mangle_vars(original_results, context),
+                        "function": "identity",
+                        "args": [transformed_return_expr],
+                        "line": line,
+                    }
+                )
 
-                if isinstance(transformed_return_expr, dict) and "function" in transformed_return_expr:
-                    self.ir.append(
-                        {
-                            "type": "execution_assignment",
-                            "result": self._mangle_vars(original_results, context),
-                            "function": transformed_return_expr["function"],
-                            "args": transformed_return_expr["args"],
-                            "line": line,
-                        }
-                    )
-                elif isinstance(transformed_return_expr, str):
-                    self.ir.append(
-                        {
-                            "type": "execution_assignment",
-                            "result": self._mangle_vars(original_results, context),
-                            "function": "identity",
-                            "args": [transformed_return_expr],
-                            "line": line,
-                        }
-                    )
-                else:
-                    if body_step.get("values"):
-                        self.ir.append(
-                            {
-                                "type": "execution_assignment",
-                                "result": self._mangle_vars(original_results, context),
-                                "function": "identity",
-                                "args": [transformed_return_expr],
-                                "line": line,
-                            }
-                        )
-                    else:
-                        self.ir.append(
-                            {
-                                "type": "literal_assignment",
-                                "result": self._mangle_vars(original_results, context),
-                                "value": transformed_return_expr,
-                                "line": line,
-                            }
-                        )
             else:
                 self._process_step(body_step, mangled_context)
 
     def _transform_expression(self, expr: Any, context: Optional[Dict[str, str]]) -> Any:
-        """
-        Recursively transforms an AST expression into an IR-compatible format.
-        It resolves variable names within a given context (mangled or global)
-        and preserves nested function calls as JSON objects.
-        """
         if isinstance(expr, (int, float, bool)):
             return expr
         if isinstance(expr, _StringLiteral):
@@ -192,7 +143,6 @@ class IRGenerator:
                 if func_name in self.model["user_defined_functions"]:
                     self.temp_var_count += 1
                     temp_var_name = f"__temp_{self.temp_var_count}"
-
                     nested_call_step = {"type": "execution_assignment", "result": temp_var_name, "function": func_name, "args": expr["args"], "line": expr.get("line", -1)}
                     self._inline_udf_call(nested_call_step, context)
                     return temp_var_name
@@ -204,7 +154,6 @@ class IRGenerator:
         raise TypeError(f"Internal Error: Unhandled type '{type(expr).__name__}' during IR generation.")
 
     def _mangle_vars(self, var_names: List[str], context: Optional[Dict[str, str]]) -> List[str]:
-        """Applies a name mangling context to a list of variable names."""
         if not context:
             return var_names
         return [context.get(name, name) for name in var_names]
