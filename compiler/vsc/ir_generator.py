@@ -17,6 +17,7 @@ class IRGenerator:
         self.model = model
         self.ir: List[Dict[str, Any]] = []
         self.udf_call_counters: Dict[str, int] = {}
+        self.temp_var_count = 0
 
     def generate(self) -> List[Dict[str, Any]]:
         """Main entry point to generate the IR for the entire script."""
@@ -45,11 +46,7 @@ class IRGenerator:
     def _add_literal_assignment(self, step: Dict[str, Any], context: Optional[Dict[str, str]]):
         """Handles `let x = 1`, `let y = [1,2,3]`, etc."""
         result_vars = [step["result"]]
-        value = step["value"]
-
-        # The parser wraps vector literals in a dict; we unwrap it for the IR.
-        if isinstance(value, dict) and value.get("_is_vector_literal"):
-            value = self._transform_expression(value, context)
+        value = self._transform_expression(step["value"], context)
 
         self.ir.append({"type": "literal_assignment", "result": self._mangle_vars(result_vars, context), "value": value, "line": step["line"]})
 
@@ -179,6 +176,7 @@ class IRGenerator:
             return Token("CNAME", self._mangle_vars([expr.value], context)[0])
         if isinstance(expr, list):
             return [self._transform_expression(item, context) for item in expr]
+
         if isinstance(expr, dict):
             if expr.get("_is_vector_literal"):
                 return [self._transform_expression(item, context) for item in expr["items"]]
@@ -190,10 +188,20 @@ class IRGenerator:
                     "else_expr": self._transform_expression(expr["else_expr"], context),
                 }
             if "function" in expr:
-                return {
-                    "function": expr["function"],
-                    "args": [self._transform_expression(arg, context) for arg in expr.get("args", [])],
-                }
+                func_name = expr["function"]
+                if func_name in self.model["user_defined_functions"]:
+                    self.temp_var_count += 1
+                    temp_var_name = f"__temp_{self.temp_var_count}"
+
+                    # FIX: Create a standard single-assignment step with a 'result' (string) key.
+                    nested_call_step = {"type": "execution_assignment", "result": temp_var_name, "function": func_name, "args": expr["args"], "line": expr.get("line", -1)}
+                    self._inline_udf_call(nested_call_step, context)
+                    return Token("CNAME", temp_var_name)
+                else:
+                    return {
+                        "function": func_name,
+                        "args": [self._transform_expression(arg, context) for arg in expr.get("args", [])],
+                    }
         raise TypeError(f"Internal Error: Unhandled type '{type(expr).__name__}' during IR generation.")
 
     def _mangle_vars(self, var_names: List[str], context: Optional[Dict[str, str]]) -> List[str]:
