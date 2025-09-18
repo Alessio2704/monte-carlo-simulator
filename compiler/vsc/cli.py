@@ -2,21 +2,11 @@ import json
 import argparse
 import sys
 import os
-import subprocess
 import time
-from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
-
-try:
-    # This must be the first import to set up the path correctly
-    from .compiler import compile_valuascript
-    from .exceptions import ValuaScriptError
-    from .utils import TerminalColors, format_lark_error, find_engine_executable, generate_and_show_plot
-except ImportError:
-    # If run directly, this might fail, so we add the parent dir to the path
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-    from vsc.compiler import compile_valuascript
-    from vsc.exceptions import ValuaScriptError
-    from vsc.utils import TerminalColors, format_lark_error, find_engine_executable, generate_and_show_plot
+from lark.exceptions import UnexpectedInput, UnexpectedCharacters
+from vsc.compiler import compile_valuascript, CompilerArtifactEncoder
+from vsc.exceptions import ValuaScriptError
+from vsc.utils import TerminalColors, format_lark_error
 
 
 def main():
@@ -30,16 +20,14 @@ def main():
         parser.add_argument(
             "-c",
             "--compile",
-            type=int,
-            choices=[1, 2, 3, 4, 5, 6, 7],
+            type=str,
+            choices=["1", "2", "3", "4", "5", "6a", "6", "7"],
             help="Compile up to a specific stage and save the intermediate artifact. "
-            "1: AST, 2: Symbol Table, 3: Type Inference, 4: Semantic Validation, 5: IR, 6: Optimized IR, 7: Recipe. "
+            "1: AST, 2: Symbol Table, 3: Type Inference, 4: Semantic Validation, 5: IR, "
+            "6a: Optimized IR (Phase 1), 6: Optimized IR (Final), 7: Recipe. "
             "Omitting this flag runs the full pipeline to generate the final .json file.",
         )
-        parser.add_argument("--run", action="store_true", help="Execute the simulation engine after a successful compilation.")
-        parser.add_argument("--plot", action="store_true", help="Generate and display a histogram of the simulation results.")
-        parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output during compilation.")
-        parser.add_argument("--engine-path", help="Explicit path to the 'vse' executable.")
+        # Other args...
         parser.add_argument("--lsp", action="store_true", help="Run the language server.")
 
         args = parser.parse_args()
@@ -66,36 +54,37 @@ def main():
                     script_content = f.read()
 
             STAGE_MAP = {
-                1: "ast",
-                2: "symbol_table",
-                3: "type_inference",
-                4: "semantic_validation",
-                5: "ir",
-                6: "optimized_ir",
-                7: "recipe",
+                "1": "ast",
+                "2": "symbol_table",
+                "3": "type_inference",
+                "4": "semantic_validation",
+                "5": "ir",
+                "6a": "copy_propagation",
+                "6": "optimized_ir",
+                "7": "recipe",
             }
 
             stop_after_stage = STAGE_MAP.get(args.compile)
-
-            # If we are stopping at a specific stage, we want to dump that artifact.
+            # Tell the pipeline which artifact to save to a file
             dump_stages = [stop_after_stage] if stop_after_stage else []
 
             final_product = compile_valuascript(script_content, file_path=input_file_path_abs, dump_stages=dump_stages, stop_after_stage=stop_after_stage)
 
-            # If we are not stopping early, then proceed to save the final recipe.
             if not stop_after_stage:
-                raw_output_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json" if args.input_file else "stdin.json"
+                # This block runs for a full compilation
+                raw_output_path = args.output_file or (os.path.splitext(args.input_file)[0] + ".json" if args.input_file else "stdin.json")
                 output_file_path = os.path.abspath(raw_output_path)
                 os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
                 with open(output_file_path, "w") as f:
-                    f.write(json.dumps(final_product, indent=2))
+                    f.write(json.dumps(final_product, indent=2, cls=CompilerArtifactEncoder))
 
                 print(f"\n{TerminalColors.GREEN}--- Compilation Successful ---{TerminalColors.RESET}")
                 print(f"Recipe written to {output_file_path}")
             else:
-                print(f"\n{TerminalColors.GREEN}--- Compilation to stage '{stop_after_stage}' successful ---{TerminalColors.RESET}")
+                # The pipeline already prints the "Artifact saved" message.
+                print(f"\n{TerminalColors.GREEN}--- Compilation to stage '{args.compile} ({stop_after_stage})' successful ---{TerminalColors.RESET}")
 
-        except (UnexpectedInput, UnexpectedCharacters, UnexpectedToken) as e:
+        except (UnexpectedInput, UnexpectedCharacters) as e:
             script_content = script_content or ""
             print(format_lark_error(e, script_content), file=sys.stderr)
             sys.exit(1)
@@ -114,3 +103,7 @@ def main():
             end_time = time.perf_counter()
             duration = end_time - start_time
             print(f"\n{TerminalColors.CYAN}--- Total Execution Time: {duration:.4f} seconds ---{TerminalColors.RESET}")
+
+
+if __name__ == "__main__":
+    main()
