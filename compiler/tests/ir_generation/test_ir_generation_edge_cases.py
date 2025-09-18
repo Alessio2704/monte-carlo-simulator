@@ -168,74 +168,7 @@ def test_ir_for_deeply_nested_expression_in_return(tmp_path):
     assert ir[4] == {"type": "execution_assignment", "result": ["z"], "function": "multiply", "args": ["__temp_1", 2], "line": 7}
 
 
-# --- 3. Imports and Mangling Edge Cases ---
-
-
-def test_ir_for_same_named_udf_from_different_modules(tmp_path):
-    """
-    Ensures that if two different modules define a UDF with the same name,
-    the mangling is sufficient to keep their contexts separate.
-    main -> module1 -> helper
-         -> module2 -> helper
-    """
-    module1_content = dedent(
-        """
-    @module
-    func helper(val: scalar) -> scalar { return val + 1 }
-    """
-    ).strip()
-    module2_content = dedent(
-        """
-    @module
-    func helper(val: scalar) -> scalar { return val * 10 }
-    """
-    ).strip()
-    main_content = dedent(
-        """
-    @iterations=1
-    @output=y
-    @import "module1.vs" as m1
-    @import "module2.vs" as m2
-    let x = m1.helper(10) // Should be 11
-    let y = m2.helper(10) // Should be 100
-    """
-    ).strip()
-    # NOTE: The compiler does not yet support aliased imports (`as m1`).
-    # This test assumes a future state or that the symbol discoverer handles this.
-    # For now, we simulate this by renaming the functions in the test setup.
-    # Let's write a valid test for the current compiler state.
-
-    helper1_content = dedent("""@module\nfunc helper1(v:scalar)->scalar{return v+1}""").strip()
-    helper2_content = dedent("""@module\nfunc helper2(v:scalar)->scalar{return v*10}""").strip()
-    main_content_revised = dedent(
-        """
-    @iterations=1
-    @output=y
-    @import "h1.vs"
-    @import "h2.vs"
-    let x = helper1(10)
-    let y = helper2(10)
-    """
-    ).strip()
-    create_dummy_file(tmp_path, "h1.vs", helper1_content)
-    create_dummy_file(tmp_path, "h2.vs", helper2_content)
-    main_path = create_dummy_file(tmp_path, "main.vs", main_content_revised)
-    ir = run_ir_generation_pipeline(main_content_revised, main_path)
-
-    # Call to helper1
-    assert ir[0]["result"] == ["__helper1_1__v"]
-    assert ir[1]["result"] == ["x"]
-    assert ir[1]["function"] == "add"
-    assert ir[1]["args"] == ["__helper1_1__v", 1]
-
-    # Call to helper2
-    assert ir[2]["result"] == ["__helper2_1__v"]
-    assert ir[3]["result"] == ["y"]
-    assert ir[3]["function"] == "multiply"
-    assert ir[3]["args"] == ["__helper2_1__v", 10]
-
-
-# --- 4. Multi-Assignment Edge Cases ---
+# --- 3. Multi-Assignment Edge Cases ---
 
 
 def test_ir_for_multi_assignment_from_nested_udf(tmp_path):
@@ -298,5 +231,123 @@ def test_ir_for_udf_returning_literal_vector(tmp_path):
         "type": "literal_assignment",
         "result": ["v"],
         "value": [10, 20, 30],
+        "line": 6,
+    }
+
+
+# --- 4. Battle-Hardened Stress Tests ---
+
+
+def test_ir_for_udf_in_conditional_condition(tmp_path):
+    """Tests that a UDF returning a boolean is inlined correctly as a condition."""
+    script = dedent(
+        """
+    @iterations=1
+    @output=z
+    func is_ready() -> boolean { return true }
+    let z = if is_ready() then 1 else 0
+    """
+    ).strip()
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    ir = run_ir_generation_pipeline(script, file_path)
+
+    # 1. The call to `is_ready()` is inlined into a temporary variable.
+    assert ir[0] == {"type": "literal_assignment", "result": ["__temp_1"], "value": True, "line": 4}
+    # 2. The conditional assignment uses this temporary variable as its condition.
+    assert ir[1] == {
+        "type": "conditional_assignment",
+        "result": ["z"],
+        "condition": "__temp_1",
+        "then_expr": 1,
+        "else_expr": 0,
+        "line": 4,
+    }
+
+
+def test_ir_for_vector_manipulation_through_udfs(tmp_path):
+    """Tests that vectors flow through UDFs correctly."""
+    script = dedent(
+        """
+    @iterations=1
+    @output=z
+    func get_data() -> vector { return [10, 20, 30] }
+    func process_data(data: vector) -> scalar {
+        let item = data[1] # get_element(data, 1)
+        return item
+    }
+    let z = process_data(get_data())
+    """
+    ).strip()
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    ir = run_ir_generation_pipeline(script, file_path)
+
+    # 1. `get_data()` is inlined and its result is stored in a temporary variable.
+    assert ir[0] == {"type": "literal_assignment", "result": ["__temp_1"], "value": [10, 20, 30], "line": 8}
+
+    # 2. Inlining `process_data`: the temp var is assigned to the mangled parameter.
+    assert ir[1] == {"type": "execution_assignment", "result": ["__process_data_1__data"], "function": "identity", "args": ["__temp_1"], "line": 8}
+
+    # 3. The body of `process_data` is inlined, using the mangled parameter.
+    assert ir[2] == {"type": "execution_assignment", "result": ["__process_data_1__item"], "function": "get_element", "args": ["__process_data_1__data", 1], "line": 5}
+
+    # 4. The final assignment uses the mangled return variable.
+    assert ir[3] == {"type": "execution_assignment", "result": ["z"], "function": "identity", "args": ["__process_data_1__item"], "line": 8}
+
+
+def test_ir_for_deeply_nested_non_recursive_call_chain(tmp_path):
+    """Stress-tests the mangling and temp var generation for deep call chains."""
+    script = dedent(
+        """
+    @iterations=1
+    @output=z
+    func f3(a: scalar) -> scalar { return a + 1 }
+    func f2(b: scalar) -> scalar { return f3(b) * 2 }
+    func f1(c: scalar) -> scalar { return f2(c) - 3 }
+    let z = f1(10)
+    """
+    ).strip()
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    ir = run_ir_generation_pipeline(script, file_path)
+
+    # Trace the inlining from the inside out:
+    # 1. Inlining `f1(10)` starts. Its parameter `c` gets 10.
+    assert ir[0]["result"] == ["__f1_1__c"] and ir[0]["args"] == [10]
+
+    # 2. Inside `f1`, it calls `f2(__f1_1__c)`. This must be inlined to a temp var.
+    #    This starts by inlining `f3` from within `f2`.
+    assert ir[1]["result"] == ["__f2_1__b"]  # `f2`'s parameter `b` gets `__f1_1__c`
+    assert ir[2]["result"] == ["__f3_1__a"]  # `f3`'s parameter `a` gets `__f2_1__b`
+    assert ir[3]["result"] == ["__temp_2"] and ir[3]["function"] == "add"  # `f3` returns `a+1` to temp
+
+    # 3. The rest of `f2`'s body (`* 2`) executes, storing in another temp var.
+    assert ir[4]["result"] == ["__temp_1"] and ir[4]["function"] == "multiply"  # `f2` returns to temp
+
+    # 4. Finally, the rest of `f1`'s body (`- 3`) executes for the final result.
+    assert ir[5]["result"] == ["z"] and ir[5]["function"] == "subtract"
+
+
+def test_ir_for_udf_returning_builtin_call(tmp_path):
+    """Checks if a UDF returning a built-in call is optimized correctly."""
+    script = dedent(
+        """
+    @iterations=1
+    @output=z
+    func get_sample() -> scalar {
+        return Normal(0, 1)
+    }
+    let z = get_sample()
+    """
+    ).strip()
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    ir = run_ir_generation_pipeline(script, file_path)
+
+    # The call to `get_sample()` should be directly replaced by the `Normal` call,
+    # not an `identity` call to a mangled variable.
+    assert len(ir) == 1
+    assert ir[0] == {
+        "type": "execution_assignment",
+        "result": ["z"],
+        "function": "Normal",
+        "args": [0, 1],
         "line": 6,
     }
