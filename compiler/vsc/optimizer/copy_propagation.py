@@ -1,6 +1,4 @@
 from typing import List, Dict, Any
-import copy
-
 
 class CopyPropagator:
     """
@@ -23,10 +21,9 @@ class CopyPropagator:
         """
         Runs the optimization process.
         1. Find all temporary identity assignments and build the replacement map.
-        2. Fully resolve chained identities within the map.
-        3. Create a new IR with the variables substituted and identities removed.
+        2. Fully and recursively resolve chained identities within the map itself.
+        3. Rebuild the IR, substituting variables and removing redundant steps.
         """
-        # Pass 1: Build the initial replacement map from temporary identities
         for i, step in enumerate(ir):
             if step.get("function") == "identity" and step["result"][0].startswith("__"):
                 variable_to_replace = step["result"][0]
@@ -37,55 +34,59 @@ class CopyPropagator:
         if not self.replacement_map:
             return ir
 
-        # Pass 2: Fully resolve chained replacements in the map
+        # This is now a deep, recursive resolution of the map's values.
         self._resolve_replacement_map()
 
-        # Pass 3: Build the new IR with substitutions
         optimized_ir: List[Dict[str, Any]] = []
         for i, step in enumerate(ir):
             if i in self.identity_indices_to_remove:
                 continue
-
-            new_step = copy.deepcopy(step)
-            self._substitute_in_node(new_step)
+            
+            # Rebuild the step using the fully resolved map.
+            new_step = self._substitute_and_rebuild_node(step)
             optimized_ir.append(new_step)
 
         return optimized_ir
 
     def _resolve_replacement_map(self):
         """
-        Iteratively resolves the replacement map until all values are final.
+        Iteratively and recursively resolves the replacement map until no more
+        substitutions can be made anywhere inside the map's values.
         """
         changed = True
         while changed:
             changed = False
-            for var_to_replace, replacement_val in self.replacement_map.items():
-                if isinstance(replacement_val, str) and replacement_val in self.replacement_map:
-                    new_replacement = self.replacement_map[replacement_val]
-                    if new_replacement != replacement_val:
-                        self.replacement_map[var_to_replace] = new_replacement
-                        changed = True
+            for var_to_replace, current_value in self.replacement_map.items():
+                # Recursively rebuild the value, substituting any other variables found within it.
+                new_value = self._substitute_and_rebuild_node(current_value)
+                
+                # If the recursive substitution changed the value, update the map
+                # and flag that we need to loop again, as this change might
+                # enable further resolutions in other values.
+                if new_value != current_value:
+                    self.replacement_map[var_to_replace] = new_value
+                    changed = True
 
-    def _substitute_in_node(self, node: Any):
+    def _substitute_and_rebuild_node(self, node: Any) -> Any:
         """
-        Recursively traverses the IR and replaces variables found in the replacement map.
+        Recursively traverses a node (dict, list, string, etc.) and returns a
+        new version with all variables from the replacement map substituted.
         """
+        # Base Case 1: The node is a variable that needs to be replaced.
+        if isinstance(node, str) and node in self.replacement_map:
+            # We must recurse here as well in case the replacement is another chain
+            return self._substitute_and_rebuild_node(self.replacement_map[node])
+
+        # Recursive Case (Dictionary): Rebuild the dictionary with transformed values.
         if isinstance(node, dict):
-            for key, value in node.items():
-                if key == "args" and isinstance(value, list):
-                    for i, arg in enumerate(value):
-                        if isinstance(arg, str) and arg in self.replacement_map:
-                            node["args"][i] = self.replacement_map[arg]
-                        else:
-                            self._substitute_in_node(arg)
-                else:
-                    self._substitute_in_node(value)
-        elif isinstance(node, list):
-            for i, item in enumerate(node):
-                if isinstance(item, str) and item in self.replacement_map:
-                    node[i] = self.replacement_map[item]
-                else:
-                    self._substitute_in_node(item)
+            return {key: self._substitute_and_rebuild_node(value) for key, value in node.items()}
+
+        # Recursive Case (List): Rebuild the list with transformed items.
+        if isinstance(node, list):
+            return [self._substitute_and_rebuild_node(item) for item in node]
+
+        # Base Case 2: The node is a literal or something else we don't touch.
+        return node
 
 
 def run_copy_propagation(ir: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

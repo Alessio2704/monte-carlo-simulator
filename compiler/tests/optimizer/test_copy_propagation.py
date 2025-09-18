@@ -365,3 +365,102 @@ def test_works_correctly_with_imported_function_with_parameters(tmp_path):
     assert final_return_step["function"] == "add"
     assert final_return_step["args"][0] == "x"  # Proof of propagation
     assert final_return_step["args"][1] == 100
+
+
+def test_does_not_affect_multi_return_identity(tmp_path):
+    """
+    A CRITICAL negative test case. It ensures that the optimizer does NOT
+    eliminate the legitimate identity assignment used for unpacking a
+    multi-value return from a UDF, because the result variables do not
+    start with '__'.
+    """
+    script = """
+    @iterations=1
+    @output=b
+    func get_pair() -> (scalar, scalar) {
+        return (10, 20)
+    }
+    let a, b = get_pair()
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    initial_ir = run_ir_generation_pipeline(script, file_path)
+
+    # The initial IR contains a multi-assignment identity call.
+    assert "identity" in {step.get("function") for step in initial_ir}
+
+    # Run the optimizer
+    optimized_ir = run_copy_propagation(initial_ir)
+
+    # The optimizer should do nothing, as there are no *temporary* identities.
+    # The final IR should be identical to the initial one.
+    assert optimized_ir == initial_ir
+
+
+def test_propagates_into_deeply_nested_argument_structure(tmp_path):
+    """
+    Tests that the optimizer's recursive substitution correctly propagates a
+    variable into a complex data structure (a vector) inside an argument list.
+    """
+
+    script = """
+    @iterations=1
+    @output=y
+    func process_complex(data: vector) -> scalar {
+        return data[2]
+    }
+    func outer(p: scalar) -> scalar {
+        let temp_var = process_complex([10, 99, p, 101])
+        return temp_var
+    }
+    let x = 50
+    let y = outer(x)
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    initial_ir = run_ir_generation_pipeline(script, file_path)
+
+    optimized_ir = run_copy_propagation(initial_ir)
+
+    assert len(optimized_ir) == 3
+
+    # The key assertion is on the 'get_element' call which resulted
+    # from inlining 'process_complex'.
+    get_element_call = optimized_ir[1]
+    assert get_element_call["function"] == "get_element"
+
+    # The first argument to get_element is the vector, which should
+    # now contain the propagated variable 'x' instead of 'p'.
+    expected_arg_vector = [10, 99, "x", 101]
+    assert get_element_call["args"][0] == expected_arg_vector
+
+
+def test_propagated_variable_can_still_be_used_elsewhere(tmp_path):
+    """
+    Ensures that after a variable `x` is propagated into a function call,
+    `x` itself remains in the IR and can be used in subsequent calculations.
+    """
+    script = """
+    @iterations=1
+    @output=z
+    func my_func(p: scalar) -> scalar {
+        return p * 2
+    }
+    let x = 10
+    let y = my_func(x)
+    let z = x + y  # `x` is used again here
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    initial_ir = run_ir_generation_pipeline(script, file_path)
+    optimized_ir = run_copy_propagation(initial_ir)
+
+    # We expect 3 steps: let x, let y, let z. The identity for 'p' is gone.
+    assert len(optimized_ir) == 3
+
+    # Check that 'x' was propagated into the calculation for 'y'.
+    y_calculation = optimized_ir[1]
+    assert y_calculation["result"] == ["y"]
+    assert y_calculation["args"][0] == "x"  # Propagated correctly
+
+    # Check that 'x' still exists and is used in the calculation for 'z'.
+    z_calculation = optimized_ir[2]
+    assert z_calculation["result"] == ["z"]
+    assert z_calculation["args"][0] == "x"  # Original 'x' is still available
