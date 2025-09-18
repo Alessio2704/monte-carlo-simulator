@@ -129,7 +129,7 @@ class IRGenerator:
                             "line": line,
                         }
                     )
-                elif isinstance(transformed_return_expr, Token):
+                elif isinstance(transformed_return_expr, str):
                     self.ir.append(
                         {
                             "type": "execution_assignment",
@@ -173,7 +173,7 @@ class IRGenerator:
         if isinstance(expr, _StringLiteral):
             return expr.value
         if isinstance(expr, Token):
-            return Token("CNAME", self._mangle_vars([expr.value], context)[0])
+            return self._mangle_vars([expr.value], context)[0]
         if isinstance(expr, list):
             return [self._transform_expression(item, context) for item in expr]
 
@@ -193,10 +193,9 @@ class IRGenerator:
                     self.temp_var_count += 1
                     temp_var_name = f"__temp_{self.temp_var_count}"
 
-                    # FIX: Create a standard single-assignment step with a 'result' (string) key.
                     nested_call_step = {"type": "execution_assignment", "result": temp_var_name, "function": func_name, "args": expr["args"], "line": expr.get("line", -1)}
                     self._inline_udf_call(nested_call_step, context)
-                    return Token("CNAME", temp_var_name)
+                    return temp_var_name
                 else:
                     return {
                         "function": func_name,
