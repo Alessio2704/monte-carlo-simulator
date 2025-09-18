@@ -94,50 +94,75 @@ class IRGenerator:
         func_name = call_step["function"]
         func_def = self.model["user_defined_functions"][func_name]
 
-        # 1. Get a unique ID for this specific call to create a unique namespace
         call_id = self.udf_call_counters.get(func_name, 0) + 1
         self.udf_call_counters[func_name] = call_id
 
         def mangle(name: str) -> str:
             return f"__{func_name}_{call_id}__{name}"
 
-        # 2. Create the mangled context for this inlined body
         mangled_context = {p["name"]: mangle(p["name"]) for p in func_def["params"]}
         mangled_context.update({name: mangle(name) for name in func_def["discovered_body"]})
 
-        # 3. Create assignments to map call arguments to the mangled parameters
         for i, param in enumerate(func_def["params"]):
-            param_name = param["name"]
-            argument_expr = call_step["args"][i]
             self.ir.append(
                 {
                     "type": "execution_assignment",
-                    "result": [mangle(param_name)],
+                    "result": [mangle(param["name"])],
                     "function": "identity",
-                    "args": [self._transform_expression(argument_expr, context)],
+                    "args": [self._transform_expression(call_step["args"][i], context)],
                     "line": call_step["line"],
                 }
             )
 
-        # 4. Process the UDF body, applying the mangled context
         for body_step in func_def["ast_body"]:
             if body_step["type"] == "return_statement":
-                # A return statement becomes the final assignment to the original call variable
                 original_results = call_step.get("results") or [call_step.get("result")]
-                return_values = body_step.get("value") or body_step.get("values")
+                return_node = body_step.get("value") or body_step.get("values")
+                line = call_step["line"]
 
-                # The identity function is used for simple variable-to-variable assignment
-                self.ir.append(
-                    {
-                        "type": "execution_assignment",
-                        "result": self._mangle_vars(original_results, context),
-                        "function": "identity",
-                        "args": [self._transform_expression(return_values, mangled_context)],
-                        "line": body_step["line"],
-                    }
-                )
+                transformed_return_expr = self._transform_expression(return_node, mangled_context)
+
+                if isinstance(transformed_return_expr, dict) and "function" in transformed_return_expr:
+                    self.ir.append(
+                        {
+                            "type": "execution_assignment",
+                            "result": self._mangle_vars(original_results, context),
+                            "function": transformed_return_expr["function"],
+                            "args": transformed_return_expr["args"],
+                            "line": line,
+                        }
+                    )
+                elif isinstance(transformed_return_expr, Token):
+                    self.ir.append(
+                        {
+                            "type": "execution_assignment",
+                            "result": self._mangle_vars(original_results, context),
+                            "function": "identity",
+                            "args": [transformed_return_expr],
+                            "line": line,
+                        }
+                    )
+                else:
+                    if body_step.get("values"):
+                        self.ir.append(
+                            {
+                                "type": "execution_assignment",
+                                "result": self._mangle_vars(original_results, context),
+                                "function": "identity",
+                                "args": [transformed_return_expr],
+                                "line": line,
+                            }
+                        )
+                    else:
+                        self.ir.append(
+                            {
+                                "type": "literal_assignment",
+                                "result": self._mangle_vars(original_results, context),
+                                "value": transformed_return_expr,
+                                "line": line,
+                            }
+                        )
             else:
-                # Process regular assignments within the UDF body
                 self._process_step(body_step, mangled_context)
 
     def _transform_expression(self, expr: Any, context: Optional[Dict[str, str]]) -> Any:
@@ -146,24 +171,17 @@ class IRGenerator:
         It resolves variable names within a given context (mangled or global)
         and preserves nested function calls as JSON objects.
         """
-        # Base Cases: Literals are returned as-is
         if isinstance(expr, (int, float, bool)):
             return expr
         if isinstance(expr, _StringLiteral):
             return expr.value
-
-        # A variable (Token) is replaced by its mangled name if in context
         if isinstance(expr, Token):
             return Token("CNAME", self._mangle_vars([expr.value], context)[0])
-
         if isinstance(expr, list):
             return [self._transform_expression(item, context) for item in expr]
-
-        # Recursive Cases for expressions and literals
         if isinstance(expr, dict):
             if expr.get("_is_vector_literal"):
                 return [self._transform_expression(item, context) for item in expr["items"]]
-
             if expr.get("type") == "conditional_expression":
                 return {
                     "type": "conditional_expression",
@@ -171,14 +189,11 @@ class IRGenerator:
                     "then_expr": self._transform_expression(expr["then_expr"], context),
                     "else_expr": self._transform_expression(expr["else_expr"], context),
                 }
-
             if "function" in expr:
                 return {
                     "function": expr["function"],
                     "args": [self._transform_expression(arg, context) for arg in expr.get("args", [])],
                 }
-
-        # This should not be reached for a valid AST
         raise TypeError(f"Internal Error: Unhandled type '{type(expr).__name__}' during IR generation.")
 
     def _mangle_vars(self, var_names: List[str], context: Optional[Dict[str, str]]) -> List[str]:
