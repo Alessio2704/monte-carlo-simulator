@@ -1,14 +1,16 @@
 import os
 import json
 from typing import List, Optional, Dict, Any
+from lark import Token
 from .exceptions import ValuaScriptError
 from .parser import parse_valuascript
 from .symbol_discovery import discover_symbols
 from .type_inferrer import infer_types_and_taint
 from .semantic_validator import validate_semantics
 from .ir_generator import generate_ir
-from .ir_optimizer import optimize_ir
-from .bytecode_generator import generate_bytecode
+
+# from .ir_optimizer import optimize_ir
+# from .bytecode_generator import generate_bytecode
 
 
 # A custom JSON encoder will be needed for complex objects like Lark Tokens
@@ -16,17 +18,14 @@ class CompilerArtifactEncoder(json.JSONEncoder):
     def default(self, o):
         from .data_structures import Scope
 
+        if isinstance(o, Token):
+            return o.value
         if isinstance(o, set):
             return list(o)
-
         if isinstance(o, Scope):
             return {"symbols": o.symbols, "parent": "<PARENT_SCOPE_OMITTED_FOR_SERIALIZATION>" if o.parent else None}
-
         if hasattr(o, "__dict__"):
-            if type(o).__name__ == "Token":
-                return {"type": "Token", "value": o.value}
             return o.__dict__
-
         return str(o)
 
 
@@ -71,20 +70,20 @@ class CompilationPipeline:
         # Store the final validated model for later stages
         self.model = validated_symbol_table
 
-        # STAGE 5: Intermediate Representation (IR) Generation
+        # --- STAGE 5: Intermediate Representation (IR) Generation ---
         ir = self._run_stage("ir", generate_ir, self.model)
         if self.stop_after_stage == "ir":
             return ir
 
-        # STAGE 6: Optimization
-        optimized_ir = self._run_stage("optimized_ir", optimize_ir, ir, self.model, self.optimize)
-        if self.stop_after_stage == "optimized_ir":
-            return optimized_ir
+        # # STAGE 6: Optimization
+        # optimized_ir = self._run_stage("optimized_ir", optimize_ir, ir, self.model, True)  # Assuming optimize=True
+        # if self.stop_after_stage == "optimized_ir":
+        #     return optimized_ir
 
-        # STAGE 7: Bytecode Generation (Linking)
-        final_recipe = self._run_stage("recipe", generate_bytecode, optimized_ir, self.model)
+        # # STAGE 7: Bytecode Generation (Linking)
+        # final_recipe = self._run_stage("recipe", generate_bytecode, optimized_ir, self.model)
 
-        return final_recipe
+        # return final_recipe
 
     def _run_stage(self, stage_name: str, stage_func, *args, **kwargs):
         """Executes a single stage, stores its artifact, and handles dumping."""

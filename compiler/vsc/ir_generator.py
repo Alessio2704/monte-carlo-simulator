@@ -1,170 +1,194 @@
-from typing import List, Dict, Any, Union
-from .data_structures import FileSemanticModel, Scope, Symbol, VariableSymbol, FunctionSymbol, ExpressionNode
-from .parser import _StringLiteral
+from typing import List, Dict, Any, Optional
 from lark import Token
+
+# from .data_structures import FileSemanticModel # The model is treated as a dict
+from .parser import _StringLiteral
 
 
 class IRGenerator:
     """
-    Generates a linear Intermediate Representation (IR) from a validated semantic model.
-    The primary responsibility of this class is to inline all user-defined functions.
+    Generates a linear Intermediate Representation (IR) from the validated
+    semantic model. It flattens the execution flow by inlining all
+    user-defined functions (UDFs) and transforming the AST into a simple
+    list of assignment instructions.
     """
 
-    def __init__(self, model: FileSemanticModel):
+    def __init__(self, model: Dict[str, Any]):
         self.model = model
-        self.ir_steps: List[Dict[str, Any]] = []
-        self.udf_call_count: Dict[str, int] = {}
-        self.temp_var_count = 0
+        self.ir: List[Dict[str, Any]] = []
+        self.udf_call_counters: Dict[str, int] = {}
 
     def generate(self) -> List[Dict[str, Any]]:
-        """Generates the full IR for the global scope."""
-        self._process_scope(self.model.global_scope)
-        return self.ir_steps
+        """Main entry point to generate the IR for the entire script."""
+        main_ast = self.model["processed_asts"][self.model["main_file_path"]]
+        execution_steps = main_ast.get("execution_steps", [])
 
-    def _process_scope(self, scope: Scope):
-        # We need to process variables in the order they were declared.
-        # The AST provides this order.
-        execution_order = [step for step in self.model.ast.get("execution_steps", []) if (step.get("result") or (step.get("results") and step.get("results")[0])) in scope.symbols]
+        for step in execution_steps:
+            self._process_step(step)
 
-        for assignment_node in execution_order:
-            self._generate_ir_for_node(assignment_node, scope)
+        return self.ir
 
-    def _generate_ir_for_node(self, node: Dict[str, Any], scope: Scope) -> Union[Token, Dict, Any]:
+    def _process_step(self, step: Dict[str, Any], context: Optional[Dict[str, str]] = None):
         """
-        Recursively processes an AST node to generate IR steps.
-        If the node is a UDF call, it triggers inlining.
-        Returns the final "value" of the expression (e.g., a variable Token or a literal).
+        Processes a single AST step and appends the corresponding
+        instruction(s) to the IR.
         """
-        # Base case: Literals and existing variables
-        if isinstance(node, (Token, _StringLiteral, int, float, bool, list)):
-            return node
+        step_type = step.get("type")
 
-        if not isinstance(node, dict):
-            return node
+        if step_type == "literal_assignment":
+            self._add_literal_assignment(step, context)
+        elif step_type == "conditional_expression":
+            self._add_conditional_assignment(step, context)
+        elif step_type in ("execution_assignment", "multi_assignment"):
+            self._process_execution_assignment(step, context)
 
-        # Lift nested UDF calls out of expressions first.
-        node = self._lift_nested_udf_calls(node, scope)
+    def _add_literal_assignment(self, step: Dict[str, Any], context: Optional[Dict[str, str]]):
+        """Handles `let x = 1`, `let y = [1,2,3]`, etc."""
+        result_vars = [step["result"]]
+        value = step["value"]
 
-        func_name = node.get("function")
-        if func_name:
-            # Check if it's a UDF that needs inlining
-            symbol = self.model.global_scope.symbols.get(func_name)
-            if isinstance(symbol, FunctionSymbol):
-                # The _inline_udf_call method now handles adding all necessary steps to the IR.
-                # We just need a placeholder return value to satisfy the recursive algorithm.
-                self._inline_udf_call(node, symbol, scope)
-                self.temp_var_count += 1
-                return Token("CNAME", f"__temp_inline_{self.temp_var_count}")
+        # The parser wraps vector literals in a dict; we unwrap it for the IR.
+        if isinstance(value, dict) and value.get("_is_vector_literal"):
+            value = self._transform_expression(value, context)
 
-        # For built-in functions or regular assignments, add the step
-        # after processing its arguments recursively.
-        processed_node = node.copy()
-        if "args" in processed_node:
-            processed_node["args"] = [self._generate_ir_for_node(arg, scope) for arg in node["args"]]
+        self.ir.append({"type": "literal_assignment", "result": self._mangle_vars(result_vars, context), "value": value, "line": step["line"]})
 
-        if processed_node.get("type") == "conditional_expression":
-            processed_node["condition"] = self._generate_ir_for_node(processed_node["condition"], scope)
-            processed_node["then_expr"] = self._generate_ir_for_node(processed_node["then_expr"], scope)
-            processed_node["else_expr"] = self._generate_ir_for_node(processed_node["else_expr"], scope)
+    def _add_conditional_assignment(self, step: Dict[str, Any], context: Optional[Dict[str, str]]):
+        """Handles `let x = if cond then 1 else 0`."""
+        result_vars = [step["result"]]
+        self.ir.append(
+            {
+                "type": "conditional_assignment",
+                "result": self._mangle_vars(result_vars, context),
+                "condition": self._transform_expression(step["condition"], context),
+                "then_expr": self._transform_expression(step["then_expr"], context),
+                "else_expr": self._transform_expression(step["else_expr"], context),
+                "line": step["line"],
+            }
+        )
 
-        # If this node represents a top-level assignment, add it to the IR.
-        # Otherwise, it's a nested expression, so we just return it.
-        if "result" in processed_node or "results" in processed_node:
-            self.ir_steps.append(processed_node)
+    def _process_execution_assignment(self, step: Dict[str, Any], context: Optional[Dict[str, str]]):
+        """Handles function calls, dispatching to UDF inlining if necessary."""
+        func_name = step.get("function")
 
-        return processed_node
-
-    def _lift_nested_udf_calls(self, node: Dict, scope: Scope) -> Dict:
-        """Pre-pass to hoist nested UDF calls into their own temporary variables."""
-        if not isinstance(node, dict):
-            return node
-
-        if "args" in node:
-            new_args = []
-            for arg in node["args"]:
-                new_args.append(self._generate_ir_for_node(arg, scope))
-            node["args"] = new_args
-
-        if node.get("type") == "conditional_expression":
-            node["condition"] = self._generate_ir_for_node(node["condition"], scope)
-            node["then_expr"] = self._generate_ir_for_node(node["then_expr"], scope)
-            node["else_expr"] = self._generate_ir_for_node(node["else_expr"], scope)
-
-        return node
-
-    def _inline_udf_call(self, call_node: Dict[str, Any], func_symbol: FunctionSymbol, scope: Scope):
-        """Replaces a UDF call with its body, mangling names and adding steps to the IR."""
-        self.udf_call_count[func_symbol.name] = self.udf_call_count.get(func_symbol.name, 0) + 1
-        call_id = self.udf_call_count[func_symbol.name]
-        mangling_prefix = f"__{func_symbol.name}_{call_id}__"
-
-        param_map = {}
-        for i, param in enumerate(func_symbol.parameters):
-            mangled_name = f"{mangling_prefix}{param.name}"
-            arg_value = self._generate_ir_for_node(call_node["args"][i], scope)
-
-            self.ir_steps.append(
+        if func_name in self.model["user_defined_functions"]:
+            self._inline_udf_call(step, context)
+        else:
+            # This is a built-in function call
+            result_vars = step.get("results") or [step.get("result")]
+            self.ir.append(
                 {
                     "type": "execution_assignment",
-                    "result": mangled_name,
-                    "function": "identity",
-                    "args": [arg_value],
-                    "line": call_node["line"],
+                    "result": self._mangle_vars(result_vars, context),
+                    "function": func_name,
+                    "args": [self._transform_expression(arg, context) for arg in step.get("args", [])],
+                    "line": step["line"],
                 }
             )
-            param_map[param.name] = Token("CNAME", mangled_name)
 
-        func_ast_body = func_symbol.ast_body
+    def _inline_udf_call(self, call_step: Dict[str, Any], context: Optional[Dict[str, str]]):
+        """
+        The core of the IR generator. Replaces a UDF call with its body,
+        mangling all local variables and parameters to prevent name collisions.
+        """
+        func_name = call_step["function"]
+        func_def = self.model["user_defined_functions"][func_name]
 
-        for body_stmt_node in func_ast_body:
-            # FIX: The core of the bug fix is here.
-            # We must distinguish between a return statement and a regular assignment.
+        # 1. Get a unique ID for this specific call to create a unique namespace
+        call_id = self.udf_call_counters.get(func_name, 0) + 1
+        self.udf_call_counters[func_name] = call_id
 
-            is_return = body_stmt_node.get("type") == "return_statement"
-            mangled_stmt = self._mangle_node(body_stmt_node, mangling_prefix, param_map)
+        def mangle(name: str) -> str:
+            return f"__{func_name}_{call_id}__{name}"
 
-            if is_return:
-                # This is the return statement. Its value is used to create the FINAL
-                # assignment for the original calling variable.
-                # The return statement itself is NOT added to the IR.
-                original_results = call_node.get("results") or [call_node.get("result")]
-                return_values = mangled_stmt.get("values") or [mangled_stmt.get("value")]
+        # 2. Create the mangled context for this inlined body
+        mangled_context = {p["name"]: mangle(p["name"]) for p in func_def["params"]}
+        mangled_context.update({name: mangle(name) for name in func_def["discovered_body"]})
 
-                if len(original_results) > 1:  # Multi-assignment
-                    for i, res_name in enumerate(original_results):
-                        self.ir_steps.append({"type": "execution_assignment", "result": res_name, "function": "identity", "args": [return_values[i]], "line": call_node["line"]})
-                else:  # Single assignment
-                    # Create a final assignment from the return value to the original variable
-                    final_assignment = {"type": "execution_assignment", "result": original_results[0], "function": "identity", "args": [return_values[0]], "line": call_node["line"]}
-                    self.ir_steps.append(final_assignment)
+        # 3. Create assignments to map call arguments to the mangled parameters
+        for i, param in enumerate(func_def["params"]):
+            param_name = param["name"]
+            argument_expr = call_step["args"][i]
+            self.ir.append(
+                {
+                    "type": "execution_assignment",
+                    "result": [mangle(param_name)],
+                    "function": "identity",
+                    "args": [self._transform_expression(argument_expr, context)],
+                    "line": call_step["line"],
+                }
+            )
+
+        # 4. Process the UDF body, applying the mangled context
+        for body_step in func_def["ast_body"]:
+            if body_step["type"] == "return_statement":
+                # A return statement becomes the final assignment to the original call variable
+                original_results = call_step.get("results") or [call_step.get("result")]
+                return_values = body_step.get("value") or body_step.get("values")
+
+                # The identity function is used for simple variable-to-variable assignment
+                self.ir.append(
+                    {
+                        "type": "execution_assignment",
+                        "result": self._mangle_vars(original_results, context),
+                        "function": "identity",
+                        "args": [self._transform_expression(return_values, mangled_context)],
+                        "line": body_step["line"],
+                    }
+                )
             else:
-                # This is a regular `let` statement inside the UDF.
-                # It gets mangled and added directly to the IR.
-                self.ir_steps.append(mangled_stmt)
+                # Process regular assignments within the UDF body
+                self._process_step(body_step, mangled_context)
 
-    def _mangle_node(self, node: Any, prefix: str, param_map: Dict[str, Token]) -> Any:
-        """Recursively replaces local variable names with mangled versions."""
-        if isinstance(node, Token):
-            if node.value in param_map:
-                return param_map[node.value]
-            return Token(node.type, f"{prefix}{node.value}")
+    def _transform_expression(self, expr: Any, context: Optional[Dict[str, str]]) -> Any:
+        """
+        Recursively transforms an AST expression into an IR-compatible format.
+        It resolves variable names within a given context (mangled or global)
+        and preserves nested function calls as JSON objects.
+        """
+        # Base Cases: Literals are returned as-is
+        if isinstance(expr, (int, float, bool)):
+            return expr
+        if isinstance(expr, _StringLiteral):
+            return expr.value
 
-        if isinstance(node, dict):
-            new_node = node.copy()
-            for key, value in node.items():
-                if key in ("result", "results"):
-                    new_node[key] = [f"{prefix}{v}" for v in value] if isinstance(value, list) else f"{prefix}{value}"
-                else:
-                    new_node[key] = self._mangle_node(value, prefix, param_map)
-            return new_node
+        # A variable (Token) is replaced by its mangled name if in context
+        if isinstance(expr, Token):
+            return Token("CNAME", self._mangle_vars([expr.value], context)[0])
 
-        if isinstance(node, list):
-            return [self._mangle_node(item, prefix, param_map) for item in node]
+        if isinstance(expr, list):
+            return [self._transform_expression(item, context) for item in expr]
 
-        return node
+        # Recursive Cases for expressions and literals
+        if isinstance(expr, dict):
+            if expr.get("_is_vector_literal"):
+                return [self._transform_expression(item, context) for item in expr["items"]]
+
+            if expr.get("type") == "conditional_expression":
+                return {
+                    "type": "conditional_expression",
+                    "condition": self._transform_expression(expr["condition"], context),
+                    "then_expr": self._transform_expression(expr["then_expr"], context),
+                    "else_expr": self._transform_expression(expr["else_expr"], context),
+                }
+
+            if "function" in expr:
+                return {
+                    "function": expr["function"],
+                    "args": [self._transform_expression(arg, context) for arg in expr.get("args", [])],
+                }
+
+        # This should not be reached for a valid AST
+        raise TypeError(f"Internal Error: Unhandled type '{type(expr).__name__}' during IR generation.")
+
+    def _mangle_vars(self, var_names: List[str], context: Optional[Dict[str, str]]) -> List[str]:
+        """Applies a name mangling context to a list of variable names."""
+        if not context:
+            return var_names
+        return [context.get(name, name) for name in var_names]
 
 
-def generate_ir(model: FileSemanticModel) -> List[Dict[str, Any]]:
+def generate_ir(model: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     High-level entry point for the IR generation stage.
     """
