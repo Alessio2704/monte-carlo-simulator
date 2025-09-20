@@ -8,7 +8,13 @@ from .symbol_discovery import discover_symbols
 from .type_inferrer import infer_types_and_taint
 from .semantic_validator import validate_semantics
 from .ir_generator import generate_ir
-from .ir_optimizer import optimize_ir
+from .optimizer.copy_propagation import run_copy_propagation
+from .optimizer.tuple_forwarding import run_tuple_forwarding
+from .optimizer.alias_resolver import run_alias_resolver
+from .optimizer.constant_folding import run_constant_folding
+from .optimizer.dead_code_elimination import run_dce
+from .ir_partitioner import partition_ir
+from .bytecode_generator import generate_bytecode
 from .optimizer.ir_validator import IRValidator, IRValidationError
 
 
@@ -23,110 +29,114 @@ class CompilerArtifactEncoder(json.JSONEncoder):
         if isinstance(o, _StringLiteral):
             return o.value
         if isinstance(o, Scope):
+            # Avoid circular references and excessive nesting in JSON output
             return {"symbols": o.symbols, "parent": "<PARENT_SCOPE_OMITTED_FOR_SERIALIZATION>" if o.parent else None}
         if hasattr(o, "__dict__"):
             return o.__dict__
+        # Fallback for any other types
         return str(o)
 
 
 class CompilationPipeline:
     """
-    Orchestrates the full compilation process.
+    Orchestrates the full compilation process from source code to final recipe.
     """
 
-    def __init__(self, source_content: str, file_path: Optional[str], dump_stages: List[str] = [], optimize: bool = False, stop_after_stage: Optional[str] = None):
+    def __init__(self, source_content: str, file_path: Optional[str], dump_stages: List[str] = [], stop_after_stage: Optional[str] = None):
         self.source_content = source_content
         self.file_path = os.path.abspath(file_path) if file_path else "<stdin>"
         self.dump_stages = dump_stages
-        self.optimize = optimize
         self.stop_after_stage = stop_after_stage
-        self.artifacts = {}
-        self.model = None
+        self.artifacts: Dict[str, Any] = {}
+        self.model: Optional[Dict[str, Any]] = None
 
     def run(self) -> Dict[str, Any]:
         """Executes the compilation pipeline."""
+
+        # --- Stage 1: Parsing ---
         ast = self._run_stage("ast", parse_valuascript, self.source_content)
         if self.stop_after_stage == "ast":
             return ast
 
+        # --- Stage 2: Symbol Discovery ---
         symbol_table = self._run_stage("symbol_table", discover_symbols, ast, self.file_path)
         if self.stop_after_stage == "symbol_table":
             return symbol_table
 
+        # --- Stage 3: Type Inference & Tainting ---
         enriched_symbol_table = self._run_stage("type_inference", infer_types_and_taint, symbol_table)
         if self.stop_after_stage == "type_inference":
             return enriched_symbol_table
 
-        validated_symbol_table = self._run_stage("semantic_validation", validate_semantics, enriched_symbol_table)
+        # --- Stage 4: Semantic Validation ---
+        validated_model = self._run_stage("semantic_validation", validate_semantics, enriched_symbol_table)
+        self.model = validated_model  # Store the final model for later stages
         if self.stop_after_stage == "semantic_validation":
-            return validated_symbol_table
+            return validated_model
 
-        self.model = validated_symbol_table
-
+        # --- Stage 5: IR Generation ---
         ir = self._run_stage("ir", generate_ir, self.model)
-        self._validate_ir(ir, "generation")
         if self.stop_after_stage == "ir":
             return ir
 
-        optimization_phases = ["copy_propagation", "tuple_forwarding", "alias_resolver", "identity_elimination", "constant_folding", "dead_code_elimination"]
-        final_opt_stage_name = "optimized_ir"
+        # --- Stage 6: IR Optimization (multiple phases) ---
+        optimization_artifacts = self._run_optimization_phases(ir, self.model)
 
-        if self.stop_after_stage in optimization_phases or self.stop_after_stage == final_opt_stage_name:
-            last_phase_to_run = self.stop_after_stage
-            if last_phase_to_run == final_opt_stage_name:
-                last_phase_to_run = optimization_phases[-1]
+        # Check if we should stop after a specific optimization phase
+        if self.stop_after_stage in optimization_artifacts:
+            return optimization_artifacts[self.stop_after_stage]
 
-            optimization_artifacts = self._run_stage(self.stop_after_stage, self._run_optimization_phases, ir, self.model, last_phase_to_run)
+        optimized_ir = optimization_artifacts.get("dead_code_elimination", ir)
+        if self.stop_after_stage == "optimized_ir":
+            self.save_artifact("optimized_ir", optimized_ir)
+            return optimized_ir
 
-            return optimization_artifacts.get(last_phase_to_run, {})
+        # --- Stage 7: IR Partitioning ---
+        partitioned_ir = self._run_stage("ir_partitioning", partition_ir, optimized_ir, self.model)
+        if self.stop_after_stage == "ir_partitioning":
+            return partitioned_ir
 
-        return ir
+        # --- Final Stage: Bytecode Generation ---
+        recipe = self._run_stage("recipe", generate_bytecode, partitioned_ir, self.model)
+        if self.stop_after_stage == "recipe":
+            return recipe
 
-    def _run_optimization_phases(self, ir, model, last_phase_to_run):
-        """Helper to run the optimization pipeline and validate at each step."""
-        all_phases = ["copy_propagation", "tuple_forwarding", "alias_resolver", "identity_elimination", "constant_folding", "dead_code_elimination"]
-        stop_index = all_phases.index(last_phase_to_run)
-        phases_to_run = all_phases[: stop_index + 1]
+        # If no stop_after_stage is specified, the final recipe is the product.
+        return recipe
 
-        from .optimizer.copy_propagation import run_copy_propagation
-        from .optimizer.tuple_forwarding import run_tuple_forwarding
-        from .optimizer.alias_resolver import run_alias_resolver
-        from .optimizer.constant_folding import run_constant_folding
-        from .optimizer.dead_code_elimination import run_dce
-
+    def _run_optimization_phases(self, ir: List[Dict[str, Any]], model: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Helper to run the optimization pipeline, validating and storing the
+        artifact from each phase.
+        """
         optimization_artifacts = {}
         current_ir = ir
 
-        if "copy_propagation" in phases_to_run:
-            current_ir = run_copy_propagation(current_ir)
-            self._validate_ir(current_ir, "copy_propagation")
-            optimization_artifacts["copy_propagation"] = current_ir
+        # The sequence of optimization phases
+        phases = {
+            "copy_propagation": run_copy_propagation,
+            "tuple_forwarding": run_tuple_forwarding,
+            "alias_resolver": run_alias_resolver,
+            "constant_folding": run_constant_folding,
+            "dead_code_elimination": lambda ir_arg: run_dce(ir_arg, model),  # DCE requires the model
+        }
 
-        if "tuple_forwarding" in phases_to_run:
-            current_ir = run_tuple_forwarding(current_ir)
-            self._validate_ir(current_ir, "tuple_forwarding")
-            optimization_artifacts["tuple_forwarding"] = current_ir
-
-        if "alias_resolver" in phases_to_run:
-            current_ir = run_alias_resolver(current_ir)
-            self._validate_ir(current_ir, "alias_resolver")
-            optimization_artifacts["alias_resolver"] = current_ir
-
-        if "constant_folding" in phases_to_run:
-            current_ir = run_constant_folding(current_ir)
-            self._validate_ir(current_ir, "constant_folding")
-            optimization_artifacts["constant_folding"] = current_ir
-
-        if "dead_code_elimination" in phases_to_run:
-            current_ir = run_dce(current_ir, model)
-            self._validate_ir(current_ir, "dead_code_elimination")
-            optimization_artifacts["dead_code_elimination"] = current_ir
+        for name, func in phases.items():
+            current_ir = self._run_stage(name, func, current_ir)
+            optimization_artifacts[name] = current_ir
+            # If the user wants to stop after this phase, we don't run subsequent ones.
+            if self.stop_after_stage == name:
+                break
 
         return optimization_artifacts
 
     def _run_stage(self, stage_name: str, stage_func, *args, **kwargs):
-        """Executes a single stage, stores its artifact, and handles dumping."""
+        """
+        Executes a single stage, validates its output where applicable,
+        stores its artifact, and handles dumping to a file.
+        """
         try:
+            # Deepcopy inputs for stages that modify data structures in place
             if stage_name in ("type_inference", "semantic_validation"):
                 import copy
 
@@ -135,21 +145,20 @@ class CompilationPipeline:
             result = stage_func(*args, **kwargs)
             self.artifacts[stage_name] = result
 
-            if stage_name in self.dump_stages:
-                artifact_to_save = result
-                if stage_name == "semantic_validation":
-                    artifact_to_save = args[0]
-                elif stage_name in ("copy_propagation", "tuple_forwarding", "alias_resolver", "identity_elimination", "constant_folding", "dead_code_elimination"):
-                    artifact_to_save = result.get(stage_name)
-                elif stage_name == "optimized_ir":
-                    last_phase = "dead_code_elimination"
-                    artifact_to_save = result.get(last_phase)
+            # Validate the output if it's an IR-producing stage
+            if stage_name.startswith("ir") or stage_name in ["copy_propagation", "tuple_forwarding", "alias_resolver", "constant_folding", "dead_code_elimination"]:
+                self._validate_ir(result if isinstance(result, list) else [], stage_name)
 
-                self.save_artifact(stage_name, artifact_to_save)
+            if stage_name in self.dump_stages:
+                self.save_artifact(stage_name, result)
+
             return result
+
         except ValuaScriptError as e:
+            # Re-raise compiler errors to be handled by the CLI
             raise e
         except Exception as e:
+            # Wrap unexpected errors for clearer reporting
             import traceback
 
             traceback.print_exc()
@@ -157,7 +166,7 @@ class CompilationPipeline:
 
     def save_artifact(self, name: str, data: Any):
         """Saves an intermediate artifact to a JSON file."""
-        if not self.file_path or self.file_path == "<stdin>":
+        if self.file_path == "<stdin>":
             base_name = "stdin_output"
         else:
             base_name = os.path.splitext(self.file_path)[0]
@@ -175,10 +184,14 @@ class CompilationPipeline:
         try:
             IRValidator(ir).validate()
         except IRValidationError as e:
+            # This indicates a bug in the compiler itself.
             raise Exception(f"Internal Compiler Error: The '{producing_stage}' stage produced a logically invalid IR.\n" f"This is a bug in the compiler. Details:\n{e}") from e
 
 
-def compile_valuascript(script_content: str, file_path=None, dump_stages=[], optimize=False, stop_after_stage=None):
-    """High-level entry point for the compilation pipeline."""
-    pipeline = CompilationPipeline(script_content, file_path, dump_stages, optimize, stop_after_stage)
+def compile_valuascript(script_content: str, file_path: Optional[str] = None, dump_stages: List[str] = [], stop_after_stage: Optional[str] = None):
+    """
+    High-level entry point for the compilation pipeline. It creates and runs
+    a CompilationPipeline instance.
+    """
+    pipeline = CompilationPipeline(script_content, file_path, dump_stages, stop_after_stage)
     return pipeline.run()
