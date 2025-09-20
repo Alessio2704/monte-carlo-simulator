@@ -3,6 +3,7 @@ from .data_structures import FileSemanticModel
 
 from .optimizer.copy_propagation import run_copy_propagation
 from .optimizer.identity_elimination import run_identity_elimination
+from .optimizer.constant_folding import run_constant_folding
 
 
 class IROptimizer:
@@ -14,7 +15,7 @@ class IROptimizer:
         self.ir = ir
         self.model = model
         # The order of phases is critical
-        self.phase_sequence = ["copy_propagation", "identity_elimination"]
+        self.phase_sequence = ["copy_propagation", "identity_elimination", "constant_folding"]
         self.phases_to_run = [p for p in self.phase_sequence if p in phases_to_run]
         self.artifacts: Dict[str, Any] = {}
 
@@ -33,6 +34,10 @@ class IROptimizer:
             current_ir = run_identity_elimination(current_ir)
             self.artifacts["identity_elimination"] = current_ir
 
+        if "constant_folding" in self.phases_to_run:
+            current_ir = run_constant_folding(current_ir)
+            self.artifacts["constant_folding"] = current_ir
+
         return self.artifacts
 
 
@@ -41,7 +46,7 @@ def optimize_ir(ir: List[Dict[str, Any]], model: FileSemanticModel, stop_after_p
     High-level entry point for the IR optimization stage.
     """
     # Define the full sequence of optimization phases
-    all_phases = ["copy_propagation", "identity_elimination"]
+    all_phases = ["copy_propagation", "identity_elimination", "constant_folding"]
 
     # Determine which phases to run based on the stop flag
     try:

@@ -72,7 +72,7 @@ class CompilationPipeline:
             return ir
 
         # --- STAGE 6: Optimization Phases ---
-        optimization_phases = ["copy_propagation", "identity_elimination"]
+        optimization_phases = ["copy_propagation", "identity_elimination", "constant_folding"]
         final_opt_stage_name = "optimized_ir"
 
         # Determine if we are stopping within the optimization block
@@ -109,11 +109,11 @@ class CompilationPipeline:
                 if stage_name == "semantic_validation":
                     artifact_to_save = args[0]
                 # For optimization phases, the result is a dict of artifacts. We save the specific one requested.
-                elif stage_name in ("copy_propagation", "identity_elimination"):
+                elif stage_name in ("copy_propagation", "identity_elimination", "constant_folding"):
                     artifact_to_save = result.get(stage_name)
                 # For the final 'optimized_ir' stage, the result is the output of the last phase.
                 elif stage_name == "optimized_ir":
-                    last_phase = "identity_elimination"
+                    last_phase = "constant_folding"
                     artifact_to_save = result.get(last_phase)
 
                 self.save_artifact(stage_name, artifact_to_save)
