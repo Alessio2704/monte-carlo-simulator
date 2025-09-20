@@ -21,13 +21,13 @@ def main():
             "-c",
             "--compile",
             type=str,
-            choices=["1", "2", "3", "4", "5", "6a", "6", "7"],
+            choices=["1", "2", "3", "4", "5", "6a", "6b", "6", "7"],
             help="Compile up to a specific stage and save the intermediate artifact. "
             "1: AST, 2: Symbol Table, 3: Type Inference, 4: Semantic Validation, 5: IR, "
-            "6a: Optimized IR (Phase 1), 6: Optimized IR (Final), 7: Recipe. "
+            "6a: Optimized IR (Copy Propagation), 6b: Optimized IR (Identity Elimination), "
+            "6: Optimized IR (Final), 7: Recipe. "
             "Omitting this flag runs the full pipeline to generate the final .json file.",
         )
-        # Other args...
         parser.add_argument("--lsp", action="store_true", help="Run the language server.")
 
         args = parser.parse_args()
@@ -60,6 +60,7 @@ def main():
                 "4": "semantic_validation",
                 "5": "ir",
                 "6a": "copy_propagation",
+                "6b": "identity_elimination",
                 "6": "optimized_ir",
                 "7": "recipe",
             }

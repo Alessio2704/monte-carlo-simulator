@@ -71,11 +71,25 @@ class CompilationPipeline:
         if self.stop_after_stage == "ir":
             return ir
 
-        # --- STAGE 6a: Optimization Phase 1 ---
-        if self.stop_after_stage == "copy_propagation":
-            optimized_result = self._run_stage("copy_propagation", optimize_ir, ir, self.model, stop_after_phase="copy_prop")
-            return optimized_result.get("copy_propagation", {})
+        # --- STAGE 6: Optimization Phases ---
+        optimization_phases = ["copy_propagation", "identity_elimination"]
+        final_opt_stage_name = "optimized_ir"
 
+        # Determine if we are stopping within the optimization block
+        if self.stop_after_stage in optimization_phases or self.stop_after_stage == final_opt_stage_name:
+
+            # Determine the last phase to run
+            last_phase_to_run = self.stop_after_stage
+            if last_phase_to_run == final_opt_stage_name:
+                last_phase_to_run = optimization_phases[-1]
+
+            # Run the optimizer. Note: the stage name passed to _run_stage is for artifact saving purposes.
+            optimization_artifacts = self._run_stage(self.stop_after_stage, optimize_ir, ir, self.model, stop_after_phase=last_phase_to_run)
+
+            # Extract the correct artifact to return, which is the result of the very last phase that ran.
+            return optimization_artifacts.get(last_phase_to_run, {})
+
+        # Default case: no optimization, return stage 5 IR
         return ir
 
     def _run_stage(self, stage_name: str, stage_func, *args, **kwargs):
@@ -94,9 +108,13 @@ class CompilationPipeline:
                 # For validation, the result is the same table, so we save the input
                 if stage_name == "semantic_validation":
                     artifact_to_save = args[0]
-                # For optimization phases, the result is a dict of artifacts
-                elif stage_name == "copy_propagation":
-                    artifact_to_save = result.get("copy_propagation")
+                # For optimization phases, the result is a dict of artifacts. We save the specific one requested.
+                elif stage_name in ("copy_propagation", "identity_elimination"):
+                    artifact_to_save = result.get(stage_name)
+                # For the final 'optimized_ir' stage, the result is the output of the last phase.
+                elif stage_name == "optimized_ir":
+                    last_phase = "identity_elimination"
+                    artifact_to_save = result.get(last_phase)
 
                 self.save_artifact(stage_name, artifact_to_save)
             return result
