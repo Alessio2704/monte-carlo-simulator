@@ -9,6 +9,7 @@ from .type_inferrer import infer_types_and_taint
 from .semantic_validator import validate_semantics
 from .ir_generator import generate_ir
 from .ir_optimizer import optimize_ir
+from .optimizer.ir_validator import IRValidator, IRValidationError
 
 # from .bytecode_generator import generate_bytecode
 
@@ -68,6 +69,8 @@ class CompilationPipeline:
 
         # STAGE 5: Intermediate Representation (IR) Generation
         ir = self._run_stage("ir", generate_ir, self.model)
+        # 2. Validate the raw IR immediately after generation.
+        self._validate_ir(ir, "generation")
         if self.stop_after_stage == "ir":
             return ir
 
@@ -78,19 +81,49 @@ class CompilationPipeline:
         # Determine if we are stopping within the optimization block
         if self.stop_after_stage in optimization_phases or self.stop_after_stage == final_opt_stage_name:
 
-            # Determine the last phase to run
             last_phase_to_run = self.stop_after_stage
             if last_phase_to_run == final_opt_stage_name:
                 last_phase_to_run = optimization_phases[-1]
 
-            # Run the optimizer. Note: the stage name passed to _run_stage is for artifact saving purposes.
-            optimization_artifacts = self._run_stage(self.stop_after_stage, optimize_ir, ir, self.model, stop_after_phase=last_phase_to_run)
+            optimization_artifacts = self._run_stage(self.stop_after_stage, self._run_optimization_phases, ir, self.model, last_phase_to_run)
 
-            # Extract the correct artifact to return, which is the result of the very last phase that ran.
             return optimization_artifacts.get(last_phase_to_run, {})
 
-        # Default case: no optimization, return stage 5 IR
         return ir
+
+    def _run_optimization_phases(self, ir, model, last_phase_to_run):
+        """
+        Helper to run the optimization pipeline and validate at each step.
+        This consolidates the logic from the test helpers into the main compiler.
+        """
+        all_phases = ["copy_propagation", "identity_elimination", "constant_folding"]
+        stop_index = all_phases.index(last_phase_to_run)
+        phases_to_run = all_phases[: stop_index + 1]
+
+        # Import optimizer functions here to avoid circular dependency issues
+        from .optimizer.copy_propagation import run_copy_propagation
+        from .optimizer.identity_elimination import run_identity_elimination
+        from .optimizer.constant_folding import run_constant_folding
+
+        optimization_artifacts = {}
+        current_ir = ir
+
+        if "copy_propagation" in phases_to_run:
+            current_ir = run_copy_propagation(current_ir)
+            self._validate_ir(current_ir, "copy_propagation")
+            optimization_artifacts["copy_propagation"] = current_ir
+
+        if "identity_elimination" in phases_to_run:
+            current_ir = run_identity_elimination(current_ir)
+            self._validate_ir(current_ir, "identity_elimination")
+            optimization_artifacts["identity_elimination"] = current_ir
+
+        if "constant_folding" in phases_to_run:
+            current_ir = run_constant_folding(current_ir)
+            self._validate_ir(current_ir, "constant_folding")
+            optimization_artifacts["constant_folding"] = current_ir
+
+        return optimization_artifacts
 
     def _run_stage(self, stage_name: str, stage_func, *args, **kwargs):
         """Executes a single stage, stores its artifact, and handles dumping."""
@@ -105,13 +138,10 @@ class CompilationPipeline:
 
             if stage_name in self.dump_stages:
                 artifact_to_save = result
-                # For validation, the result is the same table, so we save the input
                 if stage_name == "semantic_validation":
                     artifact_to_save = args[0]
-                # For optimization phases, the result is a dict of artifacts. We save the specific one requested.
                 elif stage_name in ("copy_propagation", "identity_elimination", "constant_folding"):
                     artifact_to_save = result.get(stage_name)
-                # For the final 'optimized_ir' stage, the result is the output of the last phase.
                 elif stage_name == "optimized_ir":
                     last_phase = "constant_folding"
                     artifact_to_save = result.get(last_phase)
@@ -124,7 +154,8 @@ class CompilationPipeline:
             import traceback
 
             traceback.print_exc()
-            raise Exception(f"An unexpected error occurred in the '{stage_name}' stage: {e}") from e
+            # Re-raise as an internal compiler error for clarity
+            raise Exception(f"An unexpected internal error occurred in the '{stage_name}' stage: {e}") from e
 
     def save_artifact(self, name: str, data: Any):
         """Saves an intermediate artifact to a JSON file."""
@@ -140,6 +171,16 @@ class CompilationPipeline:
                 json.dump(data, f, indent=2, cls=CompilerArtifactEncoder)
         except Exception as e:
             print(f"Error: Could not save artifact '{name}': {e}")
+
+    def _validate_ir(self, ir: List[Dict[str, Any]], producing_stage: str):
+        """
+        Internal helper to run the validator and raise a clear internal error.
+        """
+        try:
+            IRValidator(ir).validate()
+        except IRValidationError as e:
+            # This is an internal compiler bug, so we raise a generic but informative exception.
+            raise Exception(f"Internal Compiler Error: The '{producing_stage}' stage produced a logically invalid IR.\n" f"This is a bug in the compiler. Details:\n{e}") from e
 
 
 def compile_valuascript(script_content: str, file_path=None, dump_stages=[], optimize=False, stop_after_stage=None):
