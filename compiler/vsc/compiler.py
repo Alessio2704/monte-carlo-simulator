@@ -75,7 +75,7 @@ class CompilationPipeline:
             return ir
 
         # --- STAGE 6: Optimization Phases ---
-        optimization_phases = ["copy_propagation", "identity_elimination", "constant_folding", "dead_code_elimination"]
+        optimization_phases = ["copy_propagation", "tuple_forwarding", "identity_elimination", "constant_folding", "dead_code_elimination"]
         final_opt_stage_name = "optimized_ir"
 
         if self.stop_after_stage in optimization_phases or self.stop_after_stage == final_opt_stage_name:
@@ -93,11 +93,12 @@ class CompilationPipeline:
         """
         Helper to run the optimization pipeline and validate at each step.
         """
-        all_phases = ["copy_propagation", "identity_elimination", "constant_folding", "dead_code_elimination"]
+        all_phases = ["copy_propagation", "tuple_forwarding", "identity_elimination", "constant_folding", "dead_code_elimination"]
         stop_index = all_phases.index(last_phase_to_run)
         phases_to_run = all_phases[: stop_index + 1]
 
         from .optimizer.copy_propagation import run_copy_propagation
+        from .optimizer.tuple_forwarding import run_tuple_forwarding
         from .optimizer.identity_elimination import run_identity_elimination
         from .optimizer.constant_folding import run_constant_folding
         from .optimizer.dead_code_elimination import run_dce
@@ -109,6 +110,11 @@ class CompilationPipeline:
             current_ir = run_copy_propagation(current_ir)
             self._validate_ir(current_ir, "copy_propagation")
             optimization_artifacts["copy_propagation"] = current_ir
+
+        if "tuple_forwarding" in phases_to_run:
+            current_ir = run_tuple_forwarding(current_ir)
+            self._validate_ir(current_ir, "tuple_forwarding")
+            optimization_artifacts["tuple_forwarding"] = current_ir
 
         if "identity_elimination" in phases_to_run:
             current_ir = run_identity_elimination(current_ir)
@@ -142,7 +148,7 @@ class CompilationPipeline:
                 artifact_to_save = result
                 if stage_name == "semantic_validation":
                     artifact_to_save = args[0]
-                elif stage_name in ("copy_propagation", "identity_elimination", "constant_folding", "dead_code_elimination"):
+                elif stage_name in ("copy_propagation", "tuple_forwarding", "identity_elimination", "constant_folding", "dead_code_elimination"):
                     artifact_to_save = result.get(stage_name)
                 elif stage_name == "optimized_ir":
                     last_phase = "dead_code_elimination"

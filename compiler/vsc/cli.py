@@ -21,12 +21,12 @@ def main():
             "-c",
             "--compile",
             type=str,
-            choices=["1", "2", "3", "4", "5", "6a", "6b", "6c", "6d", "6", "7"],
+            choices=["1", "2", "3", "4", "5", "6a", "6b", "6c", "6d", "6e", "6", "7"],
             help="Compile up to a specific stage and save the intermediate artifact. "
             "1: AST, 2: Symbol Table, 3: Type Inference, 4: Semantic Validation, 5: IR, "
-            "6a: Opt IR (Copy Prop), 6b: Opt IR (Identity Elim), "
-            "6c: Opt IR (Constant Folding), 6d: Opt IR (Dead Code Elim), "
-            "6: Optimized IR (Final), 7: Recipe. "
+            "6a: Opt IR (Copy Prop), 6b: Opt IR (Tuple Forward), "
+            "6c: Opt IR (Identity Elim), 6d: Opt IR (Constant Fold), "
+            "6e: Opt IR (Dead Code Elim), 6: Optimized IR (Final), 7: Recipe. "
             "Omitting this flag runs the full pipeline to generate the final .json file.",
         )
         parser.add_argument("--lsp", action="store_true", help="Run the language server.")
@@ -54,19 +54,20 @@ def main():
                 with open(input_file_path_abs, "r") as f:
                     script_content = f.read()
 
-            STAGE_MAP = {
-                "1": "ast",
-                "2": "symbol_table",
-                "3": "type_inference",
-                "4": "semantic_validation",
-                "5": "ir",
-                "6a": "copy_propagation",
-                "6b": "identity_elimination",
-                "6c": "constant_folding",
-                "6d": "dead_code_elimination",
-                "6": "optimized_ir",
-                "7": "recipe",
-            }
+                STAGE_MAP = {
+                    "1": "ast",
+                    "2": "symbol_table",
+                    "3": "type_inference",
+                    "4": "semantic_validation",
+                    "5": "ir",
+                    "6a": "copy_propagation",
+                    "6b": "tuple_forwarding",
+                    "6c": "identity_elimination",
+                    "6d": "constant_folding",
+                    "6e": "dead_code_elimination",
+                    "6": "optimized_ir",
+                    "7": "recipe",
+                }
 
             stop_after_stage = STAGE_MAP.get(args.compile)
             # Tell the pipeline which artifact to save to a file

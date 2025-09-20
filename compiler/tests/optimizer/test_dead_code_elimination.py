@@ -13,6 +13,7 @@ from vsc.optimizer.copy_propagation import run_copy_propagation
 from vsc.optimizer.identity_elimination import run_identity_elimination
 from vsc.optimizer.constant_folding import run_constant_folding
 from vsc.optimizer.dead_code_elimination import run_dce
+from vsc.optimizer.tuple_forwarding import run_tuple_forwarding
 
 # --- Test Helpers ---
 
@@ -42,7 +43,10 @@ def run_full_pipeline_to_dce(script_content: str, file_path: str) -> list:
         post_copy_prop = run_copy_propagation(initial_ir)
         IRValidator(post_copy_prop).validate()
 
-        post_identity_elim = run_identity_elimination(post_copy_prop)
+        post_tuple_fwd = run_tuple_forwarding(post_copy_prop)
+        IRValidator(post_tuple_fwd).validate()
+
+        post_identity_elim = run_identity_elimination(post_tuple_fwd)
         IRValidator(post_identity_elim).validate()
 
         post_const_fold = run_constant_folding(post_identity_elim)
