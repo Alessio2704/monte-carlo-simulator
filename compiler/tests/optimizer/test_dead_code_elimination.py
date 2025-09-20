@@ -156,3 +156,43 @@ def test_dce_with_multi_assignment(tmp_path):
 
     assert len(final_ir) == 1
     assert final_ir[0]["result"] == ["a", "b"]
+
+
+def test_validator_catches_ir_corrupted_by_buggy_dce(tmp_path):
+    """
+    This is a meta-test to ensure our validator works as a safety net.
+    It simulates a scenario where a buggy DCE pass incorrectly removes a
+    live variable, and confirms that the IRValidator catches the error.
+    """
+    script = """
+    @iterations=1
+    @output=z
+    let a = 10      # This is live, as 'b' depends on it.
+    let b = a + 5
+    let c = Normal(1, 0.1)
+    let z = b + c
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+
+    # 1. Run the full pipeline to get the CORRECTLY optimized IR.
+    # We expect this to contain definitions for both 'a' and 'b'.
+    correctly_optimized_ir = run_full_pipeline_to_dce(script, file_path)
+    assert len(correctly_optimized_ir) == 2  # Sanity check
+
+    # 2. Manually corrupt the IR to simulate a bug in DCE.
+    # We will pretend DCE incorrectly removed the definition of 'a'.
+    corrupted_ir = [step for step in correctly_optimized_ir if step.get("result") != ["c"]]
+
+    # The corrupted IR now only contains the definition for 'b', which uses 'a'.
+    print(correctly_optimized_ir)
+    assert len(corrupted_ir) == 1
+    assert corrupted_ir[0]["result"] == ["z"]
+
+    # 3. Assert that the IRValidator catches this corruption.
+    with pytest.raises(IRValidationError) as excinfo:
+        # We call the validator directly on the corrupted IR.
+        IRValidator(corrupted_ir).validate()
+
+    # The validator must report that 'a' is undefined in the first step of the corrupted IR.
+    assert excinfo.value.step_index == 0
+    assert excinfo.value.undefined_variables == ["c"]
