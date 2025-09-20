@@ -11,6 +11,8 @@ from vsc.ir_generator import generate_ir
 from vsc.optimizer.copy_propagation import run_copy_propagation
 from vsc.optimizer.identity_elimination import run_identity_elimination
 
+from ..ir_validator import IRValidator, IRValidationError
+
 # --- Test Helpers ---
 
 
@@ -26,21 +28,26 @@ def create_dummy_file(directory, filename, content):
 def run_full_pipeline_to_optimized_ir(script_content: str, file_path: str) -> list:
     """
     Runs the entire compiler front-end and all optimization phases in order,
-    returning the final, fully optimized IR.
+    VALIDATING THE IR AT EACH STEP.
     """
-    # 1. Frontend
     script_content = dedent(script_content).strip()
     ast = parse_valuascript(script_content)
     symbol_table = discover_symbols(ast, file_path)
     enriched_table = infer_types_and_taint(symbol_table)
     validated_model = validate_semantics(enriched_table)
 
-    # 2. IR Generation
     initial_ir = generate_ir(validated_model)
 
-    # 3. Optimization Phases (in order)
-    post_copy_prop_ir = run_copy_propagation(initial_ir)
-    final_ir = run_identity_elimination(post_copy_prop_ir)
+    try:
+        IRValidator(initial_ir).validate()
+
+        post_copy_prop_ir = run_copy_propagation(initial_ir)
+        IRValidator(post_copy_prop_ir).validate()
+
+        final_ir = run_identity_elimination(post_copy_prop_ir)
+        IRValidator(final_ir).validate()
+    except IRValidationError as e:
+        pytest.fail(f"An optimization phase produced an invalid IR: {e}")
 
     return final_ir
 

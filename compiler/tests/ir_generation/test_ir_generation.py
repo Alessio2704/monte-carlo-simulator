@@ -8,6 +8,7 @@ from vsc.symbol_discovery import discover_symbols
 from vsc.type_inferrer import infer_types_and_taint
 from vsc.semantic_validator import validate_semantics
 from vsc.ir_generator import generate_ir
+from ..ir_validator import IRValidator, IRValidationError
 
 # --- Test Helpers ---
 
@@ -31,6 +32,13 @@ def run_ir_generation_pipeline(script_content: str, file_path: str):
     enriched_table = infer_types_and_taint(symbol_table)
     validated_model = validate_semantics(enriched_table)
     ir = generate_ir(validated_model)
+
+    # Validate the generated IR before returning
+    try:
+        IRValidator(ir).validate()
+    except IRValidationError as e:
+        pytest.fail(f"IR generation produced an invalid IR: {e}")
+
     return ir
 
 

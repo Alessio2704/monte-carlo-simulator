@@ -9,6 +9,7 @@ from vsc.type_inferrer import infer_types_and_taint
 from vsc.semantic_validator import validate_semantics
 from vsc.ir_generator import generate_ir
 from vsc.optimizer.copy_propagation import run_copy_propagation
+from ..ir_validator import IRValidator, IRValidationError
 
 # --- Test Helpers ---
 
@@ -30,6 +31,25 @@ def run_ir_generation_pipeline(script_content: str, file_path: str) -> list:
     return generate_ir(validated_model)
 
 
+def run_validated_copy_propagation(initial_ir: list) -> list:
+    """
+    A helper that validates the IR before and after running copy propagation.
+    """
+    try:
+        # Validate the input IR from the generator
+        IRValidator(initial_ir).validate()
+
+        # Run the optimization
+        optimized_ir = run_copy_propagation(initial_ir)
+
+        # Validate the output IR from the optimizer
+        IRValidator(optimized_ir).validate()
+    except IRValidationError as e:
+        pytest.fail(f"Copy propagation produced an invalid IR: {e}")
+
+    return optimized_ir
+
+
 # --- 1. Baseline and Simple Propagation Tests ---
 
 
@@ -42,7 +62,7 @@ def test_no_identities_does_nothing(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
     assert optimized_ir == initial_ir
 
 
@@ -57,7 +77,7 @@ def test_propagates_literal_value(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 1
     final_step = optimized_ir[0]
@@ -78,7 +98,7 @@ def test_propagates_variable_name(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 2
     y_calc = optimized_ir[1]
@@ -99,7 +119,7 @@ def test_propagates_variable_holding_stochastic_object(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 2
     y_calc = optimized_ir[1]
@@ -122,7 +142,7 @@ def test_propagates_to_multiple_subsequent_uses(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 4
     assert optimized_ir[1]["args"][0] == "initial_val"
@@ -143,7 +163,7 @@ def test_propagates_nested_expression_object(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     expected_ir = [{"type": "execution_assignment", "result": ["y"], "function": "identity", "args": [{"function": "Normal", "args": [0, 1]}], "line": 6}]
     assert optimized_ir == expected_ir
@@ -161,7 +181,7 @@ def test_handles_multiple_independent_identities(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 2
     z_calc = optimized_ir[1]
@@ -181,7 +201,7 @@ def test_chained_identity_propagation(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     expected_ir = [{"type": "execution_assignment", "result": ["y"], "function": "identity", "args": [100], "line": 6}]
     assert optimized_ir == expected_ir
@@ -198,7 +218,7 @@ def test_propagates_vector_literal(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 1
     final_step = optimized_ir[0]
@@ -219,7 +239,7 @@ def test_multiple_calls_to_same_function_are_isolated(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 2
     step1 = optimized_ir[0]
@@ -239,7 +259,7 @@ def test_eliminates_identity_for_unused_parameter(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 1
     final_step = optimized_ir[0]
@@ -259,7 +279,7 @@ def test_does_not_affect_multi_return_identity(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
     assert optimized_ir == initial_ir
 
 
@@ -279,7 +299,7 @@ def test_propagates_into_deeply_nested_argument_structure(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 2
     temp_var_assignment = optimized_ir[1]
@@ -303,7 +323,7 @@ def test_propagated_variable_can_still_be_used_elsewhere(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     initial_ir = run_ir_generation_pipeline(script, file_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 3
     y_calculation = optimized_ir[1]
@@ -332,7 +352,7 @@ def test_works_correctly_with_imported_function_with_parameters(tmp_path):
     """
     main_path = create_dummy_file(tmp_path, "main.vs", main_script)
     initial_ir = run_ir_generation_pipeline(main_script, main_path)
-    optimized_ir = run_copy_propagation(initial_ir)
+    optimized_ir = run_validated_copy_propagation(initial_ir)
 
     assert len(optimized_ir) == 2
     final_return_step = optimized_ir[1]
