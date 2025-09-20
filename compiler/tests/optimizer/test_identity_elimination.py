@@ -11,7 +11,7 @@ from vsc.ir_generator import generate_ir
 from vsc.optimizer.copy_propagation import run_copy_propagation
 from vsc.optimizer.identity_elimination import run_identity_elimination
 
-from ..ir_validator import IRValidator, IRValidationError
+from vsc.optimizer.ir_validator import IRValidator, IRValidationError
 
 # --- Test Helpers ---
 

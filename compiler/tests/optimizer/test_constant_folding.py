@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 from textwrap import dedent
 
-from ..ir_validator import IRValidator, IRValidationError
+from vsc.optimizer.ir_validator import IRValidator, IRValidationError
 
 # --- Test Dependencies ---
 from vsc.parser import parse_valuascript
