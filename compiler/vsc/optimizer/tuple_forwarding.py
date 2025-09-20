@@ -46,7 +46,6 @@ class TupleForwarder:
                             if source_def_index != -1:
                                 # We found both parts. Perform the transformation.
                                 # 1. The source instruction now produces the final target variables.
-                                #    This is the core of the fix.
                                 optimized_ir[source_def_index]["result"] = target_vars
 
                                 # 2. Mark the identity instruction for removal.

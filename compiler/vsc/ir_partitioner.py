@@ -40,7 +40,7 @@ class IRPartitioner:
     def _step_contains_stochastic_func(self, node: Any) -> bool:
         """
         Recursively searches a node (dict, list, etc.) to see if it contains
-        a call to any known stochastic function. THIS IS THE CORE OF THE FIX.
+        a call to any known stochastic function.
         """
         if isinstance(node, dict):
             if node.get("function") in self.stochastic_functions:

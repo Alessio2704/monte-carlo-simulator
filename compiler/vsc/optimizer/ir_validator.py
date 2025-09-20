@@ -49,7 +49,7 @@ class IRValidator:
     def _find_used_variables(self, node: Any) -> Set[str]:
         """
         Recursively traverses an expression node to find all variable names
-        used as inputs. THIS IS THE CORE OF THE FIX.
+        used as inputs.
         """
         used = set()
 

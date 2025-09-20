@@ -135,7 +135,6 @@ def test_dce_after_constant_folding(tmp_path):
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     final_ir = run_full_pipeline_to_dce(script, file_path)
 
-    # --- FIX ---
     # Constant folding evaluates `if false...` to just `50`.
     # This makes `dead_var` unused AND `selector` unused.
     # Therefore, DCE should eliminate both, leaving only the final result.

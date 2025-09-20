@@ -59,6 +59,8 @@ class ConstantFolder:
 
         folded_result = self._fold_instruction(optimized_step)
 
+        # Case 1: The instruction was folded into a simple literal value.
+        # Rewrite the entire step as a literal_assignment.
         if not isinstance(folded_result, dict):
             rewritten_step = {
                 "type": "literal_assignment",
@@ -71,6 +73,18 @@ class ConstantFolder:
                 self.constant_map[var_name] = rewritten_step["value"]
             return rewritten_step
 
+        # Case 2: A conditional was folded, and the chosen branch was an expression (a dict).
+        # We must rebuild the step as a proper execution_assignment, preserving the result.
+        if "function" in folded_result and "type" not in folded_result:
+            return {
+                "type": "execution_assignment",
+                "result": step["result"],
+                "function": folded_result["function"],
+                "args": folded_result.get("args", []),
+                "line": step.get("line", -1),
+            }
+
+        # Case 3: The instruction was only partially optimized, return the modified version.
         return folded_result
 
     def _evaluate_expression(self, node: Any) -> Any:

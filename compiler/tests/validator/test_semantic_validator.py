@@ -79,7 +79,6 @@ def test_catches_invalid_directive_type(tmp_path):
 
 
 def test_catches_global_let_in_module(tmp_path):
-    # FIX: Use correct '#' comment syntax
     script_module = """
     @module
     let x = 1 # Not allowed

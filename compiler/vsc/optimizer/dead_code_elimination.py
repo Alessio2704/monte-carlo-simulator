@@ -14,11 +14,7 @@ class DeadCodeEliminator:
     a forward filtering pass.
     """
 
-    # highlight-start
-    # --- FIX IS HERE ---
-    # Changed `List[Dict, Any]` to the correct `List[Dict[str, Any]]`
     def __init__(self, ir: List[Dict[str, Any]], model: Dict[str, Any]):
-        # highlight-end
         self.ir = ir
         self.model = model
         # We can reuse the variable finding logic from the validator.
