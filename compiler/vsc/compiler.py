@@ -75,12 +75,10 @@ class CompilationPipeline:
             return ir
 
         # --- STAGE 6: Optimization Phases ---
-        optimization_phases = ["copy_propagation", "identity_elimination", "constant_folding"]
+        optimization_phases = ["copy_propagation", "identity_elimination", "constant_folding", "dead_code_elimination"]
         final_opt_stage_name = "optimized_ir"
 
-        # Determine if we are stopping within the optimization block
         if self.stop_after_stage in optimization_phases or self.stop_after_stage == final_opt_stage_name:
-
             last_phase_to_run = self.stop_after_stage
             if last_phase_to_run == final_opt_stage_name:
                 last_phase_to_run = optimization_phases[-1]
@@ -94,16 +92,15 @@ class CompilationPipeline:
     def _run_optimization_phases(self, ir, model, last_phase_to_run):
         """
         Helper to run the optimization pipeline and validate at each step.
-        This consolidates the logic from the test helpers into the main compiler.
         """
-        all_phases = ["copy_propagation", "identity_elimination", "constant_folding"]
+        all_phases = ["copy_propagation", "identity_elimination", "constant_folding", "dead_code_elimination"]
         stop_index = all_phases.index(last_phase_to_run)
         phases_to_run = all_phases[: stop_index + 1]
 
-        # Import optimizer functions here to avoid circular dependency issues
         from .optimizer.copy_propagation import run_copy_propagation
         from .optimizer.identity_elimination import run_identity_elimination
         from .optimizer.constant_folding import run_constant_folding
+        from .optimizer.dead_code_elimination import run_dce
 
         optimization_artifacts = {}
         current_ir = ir
@@ -123,6 +120,11 @@ class CompilationPipeline:
             self._validate_ir(current_ir, "constant_folding")
             optimization_artifacts["constant_folding"] = current_ir
 
+        if "dead_code_elimination" in phases_to_run:
+            current_ir = run_dce(current_ir, model)
+            self._validate_ir(current_ir, "dead_code_elimination")
+            optimization_artifacts["dead_code_elimination"] = current_ir
+
         return optimization_artifacts
 
     def _run_stage(self, stage_name: str, stage_func, *args, **kwargs):
@@ -140,10 +142,10 @@ class CompilationPipeline:
                 artifact_to_save = result
                 if stage_name == "semantic_validation":
                     artifact_to_save = args[0]
-                elif stage_name in ("copy_propagation", "identity_elimination", "constant_folding"):
+                elif stage_name in ("copy_propagation", "identity_elimination", "constant_folding", "dead_code_elimination"):
                     artifact_to_save = result.get(stage_name)
                 elif stage_name == "optimized_ir":
-                    last_phase = "constant_folding"
+                    last_phase = "dead_code_elimination"
                     artifact_to_save = result.get(last_phase)
 
                 self.save_artifact(stage_name, artifact_to_save)

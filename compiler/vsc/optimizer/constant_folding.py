@@ -48,12 +48,21 @@ class ConstantFolder:
         folded_result = self._fold_instruction(optimized_step)
 
         if not isinstance(folded_result, dict):
-            return {
+            # The instruction was fully folded into a literal value.
+            rewritten_step = {
                 "type": "literal_assignment",
                 "result": step["result"],
                 "value": folded_result,
                 "line": step.get("line", -1),
             }
+
+            # Immediately update the constant map with the new knowledge.
+            # This makes the result of this fold available to the next instruction.
+            if len(rewritten_step["result"]) == 1:
+                var_name = rewritten_step["result"][0]
+                self.constant_map[var_name] = rewritten_step["value"]
+
+            return rewritten_step
 
         return folded_result
 
@@ -95,7 +104,6 @@ class ConstantFolder:
             return node
 
         try:
-            # --- Variadic Functions ---
             if func in ("add", "multiply", "__and__", "__or__"):
                 if func == "add":
                     return sum(args)
@@ -106,10 +114,9 @@ class ConstantFolder:
                 if func == "__or__":
                     return any(args)
 
-            # --- Unary Functions ---
             if func in ("log", "log10", "exp", "sin", "cos", "tan", "__not__"):
                 if len(args) != 1:
-                    return node  # Arity check
+                    return node
                 if func == "log":
                     return math.log(args[0]) if args[0] > 0 else node
                 if func == "log10":
@@ -125,9 +132,8 @@ class ConstantFolder:
                 if func == "__not__":
                     return not args[0]
 
-            # --- Binary Functions ---
             if len(args) != 2:
-                return node  # Arity check for all remaining
+                return node
             if func == "subtract":
                 return args[0] - args[1]
             if func == "divide":
