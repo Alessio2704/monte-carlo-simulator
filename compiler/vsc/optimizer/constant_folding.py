@@ -18,9 +18,8 @@ class ConstantFolder:
 
         current_ir = ir
         while True:
-            # Create a deep copy to compare against after the pass
             ir_before_pass = copy.deepcopy(current_ir)
-            self.constant_map = {}  # Reset map for each full pass
+            self.constant_map = {}
 
             optimized_ir: List[Dict[str, Any]] = []
             for step in current_ir:
@@ -29,13 +28,18 @@ class ConstantFolder:
 
             current_ir = optimized_ir
 
-            # If the IR has not changed after a full pass, we've reached a fixed point.
             if current_ir == ir_before_pass:
                 break
 
         return current_ir
 
     def _process_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Processes a single top-level IR instruction.
+        """
+        if "result" not in step:
+            return step
+
         if step["type"] == "literal_assignment":
             if len(step["result"]) == 1:
                 var_name = step["result"][0]
@@ -72,14 +76,11 @@ class ConstantFolder:
     def _evaluate_expression(self, node: Any) -> Any:
         if isinstance(node, str) and node in self.constant_map:
             return self.constant_map[node]
-
         if not isinstance(node, dict):
             return node
-
         optimized_node = node.copy()
         if "args" in optimized_node:
             optimized_node["args"] = [self._evaluate_expression(arg) for arg in optimized_node["args"]]
-
         return self._fold_instruction(optimized_node)
 
     def _fold_instruction(self, node: Dict[str, Any]) -> Any:

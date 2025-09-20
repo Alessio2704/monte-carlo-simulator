@@ -192,3 +192,40 @@ def test_full_pipeline_optimization_works_together(tmp_path):
 
     assert len(optimized_ir) == 1
     assert optimized_ir[0] == {"type": "literal_assignment", "result": ["z"], "value": 13, "line": 9}
+
+
+def test_folder_safely_skips_non_assignment_nodes(tmp_path):
+    """
+    This is a regression test for a bug where the ConstantFolder crashed
+    on 'return_statement' nodes found within an inlined UDF's IR.
+    The folder must be able to handle instructions that are not assignments.
+    """
+    script = """
+    @iterations=1
+    @output=z
+    # This UDF has an intermediate 'let', which is key to generating
+    # a 'return_statement' IR node during inlining.
+    func my_func(p: scalar) -> scalar {
+        let intermediate = p * 2 
+        return intermediate + 5
+    }
+    let z = my_func(10)
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+
+    try:
+        # We use the full pipeline because the bug is an interaction
+        # between the IR Generator and the Constant Folder.
+        final_ir = run_full_pipeline_to_optimized_ir(script, file_path)
+
+        print(final_ir)
+
+        # The primary test is that the line above does not crash.
+        # We can also assert the final folded value for completeness.
+        # Expected: (10 * 2) + 5 = 25. DCE should leave only the final result.
+        assert len(final_ir) == 1
+        assert final_ir[0]["result"] == ["z"]
+        assert final_ir[0]["value"] == 25
+
+    except Exception as e:
+        pytest.fail(f"ConstantFolder crashed on a valid script with an inlined return statement: {e}")
