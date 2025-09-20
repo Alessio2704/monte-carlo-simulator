@@ -11,10 +11,7 @@ from .ir_generator import generate_ir
 from .ir_optimizer import optimize_ir
 from .optimizer.ir_validator import IRValidator, IRValidationError
 
-# from .bytecode_generator import generate_bytecode
 
-
-# A custom JSON encoder will be needed for complex objects
 class CompilerArtifactEncoder(json.JSONEncoder):
     def default(self, o):
         from .data_structures import Scope
@@ -48,7 +45,6 @@ class CompilationPipeline:
 
     def run(self) -> Dict[str, Any]:
         """Executes the compilation pipeline."""
-
         ast = self._run_stage("ast", parse_valuascript, self.source_content)
         if self.stop_after_stage == "ast":
             return ast
@@ -67,15 +63,12 @@ class CompilationPipeline:
 
         self.model = validated_symbol_table
 
-        # STAGE 5: Intermediate Representation (IR) Generation
         ir = self._run_stage("ir", generate_ir, self.model)
-        # 2. Validate the raw IR immediately after generation.
         self._validate_ir(ir, "generation")
         if self.stop_after_stage == "ir":
             return ir
 
-        # --- STAGE 6: Optimization Phases ---
-        optimization_phases = ["copy_propagation", "tuple_forwarding", "identity_elimination", "constant_folding", "dead_code_elimination"]
+        optimization_phases = ["copy_propagation", "tuple_forwarding", "alias_resolver", "identity_elimination", "constant_folding", "dead_code_elimination"]
         final_opt_stage_name = "optimized_ir"
 
         if self.stop_after_stage in optimization_phases or self.stop_after_stage == final_opt_stage_name:
@@ -90,15 +83,14 @@ class CompilationPipeline:
         return ir
 
     def _run_optimization_phases(self, ir, model, last_phase_to_run):
-        """
-        Helper to run the optimization pipeline and validate at each step.
-        """
-        all_phases = ["copy_propagation", "tuple_forwarding", "identity_elimination", "constant_folding", "dead_code_elimination"]
+        """Helper to run the optimization pipeline and validate at each step."""
+        all_phases = ["copy_propagation", "tuple_forwarding", "alias_resolver", "identity_elimination", "constant_folding", "dead_code_elimination"]
         stop_index = all_phases.index(last_phase_to_run)
         phases_to_run = all_phases[: stop_index + 1]
 
         from .optimizer.copy_propagation import run_copy_propagation
         from .optimizer.tuple_forwarding import run_tuple_forwarding
+        from .optimizer.alias_resolver import run_alias_resolver
         from .optimizer.identity_elimination import run_identity_elimination
         from .optimizer.constant_folding import run_constant_folding
         from .optimizer.dead_code_elimination import run_dce
@@ -115,6 +107,11 @@ class CompilationPipeline:
             current_ir = run_tuple_forwarding(current_ir)
             self._validate_ir(current_ir, "tuple_forwarding")
             optimization_artifacts["tuple_forwarding"] = current_ir
+
+        if "alias_resolver" in phases_to_run:
+            current_ir = run_alias_resolver(current_ir)
+            self._validate_ir(current_ir, "alias_resolver")
+            optimization_artifacts["alias_resolver"] = current_ir
 
         if "identity_elimination" in phases_to_run:
             current_ir = run_identity_elimination(current_ir)
@@ -148,7 +145,7 @@ class CompilationPipeline:
                 artifact_to_save = result
                 if stage_name == "semantic_validation":
                     artifact_to_save = args[0]
-                elif stage_name in ("copy_propagation", "tuple_forwarding", "identity_elimination", "constant_folding", "dead_code_elimination"):
+                elif stage_name in ("copy_propagation", "tuple_forwarding", "alias_resolver", "identity_elimination", "constant_folding", "dead_code_elimination"):
                     artifact_to_save = result.get(stage_name)
                 elif stage_name == "optimized_ir":
                     last_phase = "dead_code_elimination"
@@ -162,7 +159,6 @@ class CompilationPipeline:
             import traceback
 
             traceback.print_exc()
-            # Re-raise as an internal compiler error for clarity
             raise Exception(f"An unexpected internal error occurred in the '{stage_name}' stage: {e}") from e
 
     def save_artifact(self, name: str, data: Any):
@@ -181,13 +177,10 @@ class CompilationPipeline:
             print(f"Error: Could not save artifact '{name}': {e}")
 
     def _validate_ir(self, ir: List[Dict[str, Any]], producing_stage: str):
-        """
-        Internal helper to run the validator and raise a clear internal error.
-        """
+        """Internal helper to run the validator and raise a clear internal error."""
         try:
             IRValidator(ir).validate()
         except IRValidationError as e:
-            # This is an internal compiler bug, so we raise a generic but informative exception.
             raise Exception(f"Internal Compiler Error: The '{producing_stage}' stage produced a logically invalid IR.\n" f"This is a bug in the compiler. Details:\n{e}") from e
 
 

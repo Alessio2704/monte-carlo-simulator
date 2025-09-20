@@ -1,15 +1,13 @@
 from typing import List, Dict, Any
 import math
+import copy
 
 
 class ConstantFolder:
     """
     Performs the Constant Propagation and Folding optimization phase.
-
-    This pass iterates through the IR, keeping track of variables that hold
-    constant literal values. It then uses this information to:
-    1.  Propagate these constant values into subsequent expressions.
-    2.  Fold (evaluate) expressions where all inputs are constant.
+    This pass iterates through the IR until a fixed point is reached, ensuring
+    that all possible constant expressions are evaluated.
     """
 
     def __init__(self):
@@ -17,17 +15,27 @@ class ConstantFolder:
 
     def optimize(self, ir: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Main entry point for the optimization pass."""
-        optimized_ir: List[Dict[str, Any]] = []
-        for step in ir:
-            optimized_step = self._process_step(step)
-            optimized_ir.append(optimized_step)
 
-        return optimized_ir
+        current_ir = ir
+        while True:
+            # Create a deep copy to compare against after the pass
+            ir_before_pass = copy.deepcopy(current_ir)
+            self.constant_map = {}  # Reset map for each full pass
+
+            optimized_ir: List[Dict[str, Any]] = []
+            for step in current_ir:
+                optimized_step = self._process_step(step)
+                optimized_ir.append(optimized_step)
+
+            current_ir = optimized_ir
+
+            # If the IR has not changed after a full pass, we've reached a fixed point.
+            if current_ir == ir_before_pass:
+                break
+
+        return current_ir
 
     def _process_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Processes a single top-level IR instruction.
-        """
         if step["type"] == "literal_assignment":
             if len(step["result"]) == 1:
                 var_name = step["result"][0]
@@ -48,28 +56,20 @@ class ConstantFolder:
         folded_result = self._fold_instruction(optimized_step)
 
         if not isinstance(folded_result, dict):
-            # The instruction was fully folded into a literal value.
             rewritten_step = {
                 "type": "literal_assignment",
                 "result": step["result"],
                 "value": folded_result,
                 "line": step.get("line", -1),
             }
-
-            # Immediately update the constant map with the new knowledge.
-            # This makes the result of this fold available to the next instruction.
             if len(rewritten_step["result"]) == 1:
                 var_name = rewritten_step["result"][0]
                 self.constant_map[var_name] = rewritten_step["value"]
-
             return rewritten_step
 
         return folded_result
 
     def _evaluate_expression(self, node: Any) -> Any:
-        """
-        Recursively evaluates a pure expression node.
-        """
         if isinstance(node, str) and node in self.constant_map:
             return self.constant_map[node]
 
@@ -83,26 +83,18 @@ class ConstantFolder:
         return self._fold_instruction(optimized_node)
 
     def _fold_instruction(self, node: Dict[str, Any]) -> Any:
-        """
-        Takes an instruction or sub-expression whose children have already been
-        evaluated and tries to compute a final literal value.
-        """
         node_type = node.get("type")
         if node_type in ("conditional_assignment", "conditional_expression"):
             condition = node["condition"]
             if isinstance(condition, bool):
                 return node["then_expr"] if condition else node["else_expr"]
             return node
-
         func = node.get("function")
         if not func:
             return node
-
         args = node.get("args", [])
-
         if not all(isinstance(arg, (int, float, bool)) for arg in args):
             return node
-
         try:
             if func in ("add", "multiply", "__and__", "__or__"):
                 if func == "add":
@@ -113,7 +105,6 @@ class ConstantFolder:
                     return all(args)
                 if func == "__or__":
                     return any(args)
-
             if func in ("log", "log10", "exp", "sin", "cos", "tan", "__not__"):
                 if len(args) != 1:
                     return node
@@ -131,7 +122,6 @@ class ConstantFolder:
                     return math.tan(args[0])
                 if func == "__not__":
                     return not args[0]
-
             if len(args) != 2:
                 return node
             if func == "subtract":
@@ -152,10 +142,8 @@ class ConstantFolder:
                 return args[0] == args[1]
             if func == "__neq__":
                 return args[0] != args[1]
-
         except (TypeError, IndexError, ValueError):
             return node
-
         return node
 
 

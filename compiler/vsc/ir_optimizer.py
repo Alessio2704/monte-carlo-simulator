@@ -3,6 +3,7 @@ from .data_structures import FileSemanticModel
 
 from .optimizer.copy_propagation import run_copy_propagation
 from .optimizer.tuple_forwarding import run_tuple_forwarding
+from .optimizer.alias_resolver import run_alias_resolver
 from .optimizer.identity_elimination import run_identity_elimination
 from .optimizer.constant_folding import run_constant_folding
 from .optimizer.dead_code_elimination import run_dce
@@ -16,7 +17,7 @@ class IROptimizer:
     def __init__(self, ir: List[Dict[str, Any]], model: FileSemanticModel, phases_to_run: List[str]):
         self.ir = ir
         self.model = model
-        self.phase_sequence = ["copy_propagation", "tuple_forwarding", "identity_elimination", "constant_folding", "dead_code_elimination"]
+        self.phase_sequence = ["copy_propagation", "tuple_forwarding", "alias_resolver", "identity_elimination", "constant_folding", "dead_code_elimination"]
         self.phases_to_run = [p for p in self.phase_sequence if p in phases_to_run]
         self.artifacts: Dict[str, Any] = {}
 
@@ -34,6 +35,10 @@ class IROptimizer:
         if "tuple_forwarding" in self.phases_to_run:
             current_ir = run_tuple_forwarding(current_ir)
             self.artifacts["tuple_forwarding"] = current_ir
+
+        if "alias_resolver" in self.phases_to_run:
+            current_ir = run_alias_resolver(current_ir)
+            self.artifacts["alias_resolver"] = current_ir
 
         if "identity_elimination" in self.phases_to_run:
             current_ir = run_identity_elimination(current_ir)
