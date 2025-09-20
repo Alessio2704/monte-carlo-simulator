@@ -25,8 +25,8 @@ def main():
             help="Compile up to a specific stage and save the intermediate artifact. "
             "1: AST, 2: Symbol Table, 3: Type Inference, 4: Semantic Validation, 5: IR, "
             "6a: Opt IR (Copy Prop), 6b: Opt IR (Tuple Forward), "
-            "6c: Opt IR (Alias Resolve), 6d: Opt IR (Identity Elim), "
-            "6e: Opt IR (Constant Fold), 6f: Opt IR (Dead Code Elim), "
+            "6c: Opt IR (Alias Resolve), "
+            "6d: Opt IR (Constant Fold), 6e: Opt IR (Dead Code Elim), "
             "6: Optimized IR (Final), 7: Recipe. "
             "Omitting this flag runs the full pipeline to generate the final .json file.",
         )
@@ -64,9 +64,8 @@ def main():
                 "6a": "copy_propagation",
                 "6b": "tuple_forwarding",
                 "6c": "alias_resolver",
-                "6d": "identity_elimination",
-                "6e": "constant_folding",
-                "6f": "dead_code_elimination",
+                "6d": "constant_folding",
+                "6e": "dead_code_elimination",
                 "6": "optimized_ir",
                 "7": "recipe",
             }

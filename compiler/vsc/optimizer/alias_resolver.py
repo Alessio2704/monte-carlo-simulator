@@ -3,15 +3,15 @@ from typing import List, Dict, Any
 
 class AliasResolver:
     """
-    Performs the Alias Resolution optimization phase.
+    Performs a powerful alias resolution optimization. This pass handles all
+    forms of simple aliasing created by the IR Generator, including:
+    1. Direct aliasing: `let x = identity(__temp_x)`
+    2. Expression aliasing: `let x = identity(add(__temp_y, 5))`
 
-    This pass is a more powerful version of forwarding that specifically handles
-    the aliasing created by UDF return statements (e.g., `let x = identity(__temp_x)`).
-    It finds these simple identity assignments, rewrites the original instruction
-    that produced the temporary variable to use the final variable name, and
-    eliminates the identity instruction.
-
-    This is crucial for restoring user-defined variable names in the final IR.
+    It rewrites the source instruction that produced the temporary variable/expression
+    to use the final variable name, and eliminates the redundant identity instruction.
+    This is crucial for restoring user-defined variable names and simplifying
+    the IR structure before constant folding.
     """
 
     def optimize(self, ir: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -21,40 +21,54 @@ class AliasResolver:
             made_change = False
             identity_index_to_remove = -1
 
-            # Find the first aliasing opportunity
             for i, step in enumerate(optimized_ir):
                 is_identity = step.get("function") == "identity"
-                # This pass is for single variables
                 is_single_assign = len(step.get("result", [])) == 1
 
                 if is_identity and is_single_assign:
                     args = step.get("args", [])
-                    # The argument must be a single string (a variable name)
-                    if len(args) == 1 and isinstance(args[0], str):
-                        source_var = args[0]
-                        target_var = step["result"][0]
+                    if len(args) != 1:
+                        continue
 
-                        # Find the instruction that defines the source variable
+                    target_var = step["result"][0]
+                    source_node = args[0]
+
+                    # Case 1: The source is a simple variable (e.g., identity(__temp_x))
+                    if isinstance(source_node, str):
+                        source_var = source_node
                         source_def_index = -1
                         for j in range(i - 1, -1, -1):
-                            # The source must also be a single-result instruction
                             source_results = optimized_ir[j].get("result", [])
                             if len(source_results) == 1 and source_results[0] == source_var:
                                 source_def_index = j
                                 break
 
                         if source_def_index != -1:
-                            # We found the whole pattern. Transform the IR.
-                            # 1. The source instruction now produces the final target variable.
                             optimized_ir[source_def_index]["result"] = [target_var]
-
-                            # 2. Mark the identity instruction for removal.
                             identity_index_to_remove = i
                             made_change = True
-                            break  # Restart the scan on the modified IR
+                            break
+
+                    # Case 2: The source is a nested expression (e.g., identity(add(...)))
+                    elif isinstance(source_node, dict) and "function" in source_node:
+                        # This is the former job of IdentityElimination.
+                        # We rewrite the identity instruction into the nested expression.
+                        optimized_ir[i] = {
+                            "type": "execution_assignment",
+                            "result": [target_var],
+                            "function": source_node["function"],
+                            "args": source_node.get("args", []),
+                            "line": step.get("line", -1),
+                        }
+                        # We don't remove a line, just modify it in place.
+                        # This counts as a change, so we should loop again.
+                        made_change = True
+                        # We break to restart the scan, as this change might enable other optimizations.
+                        break
 
             if made_change:
-                optimized_ir = [step for i, step in enumerate(optimized_ir) if i != identity_index_to_remove]
+                if identity_index_to_remove != -1:
+                    optimized_ir = [s for j, s in enumerate(optimized_ir) if j != identity_index_to_remove]
                 continue
             else:
                 break

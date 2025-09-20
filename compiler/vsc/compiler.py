@@ -91,7 +91,6 @@ class CompilationPipeline:
         from .optimizer.copy_propagation import run_copy_propagation
         from .optimizer.tuple_forwarding import run_tuple_forwarding
         from .optimizer.alias_resolver import run_alias_resolver
-        from .optimizer.identity_elimination import run_identity_elimination
         from .optimizer.constant_folding import run_constant_folding
         from .optimizer.dead_code_elimination import run_dce
 
@@ -112,11 +111,6 @@ class CompilationPipeline:
             current_ir = run_alias_resolver(current_ir)
             self._validate_ir(current_ir, "alias_resolver")
             optimization_artifacts["alias_resolver"] = current_ir
-
-        if "identity_elimination" in phases_to_run:
-            current_ir = run_identity_elimination(current_ir)
-            self._validate_ir(current_ir, "identity_elimination")
-            optimization_artifacts["identity_elimination"] = current_ir
 
         if "constant_folding" in phases_to_run:
             current_ir = run_constant_folding(current_ir)

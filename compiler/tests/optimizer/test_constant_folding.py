@@ -11,7 +11,8 @@ from vsc.type_inferrer import infer_types_and_taint
 from vsc.semantic_validator import validate_semantics
 from vsc.ir_generator import generate_ir
 from vsc.optimizer.copy_propagation import run_copy_propagation
-from vsc.optimizer.identity_elimination import run_identity_elimination
+from vsc.optimizer.alias_resolver import run_alias_resolver
+from .test_dead_code_elimination import run_full_pipeline_to_dce as run_full_pipeline
 from vsc.optimizer.constant_folding import run_constant_folding
 
 # --- Test Helpers ---
@@ -46,10 +47,10 @@ def run_full_pipeline_to_optimized_ir(script_content: str, file_path: str) -> li
         post_copy_prop_ir = run_copy_propagation(initial_ir)
         IRValidator(post_copy_prop_ir).validate()
 
-        post_identity_elim_ir = run_identity_elimination(post_copy_prop_ir)
-        IRValidator(post_identity_elim_ir).validate()
+        post_alias_resolver_ir = run_alias_resolver(post_copy_prop_ir)
+        IRValidator(post_alias_resolver_ir).validate()
 
-        final_ir = run_constant_folding(post_identity_elim_ir)
+        final_ir = run_constant_folding(post_alias_resolver_ir)
         IRValidator(final_ir).validate()
     except IRValidationError as e:
         pytest.fail(f"An optimization phase produced an invalid IR: {e}")
@@ -196,15 +197,13 @@ def test_full_pipeline_optimization_works_together(tmp_path):
 
 def test_folder_safely_skips_non_assignment_nodes(tmp_path):
     """
-    This is a regression test for a bug where the ConstantFolder crashed
-    on 'return_statement' nodes found within an inlined UDF's IR.
-    The folder must be able to handle instructions that are not assignments.
+    This is a regression test that now also serves as a full integration test.
+    It confirms that after Constant Folding creates dead code, the subsequent
+    DCE pass successfully removes it.
     """
     script = """
     @iterations=1
     @output=z
-    # This UDF has an intermediate 'let', which is key to generating
-    # a 'return_statement' IR node during inlining.
     func my_func(p: scalar) -> scalar {
         let intermediate = p * 2 
         return intermediate + 5
@@ -213,19 +212,10 @@ def test_folder_safely_skips_non_assignment_nodes(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
 
-    try:
-        # We use the full pipeline because the bug is an interaction
-        # between the IR Generator and the Constant Folder.
-        final_ir = run_full_pipeline_to_optimized_ir(script, file_path)
+    # We now call the full pipeline helper which includes DCE.
+    final_ir = run_full_pipeline(script, file_path)
 
-        print(final_ir)
-
-        # The primary test is that the line above does not crash.
-        # We can also assert the final folded value for completeness.
-        # Expected: (10 * 2) + 5 = 25. DCE should leave only the final result.
-        assert len(final_ir) == 1
-        assert final_ir[0]["result"] == ["z"]
-        assert final_ir[0]["value"] == 25
-
-    except Exception as e:
-        pytest.fail(f"ConstantFolder crashed on a valid script with an inlined return statement: {e}")
+    # The assertion now correctly expects DCE to have run.
+    assert len(final_ir) == 1
+    assert final_ir[0]["result"] == ["z"]
+    assert final_ir[0]["value"] == 25
