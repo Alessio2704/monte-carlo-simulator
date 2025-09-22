@@ -167,3 +167,24 @@ def test_catches_mutual_recursion(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     run_validation_with_error(script, file_path, ErrorCode.RECURSIVE_CALL_DETECTED)
+
+@pytest.mark.parametrize(
+    "vector_literal, expected_error_code",
+    [
+        ('[1, 2.5, "hello"]', ErrorCode.MIXED_TYPES_IN_VECTOR),
+        ("[true, 15]", ErrorCode.MIXED_TYPES_IN_VECTOR),
+        ('["a", false]', ErrorCode.MIXED_TYPES_IN_VECTOR),
+    ],
+    ids=["scalar_and_string", "bool_and_scalar", "string_and_bool"],
+)
+def test_catches_mixed_types_in_vector_literal(tmp_path, vector_literal, expected_error_code):
+    """
+    Ensures the validator rejects vector literals containing multiple data types.
+    """
+    script = f"""
+    @iterations=1
+    @output=x
+    let x = {vector_literal}
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    run_validation_with_error(script, file_path, expected_error_code)

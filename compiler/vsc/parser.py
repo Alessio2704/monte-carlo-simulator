@@ -153,10 +153,15 @@ class ValuaScriptTransformer(Transformer):
         return {"function": str(func_name_token), "args": args, "line": func_name_token.line}
 
     def vector(self, items):
-        # Wrap the vector literal in a specific dictionary. This makes it
-        # structurally different from the raw list of values used in a
-        # multi-value return statement, removing ambiguity for later phases.
-        return {"_is_vector_literal": True, "items": [item for item in items if item is not None]}
+        # The first item is now the LSQB token, which has the line number.
+        lsqb_token = items[0]
+
+        # The actual vector items are everything between the brackets.
+        # We slice from the second item to the second-to-last item.
+        vector_items = [item for item in items[1:-1] if item is not None]
+
+        # Return the new structured dictionary including the line number.
+        return {"_is_vector_literal": True, "items": vector_items, "line": lsqb_token.line}
 
     def element_access(self, items):
         var_token, index_expression = items

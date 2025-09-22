@@ -104,6 +104,17 @@ class SemanticValidator:
         if not isinstance(node, dict):
             return
 
+        if node.get("_is_vector_literal"):
+            items = node.get("items", [])
+            line = node.get("line", -1)
+
+            if len(items) > 1:
+                item_types = {self._get_node_type(item, scope) for item in items}
+                if len(item_types) > 1:
+                    # Format the set of found types for a clean error message
+                    found_types_str = ", ".join(sorted(list(item_types)))
+                    raise ValuaScriptError(ErrorCode.MIXED_TYPES_IN_VECTOR, line=line, found_types=found_types_str)
+
         for arg in node.get("args", []):
             self._validate_expression(arg, scope)
         if "condition" in node:

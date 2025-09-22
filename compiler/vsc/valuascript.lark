@@ -51,7 +51,7 @@ conditional_expression: or_expression | IF or_expression THEN or_expression ELSE
 
 // --- Reusable Rule Definitions ---
 boolean: TRUE | FALSE
-vector: "[" [arg ("," arg)*] "]"
+vector: LSQB [arg ("," arg)*] RSQB
 function_call: CNAME "(" [arg ("," arg)*] ")"
 element_access: CNAME "[" expression "]"
 delete_element_vector: CNAME "[" ":" expression "]"
@@ -83,6 +83,9 @@ GTE: ">="
 LTE: "<="
 GT: ">"
 LT: "<"
+
+LSQB: "["
+RSQB: "]" 
 
 STRING: /"[^"]*"/
 DOCSTRING: /"{3}(.|\n)*?"{3}/

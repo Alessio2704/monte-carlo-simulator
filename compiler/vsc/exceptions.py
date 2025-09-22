@@ -29,6 +29,7 @@ class ErrorCode(Enum):
     DUPLICATE_FUNCTION = "L{line}: Function '{name}' is defined more than once."
     REDEFINE_BUILTIN_FUNCTION = "L{line}: Cannot redefine built-in function '{name}'."
     FUNCTION_NAME_COLLISION = "L{line}: Function '{name}' from '{path}' conflicts with another function of the same name."
+    MIXED_TYPES_IN_VECTOR = "L{line}: Vector literals cannot contain mixed types. Found types: {found_types}."
 
     # --- Function Call & Type Errors ---
     UNKNOWN_FUNCTION = "L{line}: Unknown function '{name}'."
