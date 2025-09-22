@@ -59,7 +59,7 @@ class ConstantFolder:
 
         folded_result = self._fold_instruction(optimized_step)
 
-        # Case 1: The instruction was folded into a simple literal value.
+        # Case 1: The instruction was fully folded into a simple literal value.
         # Rewrite the entire step as a literal_assignment.
         if not isinstance(folded_result, dict):
             rewritten_step = {
@@ -73,8 +73,10 @@ class ConstantFolder:
                 self.constant_map[var_name] = rewritten_step["value"]
             return rewritten_step
 
-        # Case 2: A conditional was folded, and the chosen branch was an expression (a dict).
-        # We must rebuild the step as a proper execution_assignment, preserving the result.
+        # Case 2: The result is still an expression-like dictionary.
+        # We must rebuild the original assignment instruction, preserving the result key.
+
+        # Subcase 2a: The result is a simple function call (e.g., from a chosen conditional branch).
         if "function" in folded_result and "type" not in folded_result:
             return {
                 "type": "execution_assignment",
@@ -84,7 +86,20 @@ class ConstantFolder:
                 "line": step.get("line", -1),
             }
 
-        # Case 3: The instruction was only partially optimized, return the modified version.
+        # Subcase 2b: The result is a complex expression, like a conditional_expression
+        # that was returned from a partially-folded conditional_assignment.
+        if "type" in folded_result and folded_result["type"] == "conditional_expression":
+            return {
+                "type": "conditional_assignment",
+                "result": step["result"],
+                "condition": folded_result["condition"],
+                "then_expr": folded_result["then_expr"],
+                "else_expr": folded_result["else_expr"],
+                "line": step.get("line", -1),
+            }
+
+        # Case 3: The instruction was only partially optimized, but its overall structure
+        # (e.g. execution_assignment) did not change. Return the modified version.
         return folded_result
 
     def _evaluate_expression(self, node: Any) -> Any:

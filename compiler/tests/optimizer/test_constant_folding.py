@@ -219,3 +219,69 @@ def test_folder_safely_skips_non_assignment_nodes(tmp_path):
     assert len(final_ir) == 1
     assert final_ir[0]["result"] == ["z"]
     assert final_ir[0]["value"] == 25
+
+
+def test_nested_consitional_assignment(tmp_path):
+    """
+    This is a regression test that now also serves as a full integration test.
+    """
+    script = """
+    @iterations = 10_000_000
+    
+    let is_active = true
+    let market_is_open = false
+    let initial_cost = 1_000
+    let revenue_target = 1_200
+    
+    let target_was_met = revenue_target > initial_cost
+    let costs_are_equal = initial_cost == 1000        
+    
+    
+    let should_invest = target_was_met and not market_is_open
+    
+    let base_tax_rate = if is_active then 0.21 else 0.0
+    
+    let project_status_code = if target_was_met then 1 else 0
+    
+    let success_probability = 0.75
+    let project_succeeds = Bernoulli(success_probability)
+    
+    let project_cash_flow = if project_succeeds == 1.0 then 500_000 else 20_000
+    
+    let bullish_forecast = [100, 120, 150]
+    let bearish_forecast = [80, 85, 90]
+    let cash_flow_scenario = if project_succeeds == 1.0 then bullish_forecast else bearish_forecast
+    
+    let asset_quality_rating = 85
+    
+    let risk_premium = if asset_quality_rating > 90 then 0.03
+                       else if asset_quality_rating > 70 then 0.05
+                       else 0.08
+    
+    func calculate_tax(income: scalar) -> scalar {
+        \"\"\"Calculates tax with a simple two-tier bracket.\"\"\"
+        let is_high_income = income > 100_000
+        let is_medium_income = income > 70_000
+        let tax_rate = if is_high_income then 0.40 else if is_medium_income then 0.3 else 0.2
+        return income * tax_rate
+    }
+    
+    let stochastic_income = project_cash_flow + Normal(5000, 2000)
+    let tax_due = calculate_tax(stochastic_income)
+    
+    let a, b = capitalize_expense(110, [100, 90, 80], 3)
+    
+    
+    let income_after_tax = stochastic_income - tax_due + b
+    
+    let discount_rate = 0.08
+    let final_project_value = income_after_tax / (1 + discount_rate) * (1 - risk_premium)
+    
+    @output = final_project_value
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+
+    # We now call the full pipeline helper which includes DCE.
+    final_ir = run_full_pipeline_to_optimized_ir(script, file_path)
+
+    assert final_ir is not None

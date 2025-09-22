@@ -211,7 +211,7 @@ class CompilationPipeline:
         print(f"--- Saving artifact '{name}' to {output_path} ---")
         try:
             with open(output_path, "w") as f:
-                json.dump(data, f, indent=2, sort_keys=True, cls=CompilerArtifactEncoder)
+                json.dump(data, f, indent=2, sort_keys=False, cls=CompilerArtifactEncoder)
         except Exception as e:
             print(f"Error: Could not save artifact '{name}': {e}")
 
