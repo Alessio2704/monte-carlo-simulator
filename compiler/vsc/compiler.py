@@ -14,7 +14,9 @@ from .optimizer.alias_resolver import run_alias_resolver
 from .optimizer.constant_folding import run_constant_folding
 from .optimizer.dead_code_elimination import run_dce
 from .ir_partitioner import partition_ir
-from .bytecode_generator import generate_bytecode
+
+
+from .bytecode_generator import BytecodeGenerator
 from .optimizer.ir_validator import IRValidator, IRValidationError
 
 
@@ -96,8 +98,12 @@ class CompilationPipeline:
         if self.stop_after_stage == "ir_partitioning":
             return partitioned_ir
 
-        # --- Final Stage: Bytecode Generation ---
-        recipe = self._run_stage("recipe", generate_bytecode, partitioned_ir, self.model)
+        # --- Stage 8: Bytecode Generation (multiple phases) ---
+        bytecode_artifacts = self._run_bytecode_phases(partitioned_ir, self.model)
+        if self.stop_after_stage in bytecode_artifacts:
+            return bytecode_artifacts[self.stop_after_stage]
+
+        recipe = bytecode_artifacts.get("recipe")
         if self.stop_after_stage == "recipe":
             return recipe
 
@@ -129,6 +135,36 @@ class CompilationPipeline:
                 break
 
         return optimization_artifacts
+
+    # --- Helper to run the new bytecode generation pipeline ---
+    def _run_bytecode_phases(self, partitioned_ir: Dict[str, Any], model: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Helper to run the bytecode generation pipeline, storing the artifact
+        from each internal sub-phase.
+        """
+        bytecode_artifacts = {}
+
+        # This stateful generator object will be used across all sub-phases.
+        generator = BytecodeGenerator(partitioned_ir, model)
+
+        # The sequence of bytecode generation sub-phases.
+        # The key is the stage name from the CLI, the value is the method to call.
+        phases = {
+            "bytecode_resource_allocation": generator.run_phase_a_resource_allocation,
+            "bytecode_ir_lowering": generator.run_phase_b_ir_lowering,
+            "bytecode_code_emission": generator.run_phase_c_code_emission,
+            "recipe": generator.run_final_assembly,
+        }
+
+        for name, phase_func in phases.items():
+            # We use _run_stage to handle artifact saving and error wrapping.
+            artifact = self._run_stage(name, phase_func)
+            bytecode_artifacts[name] = artifact
+
+            if self.stop_after_stage == name:
+                break
+
+        return bytecode_artifacts
 
     def _run_stage(self, stage_name: str, stage_func, *args, **kwargs):
         """
@@ -175,7 +211,7 @@ class CompilationPipeline:
         print(f"--- Saving artifact '{name}' to {output_path} ---")
         try:
             with open(output_path, "w") as f:
-                json.dump(data, f, indent=2, cls=CompilerArtifactEncoder)
+                json.dump(data, f, indent=2, sort_keys=True, cls=CompilerArtifactEncoder)
         except Exception as e:
             print(f"Error: Could not save artifact '{name}': {e}")
 

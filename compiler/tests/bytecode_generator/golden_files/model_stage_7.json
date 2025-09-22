@@ -1,0 +1,108 @@
+{
+  "pre_trial_steps": [
+    {
+      "type": "execution_assignment",
+      "result": ["a", "b"],
+      "function": "capitalize_expense",
+      "args": [110, [100, 90, 80], 3],
+      "line": 65
+    }
+  ],
+  "per_trial_steps": [
+    {
+      "type": "execution_assignment",
+      "result": ["project_succeeds"],
+      "function": "Bernoulli",
+      "args": [0.75],
+      "line": 32
+    },
+    {
+      "type": "conditional_assignment",
+      "result": ["project_cash_flow"],
+      "condition": {
+        "function": "__eq__",
+        "args": ["project_succeeds", 1.0]
+      },
+      "then_expr": 500000,
+      "else_expr": 20000,
+      "line": 36
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["stochastic_income"],
+      "function": "add",
+      "args": [
+        "project_cash_flow",
+        {
+          "function": "Normal",
+          "args": [5000, 2000]
+        }
+      ],
+      "line": 62
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__calculate_tax_1__is_high_income"],
+      "function": "__gt__",
+      "args": ["stochastic_income", 100000],
+      "line": 57
+    },
+    {
+      "type": "conditional_assignment",
+      "result": ["__calculate_tax_1__tax_rate"],
+      "condition": "__calculate_tax_1__is_high_income",
+      "then_expr": 0.4,
+      "else_expr": 0.25,
+      "line": 58
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["tax_due"],
+      "function": "multiply",
+      "args": ["stochastic_income", "__calculate_tax_1__tax_rate"],
+      "line": 63
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__get_rd_1__a"],
+      "function": "Normal",
+      "args": [1000, 100],
+      "line": 5
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__get_rd_1__current_expense"],
+      "function": "add",
+      "args": [52927, "__get_rd_1__a"],
+      "line": 6
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["c", "d"],
+      "function": "capitalize_expense",
+      "args": ["__get_rd_1__current_expense", [49326, 45427, 39500], 3],
+      "line": 9
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["income_after_tax"],
+      "function": "add",
+      "args": [
+        {
+          "function": "subtract",
+          "args": ["stochastic_income", "tax_due"]
+        },
+        "b",
+        "c"
+      ],
+      "line": 69
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["final_project_value"],
+      "function": "divide",
+      "args": ["income_after_tax", 1.08],
+      "line": 74
+    }
+  ]
+}

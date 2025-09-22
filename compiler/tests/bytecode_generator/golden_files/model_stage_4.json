@@ -1,0 +1,1382 @@
+{
+  "main_file_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs",
+  "user_defined_functions": {
+    "get_rd": {
+      "name": "get_rd",
+      "params": [],
+      "return_type": ["scalar", "scalar"],
+      "docstring": null,
+      "line": 3,
+      "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+      "ast_body": [
+        {
+          "result": "amortization_period",
+          "line": 4,
+          "type": "literal_assignment",
+          "value": 3
+        },
+        {
+          "result": "a",
+          "line": 5,
+          "type": "execution_assignment",
+          "function": "Normal",
+          "args": [1000, 100]
+        },
+        {
+          "result": "current_expense",
+          "line": 6,
+          "type": "execution_assignment",
+          "function": "add",
+          "args": [
+            {
+              "function": "subtract",
+              "args": [
+                {
+                  "function": "add",
+                  "args": [27364, 49326]
+                },
+                23763
+              ]
+            },
+            "a"
+          ]
+        },
+        {
+          "result": "past_expenses",
+          "line": 7,
+          "type": "literal_assignment",
+          "value": {
+            "_is_vector_literal": true,
+            "items": [49326, 45427, 39500]
+          }
+        },
+        {
+          "results": ["capitalized_assets", "amortization_current_year"],
+          "line": 9,
+          "type": "multi_assignment",
+          "function": "capitalize_expense",
+          "args": ["current_expense", "past_expenses", "amortization_period"]
+        },
+        {
+          "type": "return_statement",
+          "values": ["capitalized_assets", "amortization_current_year"],
+          "line": -1
+        }
+      ],
+      "discovered_body": {
+        "amortization_period": {
+          "name": "amortization_period",
+          "line": 4,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "a": {
+          "name": "a",
+          "line": 5,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": true
+        },
+        "current_expense": {
+          "name": "current_expense",
+          "line": 6,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": true
+        },
+        "past_expenses": {
+          "name": "past_expenses",
+          "line": 7,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "vector",
+          "is_stochastic": false
+        },
+        "capitalized_assets": {
+          "name": "capitalized_assets",
+          "line": 9,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": true
+        },
+        "amortization_current_year": {
+          "name": "amortization_current_year",
+          "line": 9,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": true
+        }
+      },
+      "is_stochastic": true
+    },
+    "calculate_tax": {
+      "name": "calculate_tax",
+      "params": [
+        {
+          "name": "income",
+          "type": "scalar"
+        }
+      ],
+      "return_type": "scalar",
+      "docstring": "Calculates tax with a simple two-tier bracket.",
+      "line": 55,
+      "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs",
+      "ast_body": [
+        {
+          "result": "is_high_income",
+          "line": 57,
+          "type": "execution_assignment",
+          "function": "__gt__",
+          "args": ["income", 100000]
+        },
+        {
+          "result": "tax_rate",
+          "line": 58,
+          "type": "conditional_expression",
+          "condition": "is_high_income",
+          "then_expr": 0.4,
+          "else_expr": 0.25
+        },
+        {
+          "type": "return_statement",
+          "value": {
+            "function": "multiply",
+            "args": ["income", "tax_rate"]
+          },
+          "line": -1
+        }
+      ],
+      "discovered_body": {
+        "is_high_income": {
+          "name": "is_high_income",
+          "line": 57,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs",
+          "inferred_type": "boolean",
+          "is_stochastic": false
+        },
+        "tax_rate": {
+          "name": "tax_rate",
+          "line": 58,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        }
+      },
+      "is_stochastic": false
+    }
+  },
+  "global_variables": {
+    "is_active": {
+      "inferred_type": "boolean",
+      "is_stochastic": false
+    },
+    "market_is_open": {
+      "inferred_type": "boolean",
+      "is_stochastic": false
+    },
+    "initial_cost": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "revenue_target": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "target_was_met": {
+      "inferred_type": "boolean",
+      "is_stochastic": false
+    },
+    "costs_are_equal": {
+      "inferred_type": "boolean",
+      "is_stochastic": false
+    },
+    "should_invest": {
+      "inferred_type": "boolean",
+      "is_stochastic": false
+    },
+    "base_tax_rate": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "project_status_code": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "success_probability": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "project_succeeds": {
+      "inferred_type": "scalar",
+      "is_stochastic": true
+    },
+    "project_cash_flow": {
+      "inferred_type": "scalar",
+      "is_stochastic": true
+    },
+    "bullish_forecast": {
+      "inferred_type": "vector",
+      "is_stochastic": false
+    },
+    "bearish_forecast": {
+      "inferred_type": "vector",
+      "is_stochastic": false
+    },
+    "cash_flow_scenario": {
+      "inferred_type": "vector",
+      "is_stochastic": true
+    },
+    "asset_quality_rating": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "risk_premium": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "stochastic_income": {
+      "inferred_type": "scalar",
+      "is_stochastic": true
+    },
+    "tax_due": {
+      "inferred_type": "scalar",
+      "is_stochastic": true
+    },
+    "a": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "b": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "c": {
+      "inferred_type": "scalar",
+      "is_stochastic": true
+    },
+    "d": {
+      "inferred_type": "scalar",
+      "is_stochastic": true
+    },
+    "income_after_tax": {
+      "inferred_type": "scalar",
+      "is_stochastic": true
+    },
+    "discount_rate": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "final_project_value": {
+      "inferred_type": "scalar",
+      "is_stochastic": true
+    }
+  },
+  "processed_files": [
+    "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+    "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs"
+  ],
+  "processed_asts": {
+    "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs": {
+      "imports": [
+        {
+          "type": "import",
+          "path": "module.vs",
+          "line": 1
+        }
+      ],
+      "directives": [
+        {
+          "type": "directive",
+          "name": "iterations",
+          "value": 10000000,
+          "line": 2
+        },
+        {
+          "type": "directive",
+          "name": "output",
+          "value": "final_project_value",
+          "line": 76
+        }
+      ],
+      "execution_steps": [
+        {
+          "result": "is_active",
+          "line": 7,
+          "type": "literal_assignment",
+          "value": true
+        },
+        {
+          "result": "market_is_open",
+          "line": 8,
+          "type": "literal_assignment",
+          "value": false
+        },
+        {
+          "result": "initial_cost",
+          "line": 9,
+          "type": "literal_assignment",
+          "value": 1000
+        },
+        {
+          "result": "revenue_target",
+          "line": 10,
+          "type": "literal_assignment",
+          "value": 1200
+        },
+        {
+          "result": "target_was_met",
+          "line": 13,
+          "type": "execution_assignment",
+          "function": "__gt__",
+          "args": ["revenue_target", "initial_cost"]
+        },
+        {
+          "result": "costs_are_equal",
+          "line": 14,
+          "type": "execution_assignment",
+          "function": "__eq__",
+          "args": ["initial_cost", 1000]
+        },
+        {
+          "result": "should_invest",
+          "line": 19,
+          "type": "execution_assignment",
+          "function": "__and__",
+          "args": [
+            "target_was_met",
+            {
+              "function": "__not__",
+              "args": ["market_is_open"]
+            }
+          ]
+        },
+        {
+          "result": "base_tax_rate",
+          "line": 24,
+          "type": "conditional_expression",
+          "condition": "is_active",
+          "then_expr": 0.21,
+          "else_expr": 0.0
+        },
+        {
+          "result": "project_status_code",
+          "line": 28,
+          "type": "conditional_expression",
+          "condition": "target_was_met",
+          "then_expr": 1,
+          "else_expr": 0
+        },
+        {
+          "result": "success_probability",
+          "line": 31,
+          "type": "literal_assignment",
+          "value": 0.75
+        },
+        {
+          "result": "project_succeeds",
+          "line": 32,
+          "type": "execution_assignment",
+          "function": "Bernoulli",
+          "args": ["success_probability"]
+        },
+        {
+          "result": "project_cash_flow",
+          "line": 36,
+          "type": "conditional_expression",
+          "condition": {
+            "function": "__eq__",
+            "args": ["project_succeeds", 1.0]
+          },
+          "then_expr": 500000,
+          "else_expr": 20000
+        },
+        {
+          "result": "bullish_forecast",
+          "line": 39,
+          "type": "literal_assignment",
+          "value": {
+            "_is_vector_literal": true,
+            "items": [100, 120, 150]
+          }
+        },
+        {
+          "result": "bearish_forecast",
+          "line": 40,
+          "type": "literal_assignment",
+          "value": {
+            "_is_vector_literal": true,
+            "items": [80, 85, 90]
+          }
+        },
+        {
+          "result": "cash_flow_scenario",
+          "line": 41,
+          "type": "conditional_expression",
+          "condition": {
+            "function": "__eq__",
+            "args": ["project_succeeds", 1.0]
+          },
+          "then_expr": "bullish_forecast",
+          "else_expr": "bearish_forecast"
+        },
+        {
+          "result": "asset_quality_rating",
+          "line": 45,
+          "type": "literal_assignment",
+          "value": 85
+        },
+        {
+          "result": "risk_premium",
+          "line": 48,
+          "type": "conditional_expression",
+          "condition": {
+            "function": "__gt__",
+            "args": ["asset_quality_rating", 90]
+          },
+          "then_expr": 0.03,
+          "else_expr": {
+            "type": "conditional_expression",
+            "condition": {
+              "function": "__gt__",
+              "args": ["asset_quality_rating", 70]
+            },
+            "then_expr": 0.05,
+            "else_expr": 0.08
+          }
+        },
+        {
+          "result": "stochastic_income",
+          "line": 62,
+          "type": "execution_assignment",
+          "function": "add",
+          "args": [
+            "project_cash_flow",
+            {
+              "function": "Normal",
+              "args": [5000, 2000],
+              "line": 62
+            }
+          ]
+        },
+        {
+          "result": "tax_due",
+          "line": 63,
+          "type": "execution_assignment",
+          "function": "calculate_tax",
+          "args": ["stochastic_income"]
+        },
+        {
+          "results": ["a", "b"],
+          "line": 65,
+          "type": "multi_assignment",
+          "function": "capitalize_expense",
+          "args": [
+            110,
+            {
+              "_is_vector_literal": true,
+              "items": [100, 90, 80]
+            },
+            3
+          ]
+        },
+        {
+          "results": ["c", "d"],
+          "line": 67,
+          "type": "multi_assignment",
+          "function": "get_rd",
+          "args": []
+        },
+        {
+          "result": "income_after_tax",
+          "line": 69,
+          "type": "execution_assignment",
+          "function": "add",
+          "args": [
+            {
+              "function": "subtract",
+              "args": ["stochastic_income", "tax_due"]
+            },
+            "b",
+            "c"
+          ]
+        },
+        {
+          "result": "discount_rate",
+          "line": 73,
+          "type": "literal_assignment",
+          "value": 0.08
+        },
+        {
+          "result": "final_project_value",
+          "line": 74,
+          "type": "execution_assignment",
+          "function": "divide",
+          "args": [
+            "income_after_tax",
+            {
+              "function": "add",
+              "args": [1, "discount_rate"]
+            }
+          ]
+        }
+      ],
+      "function_definitions": [
+        {
+          "type": "function_definition",
+          "name": "calculate_tax",
+          "params": [
+            {
+              "name": "income",
+              "type": "scalar"
+            }
+          ],
+          "return_type": "scalar",
+          "body": [
+            {
+              "result": "is_high_income",
+              "line": 57,
+              "type": "execution_assignment",
+              "function": "__gt__",
+              "args": ["income", 100000]
+            },
+            {
+              "result": "tax_rate",
+              "line": 58,
+              "type": "conditional_expression",
+              "condition": "is_high_income",
+              "then_expr": 0.4,
+              "else_expr": 0.25
+            },
+            {
+              "type": "return_statement",
+              "value": {
+                "function": "multiply",
+                "args": ["income", "tax_rate"]
+              },
+              "line": -1
+            }
+          ],
+          "docstring": "Calculates tax with a simple two-tier bracket.",
+          "line": 55
+        }
+      ]
+    },
+    "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs": {
+      "imports": [],
+      "directives": [
+        {
+          "type": "directive",
+          "name": "module",
+          "value": true,
+          "line": 1
+        }
+      ],
+      "execution_steps": [],
+      "function_definitions": [
+        {
+          "type": "function_definition",
+          "name": "get_rd",
+          "params": [],
+          "return_type": ["scalar", "scalar"],
+          "body": [
+            {
+              "result": "amortization_period",
+              "line": 4,
+              "type": "literal_assignment",
+              "value": 3
+            },
+            {
+              "result": "a",
+              "line": 5,
+              "type": "execution_assignment",
+              "function": "Normal",
+              "args": [1000, 100]
+            },
+            {
+              "result": "current_expense",
+              "line": 6,
+              "type": "execution_assignment",
+              "function": "add",
+              "args": [
+                {
+                  "function": "subtract",
+                  "args": [
+                    {
+                      "function": "add",
+                      "args": [27364, 49326]
+                    },
+                    23763
+                  ]
+                },
+                "a"
+              ]
+            },
+            {
+              "result": "past_expenses",
+              "line": 7,
+              "type": "literal_assignment",
+              "value": {
+                "_is_vector_literal": true,
+                "items": [49326, 45427, 39500]
+              }
+            },
+            {
+              "results": ["capitalized_assets", "amortization_current_year"],
+              "line": 9,
+              "type": "multi_assignment",
+              "function": "capitalize_expense",
+              "args": [
+                "current_expense",
+                "past_expenses",
+                "amortization_period"
+              ]
+            },
+            {
+              "type": "return_statement",
+              "values": ["capitalized_assets", "amortization_current_year"],
+              "line": -1
+            }
+          ],
+          "docstring": null,
+          "line": 3
+        }
+      ]
+    }
+  },
+  "all_signatures": {
+    "__eq__": {
+      "variadic": false,
+      "arg_types": ["any", "any"],
+      "return_type": "boolean",
+      "is_stochastic": false
+    },
+    "__neq__": {
+      "variadic": false,
+      "arg_types": ["any", "any"],
+      "return_type": "boolean",
+      "is_stochastic": false
+    },
+    "__gt__": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar"],
+      "return_type": "boolean",
+      "is_stochastic": false
+    },
+    "__lt__": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar"],
+      "return_type": "boolean",
+      "is_stochastic": false
+    },
+    "__gte__": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar"],
+      "return_type": "boolean",
+      "is_stochastic": false
+    },
+    "__lte__": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar"],
+      "return_type": "boolean",
+      "is_stochastic": false
+    },
+    "__and__": {
+      "variadic": true,
+      "arg_types": ["boolean"],
+      "return_type": "boolean",
+      "is_stochastic": false
+    },
+    "__or__": {
+      "variadic": true,
+      "arg_types": ["boolean"],
+      "return_type": "boolean",
+      "is_stochastic": false
+    },
+    "__not__": {
+      "variadic": false,
+      "arg_types": ["boolean"],
+      "return_type": "boolean",
+      "is_stochastic": false
+    },
+    "add": {
+      "variadic": true,
+      "arg_types": [],
+      "return_type": {},
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Performs element-wise addition on two or more scalars or vectors.",
+        "params": [
+          {
+            "name": "value1, value2, ...",
+            "desc": "Two or more scalars or vectors."
+          }
+        ],
+        "returns": "A scalar or vector result."
+      }
+    },
+    "subtract": {
+      "variadic": true,
+      "arg_types": [],
+      "return_type": {},
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Performs element-wise subtraction on two or more scalars or vectors.",
+        "params": [
+          {
+            "name": "value1, value2, ...",
+            "desc": "Two or more scalars or vectors."
+          }
+        ],
+        "returns": "A scalar or vector result."
+      }
+    },
+    "multiply": {
+      "variadic": true,
+      "arg_types": [],
+      "return_type": {},
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Performs element-wise multiplication on two or more scalars or vectors.",
+        "params": [
+          {
+            "name": "value1, value2, ...",
+            "desc": "Two or more scalars or vectors."
+          }
+        ],
+        "returns": "A scalar or vector result."
+      }
+    },
+    "divide": {
+      "variadic": true,
+      "arg_types": [],
+      "return_type": {},
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Performs element-wise division on two or more scalars or vectors.",
+        "params": [
+          {
+            "name": "value1, value2, ...",
+            "desc": "Two or more scalars or vectors."
+          }
+        ],
+        "returns": "A scalar or vector result."
+      }
+    },
+    "power": {
+      "variadic": true,
+      "arg_types": [],
+      "return_type": {},
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Raises the first argument to the power of the second.",
+        "params": [
+          {
+            "name": "base",
+            "desc": "The base value(s)."
+          },
+          {
+            "name": "exponent",
+            "desc": "The exponent value(s)."
+          }
+        ],
+        "returns": "A scalar or vector result."
+      }
+    },
+    "identity": {
+      "variadic": false,
+      "arg_types": ["any"],
+      "return_type": {},
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Returns the input value unchanged. Useful for assigning a variable to another.",
+        "params": [
+          {
+            "name": "value",
+            "desc": "The value to return."
+          }
+        ],
+        "returns": "The original value."
+      }
+    },
+    "log": {
+      "variadic": false,
+      "arg_types": ["scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the natural logarithm of a scalar.",
+        "params": [
+          {
+            "name": "value",
+            "desc": "The input scalar."
+          }
+        ],
+        "returns": "The natural logarithm as a scalar."
+      }
+    },
+    "log10": {
+      "variadic": false,
+      "arg_types": ["scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the base-10 logarithm of a scalar.",
+        "params": [
+          {
+            "name": "value",
+            "desc": "The input scalar."
+          }
+        ],
+        "returns": "The base-10 logarithm as a scalar."
+      }
+    },
+    "exp": {
+      "variadic": false,
+      "arg_types": ["scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the exponential (e^x) of a scalar.",
+        "params": [
+          {
+            "name": "value",
+            "desc": "The input scalar."
+          }
+        ],
+        "returns": "The exponential as a scalar."
+      }
+    },
+    "sin": {
+      "variadic": false,
+      "arg_types": ["scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the sine of a scalar.",
+        "params": [
+          {
+            "name": "value",
+            "desc": "The input scalar in radians."
+          }
+        ],
+        "returns": "The sine as a scalar."
+      }
+    },
+    "cos": {
+      "variadic": false,
+      "arg_types": ["scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the cosine of a scalar.",
+        "params": [
+          {
+            "name": "value",
+            "desc": "The input scalar in radians."
+          }
+        ],
+        "returns": "The cosine as a scalar."
+      }
+    },
+    "tan": {
+      "variadic": false,
+      "arg_types": ["scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the tangent of a scalar.",
+        "params": [
+          {
+            "name": "value",
+            "desc": "The input scalar in radians."
+          }
+        ],
+        "returns": "The tangent as a scalar."
+      }
+    },
+    "SirModel": {
+      "variadic": false,
+      "arg_types": [
+        "scalar",
+        "scalar",
+        "scalar",
+        "scalar",
+        "scalar",
+        "scalar",
+        "scalar"
+      ],
+      "return_type": ["vector", "vector", "vector"],
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Runs a Susceptible-Infected-Recovered (SIR) epidemiological model.",
+        "params": [
+          {
+            "name": "s0",
+            "desc": "The initial number of susceptible individuals."
+          },
+          {
+            "name": "i0",
+            "desc": "The initial number of infected individuals."
+          },
+          {
+            "name": "r0",
+            "desc": "The initial number of recovered individuals."
+          },
+          {
+            "name": "beta",
+            "desc": "The average transmission rate."
+          },
+          {
+            "name": "gamma",
+            "desc": "The recovery rate (1 / duration of infection)."
+          },
+          {
+            "name": "periods",
+            "desc": "The number of time periods to simulate."
+          },
+          {
+            "name": "dt",
+            "desc": "The fraction of a time period per step (e.g., 1.0 for a full day)."
+          }
+        ],
+        "returns": "A tuple of three vectors: (susceptible, infected, recovered) over time."
+      }
+    },
+    "BlackScholes": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar", "scalar", "scalar", "scalar", "string"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the price of a European option using the Black-Scholes model.",
+        "params": [
+          {
+            "name": "spot",
+            "desc": "The current spot price of the underlying asset."
+          },
+          {
+            "name": "strike",
+            "desc": "The strike price of the option."
+          },
+          {
+            "name": "rate",
+            "desc": "The annualized risk-free interest rate (e.g., 0.05 for 5%)."
+          },
+          {
+            "name": "time_to_maturity",
+            "desc": "The time to expiration in years."
+          },
+          {
+            "name": "volatility",
+            "desc": "The annualized volatility of the asset's returns (e.g., 0.2 for 20%)."
+          },
+          {
+            "name": "option_type",
+            "desc": "The type of option to price. Must be the string 'call' or 'put'."
+          }
+        ],
+        "returns": "The theoretical price of the European option as a scalar."
+      }
+    },
+    "read_csv_scalar": {
+      "variadic": false,
+      "arg_types": ["string", "string", "scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Reads a single cell from a CSV file. Executed once before the simulation begins.",
+        "params": [
+          {
+            "name": "file_path",
+            "desc": "The path to the CSV file."
+          },
+          {
+            "name": "column_name",
+            "desc": "The name of the column to read from."
+          },
+          {
+            "name": "row_index",
+            "desc": "The zero-based index of the row to read."
+          }
+        ],
+        "returns": "The value of the cell as a scalar."
+      }
+    },
+    "read_csv_vector": {
+      "variadic": false,
+      "arg_types": ["string", "string"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Reads an entire column from a CSV file into a vector. Executed once before the simulation begins.",
+        "params": [
+          {
+            "name": "file_path",
+            "desc": "The path to the CSV file."
+          },
+          {
+            "name": "column_name",
+            "desc": "The name of the column to read."
+          }
+        ],
+        "returns": "The column data as a new vector."
+      }
+    },
+    "compose_vector": {
+      "variadic": true,
+      "arg_types": ["any"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Creates a new vector from a series of values.",
+        "params": [
+          {
+            "name": "value1, value2, ...",
+            "desc": "The values to include in the vector. Input vectors will be flattened."
+          }
+        ],
+        "returns": "A new vector."
+      }
+    },
+    "sum_series": {
+      "variadic": false,
+      "arg_types": ["vector"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the sum of all elements in a vector.",
+        "params": [
+          {
+            "name": "vector",
+            "desc": "The input vector."
+          }
+        ],
+        "returns": "The sum as a scalar."
+      }
+    },
+    "series_delta": {
+      "variadic": false,
+      "arg_types": ["vector"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the period-over-period change for a vector.",
+        "params": [
+          {
+            "name": "vector",
+            "desc": "The input vector."
+          }
+        ],
+        "returns": "A new vector of the differences, with one fewer element."
+      }
+    },
+    "npv": {
+      "variadic": false,
+      "arg_types": ["scalar", "vector"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the Net Present Value (NPV) of a series of cash flows.",
+        "params": [
+          {
+            "name": "rate",
+            "desc": "The discount rate per period."
+          },
+          {
+            "name": "cashflows",
+            "desc": "A vector of cash flows."
+          }
+        ],
+        "returns": "The NPV as a scalar."
+      }
+    },
+    "compound_series": {
+      "variadic": false,
+      "arg_types": ["scalar", "vector"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Projects a base value forward using a vector of period-specific growth rates.",
+        "params": [
+          {
+            "name": "base_value",
+            "desc": "The starting scalar value."
+          },
+          {
+            "name": "rates_vector",
+            "desc": "A vector of growth rates for each period."
+          }
+        ],
+        "returns": "A new vector of compounded values."
+      }
+    },
+    "get_element": {
+      "variadic": false,
+      "arg_types": ["vector", "scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Retrieves an element from a vector at a specific index.",
+        "params": [
+          {
+            "name": "vector",
+            "desc": "The source vector."
+          },
+          {
+            "name": "index",
+            "desc": "The zero-based index of the element. Negative indices count from the end."
+          }
+        ],
+        "returns": "The element at the specified index as a scalar."
+      }
+    },
+    "delete_element": {
+      "variadic": false,
+      "arg_types": ["vector", "scalar"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Returns a new vector with the element at the specified index removed.",
+        "params": [
+          {
+            "name": "vector",
+            "desc": "The source vector."
+          },
+          {
+            "name": "index",
+            "desc": "The zero-based index of the element to remove. Negative indices count from the end."
+          }
+        ],
+        "returns": "A new vector with the element removed."
+      }
+    },
+    "grow_series": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar", "scalar"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Projects a series by applying a constant growth rate.",
+        "params": [
+          {
+            "name": "base_value",
+            "desc": "The starting scalar value."
+          },
+          {
+            "name": "growth_rate",
+            "desc": "The constant growth rate to apply each period (e.g., 0.05 for 5%)."
+          },
+          {
+            "name": "periods",
+            "desc": "The number of periods to project forward."
+          }
+        ],
+        "returns": "A vector of projected values."
+      }
+    },
+    "interpolate_series": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar", "scalar"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Creates a vector by linearly interpolating between a start and end value.",
+        "params": [
+          {
+            "name": "start_value",
+            "desc": "The scalar value at the beginning of the series."
+          },
+          {
+            "name": "end_value",
+            "desc": "The scalar value at the end of the series."
+          },
+          {
+            "name": "periods",
+            "desc": "The total number of periods in the series."
+          }
+        ],
+        "returns": "A new vector with the interpolated values."
+      }
+    },
+    "capitalize_expense": {
+      "variadic": false,
+      "arg_types": ["scalar", "vector", "scalar"],
+      "return_type": ["scalar", "scalar"],
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the value of capitalized assets (e.g., R&D) and the amortization for the current year.",
+        "params": [
+          {
+            "name": "current_expense",
+            "desc": "The expense in the current period."
+          },
+          {
+            "name": "past_expenses",
+            "desc": "A vector of expenses from prior periods, oldest first."
+          },
+          {
+            "name": "amortization_period",
+            "desc": "The number of years over which the expense is amortized."
+          }
+        ],
+        "returns": "The total capitalized asset value (scalar) and the amortization for the current year (scalar)."
+      }
+    },
+    "Normal": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar"],
+      "return_type": "scalar",
+      "is_stochastic": true,
+      "doc": {
+        "summary": "Draws a random sample from a Normal (Gaussian) distribution.",
+        "params": [
+          {
+            "name": "mean",
+            "desc": "The mean (\u03bc) of the distribution."
+          },
+          {
+            "name": "std_dev",
+            "desc": "The standard deviation (\u03c3) of the distribution."
+          }
+        ],
+        "returns": "A random scalar sample."
+      }
+    },
+    "Lognormal": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar"],
+      "return_type": "scalar",
+      "is_stochastic": true,
+      "doc": {
+        "summary": "Draws a random sample from a Lognormal distribution.",
+        "params": [
+          {
+            "name": "log_mean",
+            "desc": "The mean of the underlying normal distribution."
+          },
+          {
+            "name": "log_std_dev",
+            "desc": "The standard deviation of the underlying normal distribution."
+          }
+        ],
+        "returns": "A random scalar sample."
+      }
+    },
+    "Beta": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar"],
+      "return_type": "scalar",
+      "is_stochastic": true,
+      "doc": {
+        "summary": "Draws a random sample from a Beta distribution.",
+        "params": [
+          {
+            "name": "alpha",
+            "desc": "The alpha (\u03b1) shape parameter."
+          },
+          {
+            "name": "beta",
+            "desc": "The beta (\u03b2) shape parameter."
+          }
+        ],
+        "returns": "A random scalar sample between 0 and 1."
+      }
+    },
+    "Uniform": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar"],
+      "return_type": "scalar",
+      "is_stochastic": true,
+      "doc": {
+        "summary": "Draws a random sample from a Uniform distribution.",
+        "params": [
+          {
+            "name": "min",
+            "desc": "The minimum value of the range."
+          },
+          {
+            "name": "max",
+            "desc": "The maximum value of the range."
+          }
+        ],
+        "returns": "A random scalar sample."
+      }
+    },
+    "Bernoulli": {
+      "variadic": false,
+      "arg_types": ["scalar"],
+      "return_type": "scalar",
+      "is_stochastic": true,
+      "doc": {
+        "summary": "Draws a random sample from a Bernoulli distribution (a single coin flip).",
+        "params": [
+          {
+            "name": "p",
+            "desc": "The probability of success (returning 1.0)."
+          }
+        ],
+        "returns": "Either 1.0 (success) or 0.0 (failure)."
+      }
+    },
+    "Pert": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar", "scalar"],
+      "return_type": "scalar",
+      "is_stochastic": true,
+      "doc": {
+        "summary": "Draws a random sample from a PERT (a modified Beta) distribution.",
+        "params": [
+          {
+            "name": "min",
+            "desc": "The minimum possible value."
+          },
+          {
+            "name": "most_likely",
+            "desc": "The most likely value (the mode)."
+          },
+          {
+            "name": "max",
+            "desc": "The maximum possible value."
+          }
+        ],
+        "returns": "A random scalar sample."
+      }
+    },
+    "Triangular": {
+      "variadic": false,
+      "arg_types": ["scalar", "scalar", "scalar"],
+      "return_type": "scalar",
+      "is_stochastic": true,
+      "doc": {
+        "summary": "Draws a random sample from a Triangular distribution.",
+        "params": [
+          {
+            "name": "min",
+            "desc": "The minimum possible value."
+          },
+          {
+            "name": "most_likely",
+            "desc": "The most likely value (the mode)."
+          },
+          {
+            "name": "max",
+            "desc": "The maximum possible value."
+          }
+        ],
+        "returns": "A random scalar sample."
+      }
+    },
+    "get_rd": {
+      "variadic": false,
+      "arg_types": [],
+      "return_type": ["scalar", "scalar"],
+      "is_stochastic": true
+    },
+    "calculate_tax": {
+      "variadic": false,
+      "arg_types": ["scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false
+    }
+  }
+}
