@@ -13,21 +13,27 @@ def pretty_format_ir(ir: Dict[str, Any]) -> str:
     return json.dumps(ir, indent=2)
 
 
-# --- The Failing Test for Nested Conditionals (TDD) ---
+@pytest.fixture
+def base_registries() -> Dict[str, Any]:
+    """Provides a clean, boilerplate registry object for tests."""
+    return {
+        "variable_registries": {"SCALAR": [], "VECTOR": [], "BOOLEAN": [], "STRING": []},
+        "variable_map": {},
+        "constant_pools": {"SCALAR": [], "VECTOR": [], "BOOLEAN": [], "STRING": []},
+        "constant_map": {},
+    }
 
 
-def test_lowers_nested_conditional_assignments_correctly():
+# --- Comprehensive Test Suite for IRLowerer ---
+
+
+def test_lowers_nested_conditional_assignments_correctly(base_registries):
     """
     Tests that the IRLowerer can handle a conditional_assignment where the
-    'else_expr' is itself another conditional_expression.
-
-    This is a critical test for ensuring the "lifting" phase correctly
-    flattens all forms of nested logic before the control-flow lowering phase.
+    'else_expr' is itself another conditional_expression. This is the original
+    TDD test case, now serving as a high-level regression test.
     """
-    # --- 1. ARRANGE: Define the minimal input to reproduce the bug ---
-
-    # The input is a single, nested conditional assignment.
-    # let tax_rate = if is_high_income then 0.4 else (if is_medium_income then 0.3 else 0.2)
+    # ARRANGE
     partitioned_ir = {
         "pre_trial_steps": [],
         "per_trial_steps": [
@@ -46,60 +52,199 @@ def test_lowers_nested_conditional_assignments_correctly():
             }
         ],
     }
+    registries = base_registries
+    registries["variable_registries"]["SCALAR"].extend(["tax_rate"])
+    registries["variable_registries"]["BOOLEAN"].extend(["is_high_income", "is_medium_income"])
 
-    # Define the minimal registries that ResourceAllocator would have created.
-    registries = {
-        "variable_registries": {
-            "SCALAR": ["tax_rate"],
-            "VECTOR": [],
-            "BOOLEAN": ["is_high_income", "is_medium_income"],
-            "STRING": [],
-        },
-        "variable_map": {
-            "tax_rate": {"type": "SCALAR", "index": 0},
-            "is_high_income": {"type": "BOOLEAN", "index": 0},
-            "is_medium_income": {"type": "BOOLEAN", "index": 1},
-        },
-        "constant_pools": {"SCALAR": [], "VECTOR": [], "BOOLEAN": [], "STRING": []},
-        "constant_map": {},
-    }
-
-    # The model is not strictly needed for this test but is part of the class signature.
-    model = {}
-
-    # --- 2. DEFINE EXPECTED OUTPUT: Manually trace the correct lowered IR ---
-    # The expected behavior is that the nested conditional is "lifted" into a
-    # temporary variable first, and then both conditionals are lowered to jumps.
+    # DEFINE EXPECTED OUTPUT
     expected_lowered_ir = {
         "pre_trial_steps": [],
         "per_trial_steps": [
-            # LIFTING PASS OUTPUT:
-            # let __temp_lifted_1 = if is_medium_income then 0.3 else 0.2
-            # let tax_rate = if is_high_income then 0.4 else __temp_lifted_1
-            # FINAL LOWERED OUTPUT:
-            # --- Start of the INNER conditional (lifted) ---
+            {"type": "conditional_assignment", "result": ["__temp_lifted_1"], "condition": "is_medium_income", "then_expr": 0.3, "else_expr": 0.2, "line": 59},
+            {"type": "conditional_assignment", "result": ["tax_rate"], "condition": "is_high_income", "then_expr": 0.4, "else_expr": "__temp_lifted_1", "line": 59},
+        ],
+    }
+    # This test is complex. Let's trace the full lowering AFTER lifting.
+    final_expected_ir = {
+        "pre_trial_steps": [],
+        "per_trial_steps": [
             {"type": "jump_if_false", "condition": "is_medium_income", "target": "__else_label_0", "line": 59},
             {"type": "literal_assignment", "result": ["__temp_lifted_1"], "value": 0.3, "line": 59},
             {"type": "jump", "target": "__end_label_1", "line": 59},
             {"type": "label", "name": "__else_label_0", "line": 59},
             {"type": "literal_assignment", "result": ["__temp_lifted_1"], "value": 0.2, "line": 59},
             {"type": "label", "name": "__end_label_1", "line": 59},
-            # --- Start of the OUTER conditional ---
             {"type": "jump_if_false", "condition": "is_high_income", "target": "__else_label_2", "line": 59},
             {"type": "literal_assignment", "result": ["tax_rate"], "value": 0.4, "line": 59},
             {"type": "jump", "target": "__end_label_3", "line": 59},
             {"type": "label", "name": "__else_label_2", "line": 59},
-            {"type": "literal_assignment", "result": ["tax_rate"], "value": "__temp_lifted_1", "line": 59},  # The result of the lifted conditional
+            {"type": "literal_assignment", "result": ["tax_rate"], "value": "__temp_lifted_1", "line": 59},
             {"type": "label", "name": "__end_label_3", "line": 59},
         ],
     }
 
-    # --- 3. ACT: Run the unit under test ---
-    lowerer = IRLowerer(partitioned_ir, registries, model)
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, registries, model={})
     actual_result = lowerer.lower()
 
-    # --- 4. ASSERT: Check if the actual output matches the expected contract ---
-    if actual_result != expected_lowered_ir:
-        pytest.fail("The IRLowerer did not correctly lower the nested conditional.\n" f"EXPECTED:\n{pretty_format_ir(expected_lowered_ir)}\n\n" f"ACTUAL:\n{pretty_format_ir(actual_result)}")
+    # ASSERT
+    assert actual_result == final_expected_ir
+    assert "__temp_lifted_1" in registries["variable_registries"]["SCALAR"]
 
-    assert actual_result == expected_lowered_ir
+
+def test_lifts_simple_nested_function_call(base_registries):
+    """Verifies the most basic lifting scenario: add(x, Normal(0, 1))"""
+    # ARRANGE
+    registries = base_registries
+    registries["variable_registries"]["SCALAR"].extend(["x", "result"])
+    partitioned_ir = {"per_trial_steps": [{"type": "execution_assignment", "result": ["result"], "function": "add", "args": ["x", {"function": "Normal", "args": [0, 1]}], "line": 10}]}
+    expected_ir = {
+        "pre_trial_steps": [],
+        "per_trial_steps": [
+            {"type": "execution_assignment", "result": ["__temp_lifted_1"], "function": "Normal", "args": [0, 1], "line": 10},
+            {"type": "execution_assignment", "result": ["result"], "function": "add", "args": ["x", "__temp_lifted_1"], "line": 10},
+        ],
+    }
+
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    actual_result = lowerer.lower()
+
+    # ASSERT
+    assert actual_result == expected_ir
+    assert "__temp_lifted_1" in registries["variable_map"]
+    assert registries["variable_map"]["__temp_lifted_1"]["type"] == "SCALAR"
+
+
+def test_lifts_multiple_nested_calls_in_one_instruction(base_registries):
+    """Tests add(Normal(0,1), Normal(5,2)) to ensure correct order and multiple temp vars."""
+    # ARRANGE
+    registries = base_registries
+    registries["variable_registries"]["SCALAR"].extend(["result"])
+    partitioned_ir = {
+        "per_trial_steps": [
+            {"type": "execution_assignment", "result": ["result"], "function": "add", "args": [{"function": "Normal", "args": [0, 1]}, {"function": "Normal", "args": [5, 2]}], "line": 20}
+        ]
+    }
+    expected_ir = {
+        "pre_trial_steps": [],
+        "per_trial_steps": [
+            {"type": "execution_assignment", "result": ["__temp_lifted_1"], "function": "Normal", "args": [0, 1], "line": 20},
+            {"type": "execution_assignment", "result": ["__temp_lifted_2"], "function": "Normal", "args": [5, 2], "line": 20},
+            {"type": "execution_assignment", "result": ["result"], "function": "add", "args": ["__temp_lifted_1", "__temp_lifted_2"], "line": 20},
+        ],
+    }
+
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    actual_result = lowerer.lower()
+
+    # ASSERT
+    assert actual_result == expected_ir
+    assert "__temp_lifted_1" in registries["variable_map"]
+    assert "__temp_lifted_2" in registries["variable_map"]
+
+
+def test_lifts_deeply_nested_function_call(base_registries):
+    """Tests add(x, multiply(y, Normal(0,1))) to ensure recursive lifting works."""
+    # ARRANGE
+    registries = base_registries
+    registries["variable_registries"]["SCALAR"].extend(["x", "y", "result"])
+    partitioned_ir = {
+        "per_trial_steps": [
+            {"type": "execution_assignment", "result": ["result"], "function": "add", "args": ["x", {"function": "multiply", "args": ["y", {"function": "Normal", "args": [0, 1]}]}], "line": 30}
+        ]
+    }
+    expected_ir = {
+        "pre_trial_steps": [],
+        "per_trial_steps": [
+            {"type": "execution_assignment", "result": ["__temp_lifted_1"], "function": "Normal", "args": [0, 1], "line": 30},
+            {"type": "execution_assignment", "result": ["__temp_lifted_2"], "function": "multiply", "args": ["y", "__temp_lifted_1"], "line": 30},
+            {"type": "execution_assignment", "result": ["result"], "function": "add", "args": ["x", "__temp_lifted_2"], "line": 30},
+        ],
+    }
+
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    actual_result = lowerer.lower()
+
+    # ASSERT
+    assert actual_result == expected_ir
+    assert "__temp_lifted_1" in registries["variable_map"]
+    assert "__temp_lifted_2" in registries["variable_map"]
+
+
+def test_lowers_identity_to_copy(base_registries):
+    """Tests that a simple identity() call is lowered to a 'copy' instruction."""
+    # ARRANGE
+    partitioned_ir = {"pre_trial_steps": [{"type": "execution_assignment", "result": ["a"], "function": "identity", "args": ["b"], "line": 10}]}
+    expected_ir = {"pre_trial_steps": [{"type": "copy", "result": ["a"], "source": "b", "line": 10}], "per_trial_steps": []}
+
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, base_registries, model={})
+    actual_result = lowerer.lower()
+
+    # ASSERT
+    assert actual_result == expected_ir
+
+
+def test_counters_continue_across_partitions(base_registries):
+    """Ensures temp var and label counters are not reset between partitions."""
+    # ARRANGE
+    registries = base_registries
+    registries["variable_registries"]["BOOLEAN"].extend(["cond"])
+    registries["variable_registries"]["SCALAR"].extend(["x"])
+    partitioned_ir = {
+        "pre_trial_steps": [{"type": "conditional_assignment", "result": ["x"], "condition": "cond", "then_expr": 1, "else_expr": 2, "line": 1}],
+        "per_trial_steps": [{"type": "execution_assignment", "result": ["x"], "function": "add", "args": ["x", {"function": "Normal", "args": [0, 1]}], "line": 2}],
+    }
+
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    actual_result = lowerer.lower()
+
+    # ASSERT
+    pre_trial_str = json.dumps(actual_result["pre_trial_steps"])
+    per_trial_str = json.dumps(actual_result["per_trial_steps"])
+
+    # Pre-trial should use the first set of labels (0, 1)
+    assert "__else_label_0" in pre_trial_str
+    assert "__end_label_1" in pre_trial_str
+
+    # Per-trial should use the first temp var (1)
+    assert "__temp_lifted_1" in per_trial_str
+
+    # The label counter should have advanced for the next conditional
+    assert lowerer.label_counter == 2
+    assert lowerer.temp_var_counter == 1
+
+
+def test_handles_empty_ir_gracefully(base_registries):
+    """Tests that an empty IR is handled without errors."""
+    # ARRANGE
+    partitioned_ir = {"pre_trial_steps": [], "per_trial_steps": []}
+
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, base_registries, model={})
+    actual_result = lowerer.lower()
+
+    # ASSERT
+    assert actual_result == partitioned_ir
+
+
+def test_preserves_ir_with_no_lowerable_instructions(base_registries):
+    """Tests that an already-flat IR passes through unchanged."""
+    # ARRANGE
+    partitioned_ir = {
+        "pre_trial_steps": [{"type": "literal_assignment", "result": ["a"], "value": 10, "line": 1}, {"type": "execution_assignment", "result": ["b"], "function": "add", "args": ["a", 5], "line": 2}],
+        "per_trial_steps": [],
+    }
+    # Create a copy for comparison
+    original_ir = json.loads(json.dumps(partitioned_ir))
+
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, base_registries, model={})
+    actual_result = lowerer.lower()
+
+    # ASSERT
+    assert actual_result == original_ir
