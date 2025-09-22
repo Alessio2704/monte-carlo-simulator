@@ -1,6 +1,7 @@
 from typing import Dict, Any, List
 
 from .bytecode_generation.resource_allocator import ResourceAllocator
+from .bytecode_generation.ir_lowerer import IRLowerer
 
 
 class BytecodeGenerator:
@@ -45,11 +46,10 @@ class BytecodeGenerator:
         PHASE 8b: Converts the high-level IR into a flat, linear sequence of
         simple, machine-like operations.
         """
-        # --- PLACEHOLDER ---
-        # In the future, this will instantiate and run the IR lowerer/transformer.
-        # For now, we just pass through the original IR.
-        print("--- NOTE: Stage 8b (IR Lowering) is not yet implemented. ---")
-        self.lowered_ir = self.partitioned_ir
+        # This phase consumes the registries from 8a and modifies them in place
+        # as it discovers new temporary variables during expression lifting.
+        lowerer = IRLowerer(self.partitioned_ir, self.registries, self.model)
+        self.lowered_ir = lowerer.lower()
         return self.lowered_ir
 
     def run_phase_c_code_emission(self) -> Dict[str, List[Dict[str, Any]]]:
