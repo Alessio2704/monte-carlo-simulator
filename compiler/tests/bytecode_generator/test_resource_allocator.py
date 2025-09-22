@@ -162,3 +162,53 @@ def test_scalars_in_constant_vector_are_not_added_to_scalar_pool():
     result = allocator.allocate()
     assert result["constant_pools"]["VECTOR"] == [[10.0, 20.0]]
     assert result["constant_pools"]["SCALAR"] == [10.0]
+
+
+def test_finds_constants_in_all_parts_of_conditionals():
+    """
+    Ensures the allocator scans the `condition`, `then_expr`, and `else_expr`
+    of conditional assignments for literals.
+    """
+    model = {
+        "global_variables": {
+            "is_active": {"inferred_type": "boolean"},
+            "result": {"inferred_type": "scalar"},
+        },
+        "user_defined_functions": {},
+    }
+    ir = {
+        "pre_trial_steps": [
+            # This conditional uses a variable for the condition, but literals for the branches.
+            {"type": "conditional_assignment", "result": ["result"], "condition": "is_active", "then_expr": 100.0, "else_expr": [200.0, 300.0]}
+        ]
+    }
+
+    allocator = ResourceAllocator(ir, model)
+    result = allocator.allocate()
+
+    assert result["constant_pools"]["SCALAR"] == [100.0]
+    assert result["constant_pools"]["VECTOR"] == [[200.0, 300.0]]
+    assert result["constant_map"]["s_100.0"]["index"] == 0
+
+
+def test_finds_constants_in_deeply_nested_expressions():
+    """
+    Stress-tests the recursive literal finder with a complex, nested expression.
+    """
+    model = {"global_variables": {"x": {"inferred_type": "scalar"}}, "user_defined_functions": {}}
+    ir = {
+        "pre_trial_steps": [
+            {
+                "type": "execution_assignment",
+                "result": ["x"],
+                "function": "add",
+                "args": [5.0, {"function": "multiply", "args": [10.0, [1.0, 2.0]]}],  # Top-level constant  # Nested constant  # Deeply nested constant vector
+            }
+        ]
+    }
+    allocator = ResourceAllocator(ir, model)
+    result = allocator.allocate()
+
+    # It should find all unique scalars and the unique vector.
+    assert result["constant_pools"]["SCALAR"] == [5.0, 10.0]
+    assert result["constant_pools"]["VECTOR"] == [[1.0, 2.0]]
