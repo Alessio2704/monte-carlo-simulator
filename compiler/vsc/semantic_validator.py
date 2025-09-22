@@ -114,6 +114,11 @@ class SemanticValidator:
                     # Format the set of found types for a clean error message
                     found_types_str = ", ".join(sorted(list(item_types)))
                     raise ValuaScriptError(ErrorCode.MIXED_TYPES_IN_VECTOR, line=line, found_types=found_types_str)
+                
+            for item in node.get("items", []):
+                item_type = self._get_node_type(item, scope)
+                if item_type != "scalar":
+                    raise ValuaScriptError(ErrorCode.INVALID_ITEM_TYPE_IN_VECTOR, line=line, type=item_type)
 
         for arg in node.get("args", []):
             self._validate_expression(arg, scope)

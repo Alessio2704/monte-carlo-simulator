@@ -38,6 +38,7 @@ class ErrorCode(Enum):
     RETURN_TYPE_MISMATCH = "L{line}: Function '{name}' returns type '{provided}' but is defined to return '{expected}'."
     MISSING_RETURN_STATEMENT = "L{line}: Function '{name}' is missing a return statement."
     INVALID_ITEM_IN_VECTOR = "L{line}: Invalid item {value} in vector literal for '{name}'."
+    INVALID_ITEM_TYPE_IN_VECTOR = "L{line}: Invalid item type '{type}' found in vector literal."
     IF_CONDITION_NOT_BOOLEAN = "L{line}: The condition for an 'if' expression must be a boolean (true/false) value, but got a '{provided}'."
     IF_ELSE_TYPE_MISMATCH = (
         "L{line}: The 'then' and 'else' branches of an 'if' expression must return the same type. The 'then' branch has type '{then_type}' but the 'else' branch has type '{else_type}'."
