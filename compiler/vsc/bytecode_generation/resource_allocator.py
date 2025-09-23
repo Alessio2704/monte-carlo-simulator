@@ -107,9 +107,10 @@ class ResourceAllocator:
     def _get_variable_type_from_model(self, var_name: str) -> str:
         # Check global variables first, which now includes temp variables from the lowerer
         if var_name in self.model["global_variables"]:
+            # This is the primary lookup. We trust the model now has correct info.
             return self.model["global_variables"][var_name]["inferred_type"]
 
-        # Check for mangled UDF variables as a fallback
+        # Check for mangled UDF variables as a fallback (less likely now, but good to keep)
         mangled_match = re.match(r"^__(.+)_[0-9]+__(.+)$", var_name)
         if mangled_match:
             original_func_name, original_var_name = mangled_match.groups()
@@ -117,10 +118,6 @@ class ResourceAllocator:
                 func_scope = self.model["user_defined_functions"][original_func_name]
                 if original_var_name in func_scope["discovered_body"]:
                     return func_scope["discovered_body"][original_var_name]["inferred_type"]
-
-        # Fallback for older temporary variables from the IR generator (pre-lifting)
-        if var_name.startswith("__temp_"):
-            return "scalar"
 
         raise NameError(f"Internal Compiler Error: Could not find type for variable '{var_name}' in model.")
 

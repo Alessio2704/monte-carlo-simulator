@@ -5,7 +5,33 @@
       "result": ["a", "b"],
       "function": "CapitalizeExpenses",
       "args": [110, [100, 90, 80], 3],
-      "line": 65
+      "line": 66
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["op1"],
+      "function": "BlackScholes",
+      "args": [100, 105, 0.05, 1, 0.2, "call"],
+      "line": 22
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["op2"],
+      "function": "BlackScholes",
+      "args": [100, 105, 0.05, 1, 0.2, "put"],
+      "line": 71
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["sir1", "sir2", "sir3"],
+      "function": "identity",
+      "args": [
+        {
+          "function": "SirModel",
+          "args": [999990, 10, 0, 0.35, 0.07142857142857142, 120, 1.0]
+        }
+      ],
+      "line": 73
     }
   ],
   "per_trial_steps": [
@@ -38,7 +64,7 @@
           "args": [5000, 2000]
         }
       ],
-      "line": 62
+      "line": 63
     },
     {
       "type": "execution_assignment",
@@ -48,19 +74,31 @@
       "line": 57
     },
     {
+      "type": "execution_assignment",
+      "result": ["__calculate_tax_1__is_medium_income"],
+      "function": "__gt__",
+      "args": ["stochastic_income", 70000],
+      "line": 58
+    },
+    {
       "type": "conditional_assignment",
       "result": ["__calculate_tax_1__tax_rate"],
       "condition": "__calculate_tax_1__is_high_income",
       "then_expr": 0.4,
-      "else_expr": 0.25,
-      "line": 58
+      "else_expr": {
+        "type": "conditional_expression",
+        "condition": "__calculate_tax_1__is_medium_income",
+        "then_expr": 0.3,
+        "else_expr": 0.2
+      },
+      "line": 59
     },
     {
       "type": "execution_assignment",
       "result": ["tax_due"],
       "function": "multiply",
       "args": ["stochastic_income", "__calculate_tax_1__tax_rate"],
-      "line": 63
+      "line": 64
     },
     {
       "type": "execution_assignment",
@@ -93,16 +131,28 @@
           "args": ["stochastic_income", "tax_due"]
         },
         "b",
-        "c"
+        "c",
+        "op1",
+        "op2",
+        {
+          "function": "GetElement",
+          "args": ["sir1", 0]
+        }
       ],
-      "line": 69
+      "line": 75
     },
     {
       "type": "execution_assignment",
       "result": ["final_project_value"],
-      "function": "divide",
-      "args": ["income_after_tax", 1.08],
-      "line": 74
+      "function": "multiply",
+      "args": [
+        {
+          "function": "divide",
+          "args": ["income_after_tax", 1.08]
+        },
+        0.95
+      ],
+      "line": 80
     }
   ]
 }

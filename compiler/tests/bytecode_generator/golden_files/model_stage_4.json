@@ -47,7 +47,8 @@
           "type": "literal_assignment",
           "value": {
             "_is_vector_literal": true,
-            "items": [49326, 45427, 39500]
+            "items": [49326, 45427, 39500],
+            "line": 7
           }
         },
         {
@@ -109,6 +110,300 @@
       },
       "is_stochastic": true
     },
+    "get_option1": {
+      "name": "get_option1",
+      "params": [
+        {
+          "name": "type",
+          "type": "string"
+        }
+      ],
+      "return_type": "scalar",
+      "docstring": null,
+      "line": 14,
+      "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+      "ast_body": [
+        {
+          "result": "spot_price",
+          "line": 15,
+          "type": "literal_assignment",
+          "value": 100
+        },
+        {
+          "result": "strike_price",
+          "line": 16,
+          "type": "literal_assignment",
+          "value": 105
+        },
+        {
+          "result": "risk_free_rate",
+          "line": 17,
+          "type": "literal_assignment",
+          "value": 0.05
+        },
+        {
+          "result": "time",
+          "line": 18,
+          "type": "literal_assignment",
+          "value": 1
+        },
+        {
+          "result": "vol",
+          "line": 19,
+          "type": "literal_assignment",
+          "value": 0.2
+        },
+        {
+          "result": "option_price",
+          "line": 22,
+          "type": "execution_assignment",
+          "function": "BlackScholes",
+          "args": [
+            "spot_price",
+            "strike_price",
+            "risk_free_rate",
+            "time",
+            "vol",
+            "type"
+          ]
+        },
+        {
+          "type": "return_statement",
+          "value": "option_price",
+          "line": 23
+        }
+      ],
+      "discovered_body": {
+        "spot_price": {
+          "name": "spot_price",
+          "line": 15,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "strike_price": {
+          "name": "strike_price",
+          "line": 16,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "risk_free_rate": {
+          "name": "risk_free_rate",
+          "line": 17,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "time": {
+          "name": "time",
+          "line": 18,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "vol": {
+          "name": "vol",
+          "line": 19,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "option_price": {
+          "name": "option_price",
+          "line": 22,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        }
+      },
+      "is_stochastic": false
+    },
+    "get_option2": {
+      "name": "get_option2",
+      "params": [
+        {
+          "name": "type",
+          "type": "string"
+        }
+      ],
+      "return_type": "scalar",
+      "docstring": null,
+      "line": 26,
+      "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+      "ast_body": [
+        {
+          "result": "spot_price",
+          "line": 27,
+          "type": "literal_assignment",
+          "value": 100
+        },
+        {
+          "result": "strike_price",
+          "line": 28,
+          "type": "literal_assignment",
+          "value": 105
+        },
+        {
+          "result": "risk_free_rate",
+          "line": 29,
+          "type": "literal_assignment",
+          "value": 0.05
+        },
+        {
+          "result": "time",
+          "line": 30,
+          "type": "literal_assignment",
+          "value": 1
+        },
+        {
+          "result": "vol",
+          "line": 31,
+          "type": "literal_assignment",
+          "value": 0.2
+        },
+        {
+          "type": "return_statement",
+          "value": {
+            "function": "BlackScholes",
+            "args": [
+              "spot_price",
+              "strike_price",
+              "risk_free_rate",
+              "time",
+              "vol",
+              "type"
+            ],
+            "line": 34
+          },
+          "line": -1
+        }
+      ],
+      "discovered_body": {
+        "spot_price": {
+          "name": "spot_price",
+          "line": 27,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "strike_price": {
+          "name": "strike_price",
+          "line": 28,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "risk_free_rate": {
+          "name": "risk_free_rate",
+          "line": 29,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "time": {
+          "name": "time",
+          "line": 30,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "vol": {
+          "name": "vol",
+          "line": 31,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        }
+      },
+      "is_stochastic": false
+    },
+    "get_sir": {
+      "name": "get_sir",
+      "params": [],
+      "return_type": ["vector", "vector", "vector"],
+      "docstring": null,
+      "line": 37,
+      "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+      "ast_body": [
+        {
+          "result": "population",
+          "line": 39,
+          "type": "literal_assignment",
+          "value": 1000000
+        },
+        {
+          "result": "initial_infected",
+          "line": 40,
+          "type": "literal_assignment",
+          "value": 10
+        },
+        {
+          "result": "transmission_rate",
+          "line": 43,
+          "type": "literal_assignment",
+          "value": 0.35
+        },
+        {
+          "result": "recovery_rate",
+          "line": 44,
+          "type": "execution_assignment",
+          "function": "divide",
+          "args": [1, 14]
+        },
+        {
+          "type": "return_statement",
+          "value": {
+            "function": "SirModel",
+            "args": [
+              {
+                "function": "subtract",
+                "args": ["population", "initial_infected"]
+              },
+              "initial_infected",
+              0,
+              "transmission_rate",
+              "recovery_rate",
+              120,
+              1.0
+            ],
+            "line": 49
+          },
+          "line": -1
+        }
+      ],
+      "discovered_body": {
+        "population": {
+          "name": "population",
+          "line": 39,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "initial_infected": {
+          "name": "initial_infected",
+          "line": 40,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "transmission_rate": {
+          "name": "transmission_rate",
+          "line": 43,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        },
+        "recovery_rate": {
+          "name": "recovery_rate",
+          "line": 44,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
+          "inferred_type": "scalar",
+          "is_stochastic": false
+        }
+      },
+      "is_stochastic": false
+    },
     "calculate_tax": {
       "name": "calculate_tax",
       "params": [
@@ -130,12 +425,24 @@
           "args": ["income", 100000]
         },
         {
-          "result": "tax_rate",
+          "result": "is_medium_income",
           "line": 58,
+          "type": "execution_assignment",
+          "function": "__gt__",
+          "args": ["income", 70000]
+        },
+        {
+          "result": "tax_rate",
+          "line": 59,
           "type": "conditional_expression",
           "condition": "is_high_income",
           "then_expr": 0.4,
-          "else_expr": 0.25
+          "else_expr": {
+            "type": "conditional_expression",
+            "condition": "is_medium_income",
+            "then_expr": 0.3,
+            "else_expr": 0.2
+          }
         },
         {
           "type": "return_statement",
@@ -154,9 +461,16 @@
           "inferred_type": "boolean",
           "is_stochastic": false
         },
+        "is_medium_income": {
+          "name": "is_medium_income",
+          "line": 58,
+          "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs",
+          "inferred_type": "boolean",
+          "is_stochastic": false
+        },
         "tax_rate": {
           "name": "tax_rate",
-          "line": 58,
+          "line": 59,
           "source_path": "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs",
           "inferred_type": "scalar",
           "is_stochastic": false
@@ -258,6 +572,26 @@
       "inferred_type": "scalar",
       "is_stochastic": true
     },
+    "op1": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "op2": {
+      "inferred_type": "scalar",
+      "is_stochastic": false
+    },
+    "sir1": {
+      "inferred_type": "vector",
+      "is_stochastic": false
+    },
+    "sir2": {
+      "inferred_type": "vector",
+      "is_stochastic": false
+    },
+    "sir3": {
+      "inferred_type": "vector",
+      "is_stochastic": false
+    },
     "income_after_tax": {
       "inferred_type": "scalar",
       "is_stochastic": true
@@ -272,8 +606,8 @@
     }
   },
   "processed_files": [
-    "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs",
-    "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs"
+    "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs",
+    "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/module.vs"
   ],
   "processed_asts": {
     "/Users/alessiomarcuzzi/Desktop/models/manual_test_boolean/main.vs": {
@@ -295,7 +629,7 @@
           "type": "directive",
           "name": "output",
           "value": "final_project_value",
-          "line": 76
+          "line": 82
         }
       ],
       "execution_steps": [
@@ -396,7 +730,8 @@
           "type": "literal_assignment",
           "value": {
             "_is_vector_literal": true,
-            "items": [100, 120, 150]
+            "items": [100, 120, 150],
+            "line": 39
           }
         },
         {
@@ -405,7 +740,8 @@
           "type": "literal_assignment",
           "value": {
             "_is_vector_literal": true,
-            "items": [80, 85, 90]
+            "items": [80, 85, 90],
+            "line": 40
           }
         },
         {
@@ -446,7 +782,7 @@
         },
         {
           "result": "stochastic_income",
-          "line": 62,
+          "line": 63,
           "type": "execution_assignment",
           "function": "add",
           "args": [
@@ -454,41 +790,63 @@
             {
               "function": "Normal",
               "args": [5000, 2000],
-              "line": 62
+              "line": 63
             }
           ]
         },
         {
           "result": "tax_due",
-          "line": 63,
+          "line": 64,
           "type": "execution_assignment",
           "function": "calculate_tax",
           "args": ["stochastic_income"]
         },
         {
           "results": ["a", "b"],
-          "line": 65,
+          "line": 66,
           "type": "multi_assignment",
           "function": "CapitalizeExpenses",
           "args": [
             110,
             {
               "_is_vector_literal": true,
-              "items": [100, 90, 80]
+              "items": [100, 90, 80],
+              "line": 66
             },
             3
           ]
         },
         {
           "results": ["c", "d"],
-          "line": 67,
+          "line": 68,
           "type": "multi_assignment",
           "function": "get_rd",
           "args": []
         },
         {
+          "result": "op1",
+          "line": 70,
+          "type": "execution_assignment",
+          "function": "get_option1",
+          "args": ["call"]
+        },
+        {
+          "result": "op2",
+          "line": 71,
+          "type": "execution_assignment",
+          "function": "get_option2",
+          "args": ["put"]
+        },
+        {
+          "results": ["sir1", "sir2", "sir3"],
+          "line": 73,
+          "type": "multi_assignment",
+          "function": "get_sir",
+          "args": []
+        },
+        {
           "result": "income_after_tax",
-          "line": 69,
+          "line": 75,
           "type": "execution_assignment",
           "function": "add",
           "args": [
@@ -497,25 +855,40 @@
               "args": ["stochastic_income", "tax_due"]
             },
             "b",
-            "c"
+            "c",
+            "op1",
+            "op2",
+            {
+              "function": "GetElement",
+              "args": ["sir1", 0]
+            }
           ]
         },
         {
           "result": "discount_rate",
-          "line": 73,
+          "line": 79,
           "type": "literal_assignment",
           "value": 0.08
         },
         {
           "result": "final_project_value",
-          "line": 74,
+          "line": 80,
           "type": "execution_assignment",
-          "function": "divide",
+          "function": "multiply",
           "args": [
-            "income_after_tax",
             {
-              "function": "add",
-              "args": [1, "discount_rate"]
+              "function": "divide",
+              "args": [
+                "income_after_tax",
+                {
+                  "function": "add",
+                  "args": [1, "discount_rate"]
+                }
+              ]
+            },
+            {
+              "function": "subtract",
+              "args": [1, "risk_premium"]
             }
           ]
         }
@@ -540,12 +913,24 @@
               "args": ["income", 100000]
             },
             {
-              "result": "tax_rate",
+              "result": "is_medium_income",
               "line": 58,
+              "type": "execution_assignment",
+              "function": "__gt__",
+              "args": ["income", 70000]
+            },
+            {
+              "result": "tax_rate",
+              "line": 59,
               "type": "conditional_expression",
               "condition": "is_high_income",
               "then_expr": 0.4,
-              "else_expr": 0.25
+              "else_expr": {
+                "type": "conditional_expression",
+                "condition": "is_medium_income",
+                "then_expr": 0.3,
+                "else_expr": 0.2
+              }
             },
             {
               "type": "return_statement",
@@ -617,7 +1002,8 @@
               "type": "literal_assignment",
               "value": {
                 "_is_vector_literal": true,
-                "items": [49326, 45427, 39500]
+                "items": [49326, 45427, 39500],
+                "line": 7
               }
             },
             {
@@ -639,6 +1025,186 @@
           ],
           "docstring": null,
           "line": 3
+        },
+        {
+          "type": "function_definition",
+          "name": "get_option1",
+          "params": [
+            {
+              "name": "type",
+              "type": "string"
+            }
+          ],
+          "return_type": "scalar",
+          "body": [
+            {
+              "result": "spot_price",
+              "line": 15,
+              "type": "literal_assignment",
+              "value": 100
+            },
+            {
+              "result": "strike_price",
+              "line": 16,
+              "type": "literal_assignment",
+              "value": 105
+            },
+            {
+              "result": "risk_free_rate",
+              "line": 17,
+              "type": "literal_assignment",
+              "value": 0.05
+            },
+            {
+              "result": "time",
+              "line": 18,
+              "type": "literal_assignment",
+              "value": 1
+            },
+            {
+              "result": "vol",
+              "line": 19,
+              "type": "literal_assignment",
+              "value": 0.2
+            },
+            {
+              "result": "option_price",
+              "line": 22,
+              "type": "execution_assignment",
+              "function": "BlackScholes",
+              "args": [
+                "spot_price",
+                "strike_price",
+                "risk_free_rate",
+                "time",
+                "vol",
+                "type"
+              ]
+            },
+            {
+              "type": "return_statement",
+              "value": "option_price",
+              "line": 23
+            }
+          ],
+          "docstring": null,
+          "line": 14
+        },
+        {
+          "type": "function_definition",
+          "name": "get_option2",
+          "params": [
+            {
+              "name": "type",
+              "type": "string"
+            }
+          ],
+          "return_type": "scalar",
+          "body": [
+            {
+              "result": "spot_price",
+              "line": 27,
+              "type": "literal_assignment",
+              "value": 100
+            },
+            {
+              "result": "strike_price",
+              "line": 28,
+              "type": "literal_assignment",
+              "value": 105
+            },
+            {
+              "result": "risk_free_rate",
+              "line": 29,
+              "type": "literal_assignment",
+              "value": 0.05
+            },
+            {
+              "result": "time",
+              "line": 30,
+              "type": "literal_assignment",
+              "value": 1
+            },
+            {
+              "result": "vol",
+              "line": 31,
+              "type": "literal_assignment",
+              "value": 0.2
+            },
+            {
+              "type": "return_statement",
+              "value": {
+                "function": "BlackScholes",
+                "args": [
+                  "spot_price",
+                  "strike_price",
+                  "risk_free_rate",
+                  "time",
+                  "vol",
+                  "type"
+                ],
+                "line": 34
+              },
+              "line": -1
+            }
+          ],
+          "docstring": null,
+          "line": 26
+        },
+        {
+          "type": "function_definition",
+          "name": "get_sir",
+          "params": [],
+          "return_type": ["vector", "vector", "vector"],
+          "body": [
+            {
+              "result": "population",
+              "line": 39,
+              "type": "literal_assignment",
+              "value": 1000000
+            },
+            {
+              "result": "initial_infected",
+              "line": 40,
+              "type": "literal_assignment",
+              "value": 10
+            },
+            {
+              "result": "transmission_rate",
+              "line": 43,
+              "type": "literal_assignment",
+              "value": 0.35
+            },
+            {
+              "result": "recovery_rate",
+              "line": 44,
+              "type": "execution_assignment",
+              "function": "divide",
+              "args": [1, 14]
+            },
+            {
+              "type": "return_statement",
+              "value": {
+                "function": "SirModel",
+                "args": [
+                  {
+                    "function": "subtract",
+                    "args": ["population", "initial_infected"]
+                  },
+                  "initial_infected",
+                  0,
+                  "transmission_rate",
+                  "recovery_rate",
+                  120,
+                  1.0
+                ],
+                "line": 49
+              },
+              "line": -1
+            }
+          ],
+          "docstring": null,
+          "line": 37
         }
       ]
     }
@@ -942,6 +1508,50 @@
         "returns": "A tuple of three vectors: (susceptible, infected, recovered) over time."
       }
     },
+    "Npv": {
+      "variadic": false,
+      "arg_types": ["scalar", "vector"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the Net Present Value (Npv) of a series of cash flows.",
+        "params": [
+          {
+            "name": "rate",
+            "desc": "The discount rate per period."
+          },
+          {
+            "name": "cashflows",
+            "desc": "A vector of cash flows."
+          }
+        ],
+        "returns": "The Npv as a scalar."
+      }
+    },
+    "CapitalizeExpenses": {
+      "variadic": false,
+      "arg_types": ["scalar", "vector", "scalar"],
+      "return_type": ["scalar", "scalar"],
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the value of capitalized assets (e.g., R&D) and the amortization for the current year.",
+        "params": [
+          {
+            "name": "current_expense",
+            "desc": "The expense in the current period."
+          },
+          {
+            "name": "past_expenses",
+            "desc": "A vector of expenses from prior periods, oldest first."
+          },
+          {
+            "name": "amortization_period",
+            "desc": "The number of years over which the expense is amortized."
+          }
+        ],
+        "returns": "The total capitalized asset value (scalar) and the amortization for the current year (scalar)."
+      }
+    },
     "BlackScholes": {
       "variadic": false,
       "arg_types": ["scalar", "scalar", "scalar", "scalar", "scalar", "string"],
@@ -1022,74 +1632,6 @@
         "returns": "The column data as a new vector."
       }
     },
-    "ComposeVector": {
-      "variadic": true,
-      "arg_types": ["any"],
-      "return_type": "vector",
-      "is_stochastic": false,
-      "doc": {
-        "summary": "Creates a new vector from a series of values.",
-        "params": [
-          {
-            "name": "value1, value2, ...",
-            "desc": "The values to include in the vector. Input vectors will be flattened."
-          }
-        ],
-        "returns": "A new vector."
-      }
-    },
-    "SumVector": {
-      "variadic": false,
-      "arg_types": ["vector"],
-      "return_type": "scalar",
-      "is_stochastic": false,
-      "doc": {
-        "summary": "Calculates the sum of all elements in a vector.",
-        "params": [
-          {
-            "name": "vector",
-            "desc": "The input vector."
-          }
-        ],
-        "returns": "The sum as a scalar."
-      }
-    },
-    "VectorDelta": {
-      "variadic": false,
-      "arg_types": ["vector"],
-      "return_type": "vector",
-      "is_stochastic": false,
-      "doc": {
-        "summary": "Calculates the period-over-period change for a vector.",
-        "params": [
-          {
-            "name": "vector",
-            "desc": "The input vector."
-          }
-        ],
-        "returns": "A new vector of the differences, with one fewer element."
-      }
-    },
-    "Npv": {
-      "variadic": false,
-      "arg_types": ["scalar", "vector"],
-      "return_type": "scalar",
-      "is_stochastic": false,
-      "doc": {
-        "summary": "Calculates the Net Present Value (Npv) of a series of cash flows.",
-        "params": [
-          {
-            "name": "rate",
-            "desc": "The discount rate per period."
-          },
-          {
-            "name": "cashflows",
-            "desc": "A vector of cash flows."
-          }
-        ],
-        "returns": "The Npv as a scalar."
-      }
-    },
     "CompoundSerie": {
       "variadic": false,
       "arg_types": ["scalar", "vector"],
@@ -1108,46 +1650,6 @@
           }
         ],
         "returns": "A new vector of compounded values."
-      }
-    },
-    "GetElement": {
-      "variadic": false,
-      "arg_types": ["vector", "scalar"],
-      "return_type": "scalar",
-      "is_stochastic": false,
-      "doc": {
-        "summary": "Retrieves an element from a vector at a specific index.",
-        "params": [
-          {
-            "name": "vector",
-            "desc": "The source vector."
-          },
-          {
-            "name": "index",
-            "desc": "The zero-based index of the element. Negative indices count from the end."
-          }
-        ],
-        "returns": "The element at the specified index as a scalar."
-      }
-    },
-    "DeleteElement": {
-      "variadic": false,
-      "arg_types": ["vector", "scalar"],
-      "return_type": "vector",
-      "is_stochastic": false,
-      "doc": {
-        "summary": "Returns a new vector with the element at the specified index removed.",
-        "params": [
-          {
-            "name": "vector",
-            "desc": "The source vector."
-          },
-          {
-            "name": "index",
-            "desc": "The zero-based index of the element to remove. Negative indices count from the end."
-          }
-        ],
-        "returns": "A new vector with the element removed."
       }
     },
     "GrowSerie": {
@@ -1196,30 +1698,6 @@
           }
         ],
         "returns": "A new vector with the interpolated values."
-      }
-    },
-    "CapitalizeExpenses": {
-      "variadic": false,
-      "arg_types": ["scalar", "vector", "scalar"],
-      "return_type": ["scalar", "scalar"],
-      "is_stochastic": false,
-      "doc": {
-        "summary": "Calculates the value of capitalized assets (e.g., R&D) and the amortization for the current year.",
-        "params": [
-          {
-            "name": "current_expense",
-            "desc": "The expense in the current period."
-          },
-          {
-            "name": "past_expenses",
-            "desc": "A vector of expenses from prior periods, oldest first."
-          },
-          {
-            "name": "amortization_period",
-            "desc": "The number of years over which the expense is amortized."
-          }
-        ],
-        "returns": "The total capitalized asset value (scalar) and the amortization for the current year (scalar)."
       }
     },
     "Normal": {
@@ -1366,11 +1844,117 @@
         "returns": "A random scalar sample."
       }
     },
+    "ComposeVector": {
+      "variadic": true,
+      "arg_types": ["any"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Creates a new vector from a series of values.",
+        "params": [
+          {
+            "name": "value1, value2, ...",
+            "desc": "The values to include in the vector. Input vectors will be flattened."
+          }
+        ],
+        "returns": "A new vector."
+      }
+    },
+    "SumVector": {
+      "variadic": false,
+      "arg_types": ["vector"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the sum of all elements in a vector.",
+        "params": [
+          {
+            "name": "vector",
+            "desc": "The input vector."
+          }
+        ],
+        "returns": "The sum as a scalar."
+      }
+    },
+    "VectorDelta": {
+      "variadic": false,
+      "arg_types": ["vector"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Calculates the period-over-period change for a vector.",
+        "params": [
+          {
+            "name": "vector",
+            "desc": "The input vector."
+          }
+        ],
+        "returns": "A new vector of the differences, with one fewer element."
+      }
+    },
+    "GetElement": {
+      "variadic": false,
+      "arg_types": ["vector", "scalar"],
+      "return_type": "scalar",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Retrieves an element from a vector at a specific index.",
+        "params": [
+          {
+            "name": "vector",
+            "desc": "The source vector."
+          },
+          {
+            "name": "index",
+            "desc": "The zero-based index of the element. Negative indices count from the end."
+          }
+        ],
+        "returns": "The element at the specified index as a scalar."
+      }
+    },
+    "DeleteElement": {
+      "variadic": false,
+      "arg_types": ["vector", "scalar"],
+      "return_type": "vector",
+      "is_stochastic": false,
+      "doc": {
+        "summary": "Returns a new vector with the element at the specified index removed.",
+        "params": [
+          {
+            "name": "vector",
+            "desc": "The source vector."
+          },
+          {
+            "name": "index",
+            "desc": "The zero-based index of the element to remove. Negative indices count from the end."
+          }
+        ],
+        "returns": "A new vector with the element removed."
+      }
+    },
     "get_rd": {
       "variadic": false,
       "arg_types": [],
       "return_type": ["scalar", "scalar"],
       "is_stochastic": true
+    },
+    "get_option1": {
+      "variadic": false,
+      "arg_types": ["string"],
+      "return_type": "scalar",
+      "is_stochastic": false
+    },
+    "get_option2": {
+      "variadic": false,
+      "arg_types": ["string"],
+      "return_type": "scalar",
+      "is_stochastic": false
+    },
+    "get_sir": {
+      "variadic": false,
+      "arg_types": [],
+      "return_type": ["vector", "vector", "vector"],
+      "is_stochastic": false
     },
     "calculate_tax": {
       "variadic": false,

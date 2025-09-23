@@ -1,0 +1,244 @@
+{
+  "pre_trial_steps": [
+    {
+      "type": "execution_assignment",
+      "result": ["a", "b"],
+      "function": "CapitalizeExpenses",
+      "args": [110, [100, 90, 80], 3],
+      "line": 66
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["op1"],
+      "function": "BlackScholes",
+      "args": [100, 105, 0.05, 1, 0.2, "call"],
+      "line": 22
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["op2"],
+      "function": "BlackScholes",
+      "args": [100, 105, 0.05, 1, 0.2, "put"],
+      "line": 71
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__temp_lifted_1", "__temp_lifted_2", "__temp_lifted_3"],
+      "function": "SirModel",
+      "args": [999990, 10, 0, 0.35, 0.07142857142857142, 120, 1.0],
+      "line": 73
+    },
+    {
+      "type": "copy",
+      "result": ["sir1", "sir2", "sir3"],
+      "source": ["__temp_lifted_1", "__temp_lifted_2", "__temp_lifted_3"],
+      "line": 73
+    }
+  ],
+  "per_trial_steps": [
+    {
+      "type": "execution_assignment",
+      "result": ["project_succeeds"],
+      "function": "Bernoulli",
+      "args": [0.75],
+      "line": 32
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__temp_lifted_4"],
+      "function": "__eq__",
+      "args": ["project_succeeds", 1.0],
+      "line": 36
+    },
+    {
+      "type": "jump_if_false",
+      "condition": "__temp_lifted_4",
+      "target": "__else_label_0",
+      "line": 36
+    },
+    {
+      "type": "literal_assignment",
+      "result": ["project_cash_flow"],
+      "value": 500000,
+      "line": 36
+    },
+    {
+      "type": "jump",
+      "target": "__end_label_1",
+      "line": 36
+    },
+    {
+      "type": "label",
+      "name": "__else_label_0",
+      "line": 36
+    },
+    {
+      "type": "literal_assignment",
+      "result": ["project_cash_flow"],
+      "value": 20000,
+      "line": 36
+    },
+    {
+      "type": "label",
+      "name": "__end_label_1",
+      "line": 36
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__temp_lifted_5"],
+      "function": "Normal",
+      "args": [5000, 2000],
+      "line": 63
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["stochastic_income"],
+      "function": "add",
+      "args": ["project_cash_flow", "__temp_lifted_5"],
+      "line": 63
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__calculate_tax_1__is_high_income"],
+      "function": "__gt__",
+      "args": ["stochastic_income", 100000],
+      "line": 57
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__calculate_tax_1__is_medium_income"],
+      "function": "__gt__",
+      "args": ["stochastic_income", 70000],
+      "line": 58
+    },
+    {
+      "type": "jump_if_false",
+      "condition": "__calculate_tax_1__is_medium_income",
+      "target": "__else_label_2",
+      "line": 59
+    },
+    {
+      "type": "literal_assignment",
+      "result": ["__temp_lifted_6"],
+      "value": 0.3,
+      "line": 59
+    },
+    {
+      "type": "jump",
+      "target": "__end_label_3",
+      "line": 59
+    },
+    {
+      "type": "label",
+      "name": "__else_label_2",
+      "line": 59
+    },
+    {
+      "type": "literal_assignment",
+      "result": ["__temp_lifted_6"],
+      "value": 0.2,
+      "line": 59
+    },
+    {
+      "type": "label",
+      "name": "__end_label_3",
+      "line": 59
+    },
+    {
+      "type": "jump_if_false",
+      "condition": "__calculate_tax_1__is_high_income",
+      "target": "__else_label_4",
+      "line": 59
+    },
+    {
+      "type": "literal_assignment",
+      "result": ["__calculate_tax_1__tax_rate"],
+      "value": 0.4,
+      "line": 59
+    },
+    {
+      "type": "jump",
+      "target": "__end_label_5",
+      "line": 59
+    },
+    {
+      "type": "label",
+      "name": "__else_label_4",
+      "line": 59
+    },
+    {
+      "type": "copy",
+      "result": ["__calculate_tax_1__tax_rate"],
+      "source": "__temp_lifted_6",
+      "line": 59
+    },
+    {
+      "type": "label",
+      "name": "__end_label_5",
+      "line": 59
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["tax_due"],
+      "function": "multiply",
+      "args": ["stochastic_income", "__calculate_tax_1__tax_rate"],
+      "line": 64
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__get_rd_1__a"],
+      "function": "Normal",
+      "args": [1000, 100],
+      "line": 5
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__get_rd_1__current_expense"],
+      "function": "add",
+      "args": [52927, "__get_rd_1__a"],
+      "line": 6
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["c", "d"],
+      "function": "CapitalizeExpenses",
+      "args": ["__get_rd_1__current_expense", [49326, 45427, 39500], 3],
+      "line": 9
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__temp_lifted_7"],
+      "function": "subtract",
+      "args": ["stochastic_income", "tax_due"],
+      "line": 75
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__temp_lifted_8"],
+      "function": "GetElement",
+      "args": ["sir1", 0],
+      "line": 75
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["income_after_tax"],
+      "function": "add",
+      "args": ["__temp_lifted_7", "b", "c", "op1", "op2", "__temp_lifted_8"],
+      "line": 75
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__temp_lifted_9"],
+      "function": "divide",
+      "args": ["income_after_tax", 1.08],
+      "line": 80
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["final_project_value"],
+      "function": "multiply",
+      "args": ["__temp_lifted_9", 0.95],
+      "line": 80
+    }
+  ]
+}
