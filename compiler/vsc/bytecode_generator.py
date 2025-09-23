@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 from .bytecode_generation.resource_allocator import ResourceAllocator
 from .bytecode_generation.ir_lowerer import IRLowerer
@@ -41,16 +41,22 @@ class BytecodeGenerator:
         self.registries = allocator.allocate()
         return self.registries
 
-    def run_phase_b_ir_lowering(self) -> Dict[str, List[Dict[str, Any]]]:
+    def run_phase_b_ir_lowering(self) -> Tuple[Dict, Dict]:
         """
         PHASE 8b: Converts the high-level IR into a flat, linear sequence of
-        simple, machine-like operations.
+        simple, machine-like operations. Returns the lowered IR and the
+        updated registries.
         """
-        # This phase consumes the registries from 8a and modifies them in place
-        # as it discovers new temporary variables during expression lifting.
         lowerer = IRLowerer(self.partitioned_ir, self.registries, self.model)
-        self.lowered_ir = lowerer.lower()
-        return self.lowered_ir
+
+        # The lowerer returns the new IR and the enriched registries
+        self.lowered_ir, self.registries = lowerer.lower()
+
+        # Return a combined artifact for the pipeline orchestrator
+        return {
+            "lowered_ir": self.lowered_ir,
+            "registries": self.registries,
+        }
 
     def run_phase_c_code_emission(self) -> Dict[str, List[Dict[str, Any]]]:
         """

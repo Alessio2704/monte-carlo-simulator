@@ -27,15 +27,23 @@ class IRLowerer:
         # Build a complete signature map for quick type lookups
         self.signatures = model.get("all_signatures", {})
 
-    def lower(self) -> Dict[str, List[Dict[str, Any]]]:
+    def lower(self) -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, Any]]:
         """
         Runs the full lowering pipeline on both the pre-trial and per-trial
         partitions of the IR.
+
+        Returns:
+            A tuple containing:
+            - The new, lowered IR dictionary.
+            - The updated registries dictionary, now including any new
+              temporary variables created during lifting.
         """
         lowered_pre_trial = self._lower_ir_list(self.partitioned_ir.get("pre_trial_steps", []))
         lowered_per_trial = self._lower_ir_list(self.partitioned_ir.get("per_trial_steps", []))
 
-        return {"pre_trial_steps": lowered_pre_trial, "per_trial_steps": lowered_per_trial}
+        lowered_ir = {"pre_trial_steps": lowered_pre_trial, "per_trial_steps": lowered_per_trial}
+
+        return lowered_ir, self.registries
 
     def _lower_ir_list(self, ir_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Orchestrates the two lowering sub-phases for a single list of instructions."""

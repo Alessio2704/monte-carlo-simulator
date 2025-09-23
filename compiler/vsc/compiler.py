@@ -72,7 +72,7 @@ class CompilationPipeline:
 
         # --- Stage 4: Semantic Validation ---
         validated_model = self._run_stage("semantic_validation", validate_semantics, enriched_symbol_table)
-        self.model = validated_model  # Store the final model for later stages
+        self.model = validated_model
         if self.stop_after_stage == "semantic_validation":
             return validated_model
 
@@ -124,7 +124,7 @@ class CompilationPipeline:
             "tuple_forwarding": run_tuple_forwarding,
             "alias_resolver": run_alias_resolver,
             "constant_folding": run_constant_folding,
-            "dead_code_elimination": lambda ir_arg: run_dce(ir_arg, model),  # DCE requires the model
+            "dead_code_elimination": lambda ir_arg: run_dce(ir_arg, model),
         }
 
         for name, func in phases.items():
@@ -158,12 +158,31 @@ class CompilationPipeline:
         for name, phase_func in phases.items():
             # We use _run_stage to handle artifact saving and error wrapping.
             artifact = self._run_stage(name, phase_func)
+
+            # The artifact for 8b is now a dictionary containing both the
+            # lowered IR and the updated registries.
+            if name == "bytecode_ir_lowering":
+                # We need to validate the IR *inside* the combined artifact
+                if "lowered_ir" in artifact:
+                    self._validate_ir_partition(artifact["lowered_ir"], "bytecode_ir_lowering")
+
             bytecode_artifacts[name] = artifact
 
             if self.stop_after_stage == name:
                 break
 
         return bytecode_artifacts
+
+    def _validate_ir_partition(self, result: Dict, stage_name: str):
+        """Helper to validate a partitioned IR structure."""
+        if isinstance(result, dict) and "pre_trial_steps" in result:
+            pre_trial_validator = IRValidator(result.get("pre_trial_steps", []))
+            pre_trial_validator.validate()
+
+            per_trial_validator = IRValidator(result.get("per_trial_steps", []))
+            # Prime the per-trial validator with variables defined in the pre-trial phase
+            per_trial_validator.defined_vars = pre_trial_validator.defined_vars.copy()
+            per_trial_validator.validate()
 
     def _run_stage(self, stage_name: str, stage_func, *args, **kwargs):
         """
@@ -180,23 +199,10 @@ class CompilationPipeline:
             result = stage_func(*args, **kwargs)
             self.artifacts[stage_name] = result
 
-            if stage_name.startswith("ir") or stage_name in [
-                "copy_propagation",
-                "tuple_forwarding",
-                "alias_resolver",
-                "constant_folding",
-                "dead_code_elimination",
-                "bytecode_ir_lowering",
-                "ir_partitioning",
-            ]:
-                if isinstance(result, dict) and "pre_trial_steps" in result:
-                    pre_trial_validator = IRValidator(result.get("pre_trial_steps", []))
-                    pre_trial_validator.validate()
-                    per_trial_validator = IRValidator(result.get("per_trial_steps", []))
-                    per_trial_validator.defined_vars = pre_trial_validator.defined_vars.copy()
-                    per_trial_validator.validate()
-                elif isinstance(result, list):
-                    self._validate_ir(result, stage_name)
+            if stage_name.startswith("ir") or stage_name in ["copy_propagation", "tuple_forwarding", "alias_resolver", "constant_folding", "dead_code_elimination", "ir_partitioning"]:
+                self._validate_ir_partition(result, stage_name)
+            elif isinstance(result, list):
+                self._validate_ir(result, stage_name)
 
             if stage_name in self.dump_stages:
                 self.save_artifact(stage_name, result)
