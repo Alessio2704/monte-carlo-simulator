@@ -1,5 +1,6 @@
 import re
 from typing import Dict, Any, List, Set
+from ..parser import _StringLiteral
 
 
 class ResourceAllocator:
@@ -25,10 +26,10 @@ class ResourceAllocator:
         return {"variable_registries": self.variable_registries, "variable_map": self.variable_map, "constant_pools": self.constant_pools, "constant_map": self.constant_map}
 
     def _is_constant_node(self, node: Any) -> bool:
-        if isinstance(node, (int, float, bool)):
+        if isinstance(node, (int, float, bool, _StringLiteral)):
             return True
         if isinstance(node, str):
-            return False
+            return False  # A raw string is a variable name
         if isinstance(node, dict):
             return False
         if isinstance(node, list):
@@ -40,8 +41,9 @@ class ResourceAllocator:
             return f"s_{float(literal)}"
         if isinstance(literal, bool):
             return f"b_{str(literal).lower()}"
-        if isinstance(literal, str):
-            return f"str_{literal}"
+        if isinstance(literal, (_StringLiteral, str)):
+            val = literal.value if isinstance(literal, _StringLiteral) else literal
+            return f"str_{val}"
         if isinstance(literal, list):
             return f"v_{'_'.join([self._get_canonical_key(item) for item in literal])}"
         return ""
@@ -63,14 +65,23 @@ class ResourceAllocator:
                 pool.append(node)
             return
 
+        if isinstance(node, _StringLiteral):
+            key = self._get_canonical_key(node.value)
+            if key not in self.constant_map:
+                pool = self.constant_pools["STRING"]
+                self.constant_map[key] = {"type": "STRING", "index": len(pool)}
+                pool.append(node.value)
+            return
+
         if isinstance(node, list):
             if self._is_constant_node(node):
                 key = self._get_canonical_key(node)
                 if key not in self.constant_map:
                     pool = self.constant_pools["VECTOR"]
                     self.constant_map[key] = {"type": "VECTOR", "index": len(pool)}
-                    pool.append(node)
-                    # Once a vector is registered, we do NOT recurse into it.
+                    # Ensure we unwrap any _StringLiteral objects before adding to the final pool
+                    unwrapped_list = [item.value if isinstance(item, _StringLiteral) else item for item in node]
+                    pool.append(unwrapped_list)
                     return
 
             for item in node:
@@ -78,38 +89,20 @@ class ResourceAllocator:
             return
 
         if isinstance(node, dict):
-            # A list of variables passed to an identity function is for tuple
-            # forwarding and should not be treated as a constant.
             if node.get("function") == "identity":
                 return
 
             for arg in node.get("args", []):
                 self._find_literals_in_expression(arg)
-            for key in ["condition", "then_expr", "else_expr"]:
+            for key in ["condition", "then_expr", "else_expr", "value"]:
                 if key in node:
                     self._find_literals_in_expression(node[key])
             return
 
     def _allocate_constants(self):
+        """Unified constant allocation by scanning every part of every instruction."""
         for step in self.full_ir:
-            step_type = step.get("type")
-            if step_type == "literal_assignment":
-                value = step.get("value")
-                if isinstance(value, str):
-                    key = self._get_canonical_key(value)
-                    if key not in self.constant_map:
-                        pool = self.constant_pools["STRING"]
-                        self.constant_map[key] = {"type": "STRING", "index": len(pool)}
-                        pool.append(value)
-                else:
-                    self._find_literals_in_expression(value)
-            elif step_type == "execution_assignment":
-                for arg in step.get("args", []):
-                    self._find_literals_in_expression(arg)
-            elif step_type == "conditional_assignment":
-                self._find_literals_in_expression(step.get("condition"))
-                self._find_literals_in_expression(step.get("then_expr"))
-                self._find_literals_in_expression(step.get("else_expr"))
+            self._find_literals_in_expression(step)
 
     def _get_variable_type_from_model(self, var_name: str) -> str:
         mangled_match = re.match(r"^__(.+)_[0-9]+__(.+)$", var_name)

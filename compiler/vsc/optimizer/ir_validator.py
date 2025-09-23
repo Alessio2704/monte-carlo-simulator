@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Set
+from ..parser import _StringLiteral
 
 
 class IRValidationError(Exception):
@@ -52,6 +53,9 @@ class IRValidator:
         """
         used = set()
 
+        if isinstance(node, _StringLiteral):
+            return used  # This is a literal value, not a variable.
+
         if isinstance(node, str):
             used.add(node)
             return used
@@ -65,16 +69,16 @@ class IRValidator:
             return used
 
         if isinstance(node, dict):
-            # For literal assignments, the 'value' is not a variable.
             if node.get("type") == "literal_assignment":
-                return used  # Do not scan the 'value' field.
+                # Only check the value if it's not a string literal
+                if not isinstance(node.get("value"), (_StringLiteral, str)):
+                    used.update(self._find_used_variables(node.get("value")))
+                return used
 
             keys_with_inputs = ["args", "condition", "then_expr", "else_expr", "value", "source"]
-
             for key in keys_with_inputs:
                 if key in node:
                     used.update(self._find_used_variables(node[key]))
-
             return used
 
         return used

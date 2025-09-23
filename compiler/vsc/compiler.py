@@ -136,7 +136,6 @@ class CompilationPipeline:
 
         return optimization_artifacts
 
-    # --- Helper to run the new bytecode generation pipeline ---
     def _run_bytecode_phases(self, partitioned_ir: Dict[str, Any], model: Dict[str, Any]) -> Dict[str, Any]:
         """
         Helper to run the bytecode generation pipeline, storing the artifact
@@ -181,18 +180,26 @@ class CompilationPipeline:
             result = stage_func(*args, **kwargs)
             self.artifacts[stage_name] = result
 
-            # Validate the output if it's an IR-producing stage
-            if stage_name.startswith("ir") or stage_name in ["copy_propagation", "tuple_forwarding", "alias_resolver", "constant_folding", "dead_code_elimination", "bytecode_ir_lowering"]:
-                # For partitioned IR, validate each partition
+            if stage_name.startswith("ir") or stage_name in [
+                "copy_propagation",
+                "tuple_forwarding",
+                "alias_resolver",
+                "constant_folding",
+                "dead_code_elimination",
+                "bytecode_ir_lowering",
+                "ir_partitioning",
+            ]:
                 if isinstance(result, dict) and "pre_trial_steps" in result:
-                    self._validate_ir(result.get("pre_trial_steps", []), stage_name)
-                    self._validate_ir(result.get("per_trial_steps", []), stage_name)
+                    pre_trial_validator = IRValidator(result.get("pre_trial_steps", []))
+                    pre_trial_validator.validate()
+                    per_trial_validator = IRValidator(result.get("per_trial_steps", []))
+                    per_trial_validator.defined_vars = pre_trial_validator.defined_vars.copy()
+                    per_trial_validator.validate()
                 elif isinstance(result, list):
                     self._validate_ir(result, stage_name)
 
             if stage_name in self.dump_stages:
                 self.save_artifact(stage_name, result)
-
             return result
 
         except ValuaScriptError as e:

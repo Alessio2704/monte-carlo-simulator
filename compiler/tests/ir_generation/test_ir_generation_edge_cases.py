@@ -261,3 +261,41 @@ def test_ir_for_udf_returning_builtin_call(tmp_path):
         "args": [{"function": "Normal", "args": [0, 1]}],
         "line": 6,
     }
+
+
+def test_ir_for_udf_with_string_literal_argument(tmp_path):
+    """
+    Tests that passing a string literal to a UDF does not cause a validation
+    error, proving that the literal is not mistaken for a variable.
+    This is a regression test for the 'call' bug.
+    """
+    script = """
+    @iterations=1
+    @output=op1
+
+    func get_option1(type: string) -> scalar {
+        let spot_price = 100
+        let strike_price = 105
+        let risk_free_rate = 0.05
+        let time = 1
+        let vol = 0.2
+        let option_price = BlackScholes(spot_price, strike_price, risk_free_rate, time, vol, type)
+        return option_price
+    }
+
+    let op1 = get_option1("call")
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+
+    # The test passes if run_ir_pipeline_with_validation does not raise an exception.
+    ir = run_ir_generation_pipeline(script, file_path)
+
+    # Optional: We can also assert something about the generated IR
+    # to ensure the literal was handled correctly.
+    param_passing_step = next((step for step in ir if step["result"] == ["__get_option1_1__type"]), None)
+    assert param_passing_step is not None, "Could not find the parameter passing step in the IR"
+
+    from vsc.parser import _StringLiteral
+
+    assert isinstance(param_passing_step["args"][0], _StringLiteral), "Argument should be a _StringLiteral"
+    assert param_passing_step["args"][0].value == "call", "String literal value is incorrect"

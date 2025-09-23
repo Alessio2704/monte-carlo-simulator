@@ -29,6 +29,15 @@ class _StringLiteral:
     def __repr__(self):
         return f'StringLiteral("{self.value}")'
 
+    def __eq__(self, other):
+        """
+        Custom equality check. This is critical for optimization passes
+        that use deepcopy and value comparison to detect changes.
+        """
+        if not isinstance(other, _StringLiteral):
+            return NotImplemented
+        return self.value == other.value
+
 
 class ValuaScriptTransformer(Transformer):
     """

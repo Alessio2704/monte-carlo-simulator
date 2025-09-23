@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 # The module we are testing
 from vsc.bytecode_generation.resource_allocator import ResourceAllocator
+from vsc.parser import _StringLiteral
 
 # --- Test Helpers ---
 
@@ -65,15 +66,15 @@ def test_deduplicates_constants_correctly():
     ir = {
         "pre_trial_steps": [
             {"type": "execution_assignment", "result": ["x"], "args": [10.5, 20.0, 10.5]},
-            {"type": "literal_assignment", "result": ["z"], "value": "hello"},
-            {"type": "literal_assignment", "result": ["w"], "value": "hello"},
+            # Use _StringLiteral to match what the IR generator produces
+            {"type": "literal_assignment", "result": ["z"], "value": _StringLiteral("hello")},
+            {"type": "literal_assignment", "result": ["w"], "value": _StringLiteral("hello")},
         ]
     }
 
     allocator = ResourceAllocator(ir, model)
     result = allocator.allocate()
 
-    # With the corrected logic, this test will now pass.
     assert result["constant_pools"]["SCALAR"] == [10.5, 20.0]
     assert result["constant_pools"]["BOOLEAN"] == []
     assert result["constant_pools"]["VECTOR"] == []

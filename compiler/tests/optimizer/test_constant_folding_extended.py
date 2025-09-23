@@ -1,11 +1,27 @@
 import pytest
 from pathlib import Path
 from textwrap import dedent
+from vsc.optimizer.constant_folding import run_constant_folding
+from vsc.parser import _StringLiteral
+from vsc.optimizer.ir_validator import IRValidator, IRValidationError
 
 # Import the full pipeline helper from the other test file
 from .test_constant_folding import run_full_pipeline_to_optimized_ir, create_dummy_file
 
 # --- 1. Tests for Variadic (Multi-Argument) Functions ---
+
+
+def run_constant_folding_and_validate(input_ir: str) -> list:
+
+    try:
+        IRValidator(input_ir).validate()
+
+        final_ir = run_constant_folding(input_ir)
+        IRValidator(final_ir).validate()
+    except IRValidationError as e:
+        pytest.fail(f"An optimization phase produced an invalid IR: {e}")
+
+    return final_ir
 
 
 def test_folds_variadic_add(tmp_path):
@@ -121,3 +137,67 @@ def test_nested_function_folding(tmp_path):
 
     assert len(optimized_ir) == 1
     assert optimized_ir[0]["value"] == 70.0
+
+
+def test_handles_string_literal_without_looping():
+    """
+    Regression test for the infinite loop bug.
+
+    The bug occurred when the constant folder's deepcopy created new
+    _StringLiteral objects, causing the fixed-point comparison to always
+    fail. This test passes an IR with a _StringLiteral that should not be
+    changed. The test passes if the optimizer correctly terminates (i.e.,
+    doesn't loop infinitely) and returns the identical IR.
+    """
+    input_ir = [{"type": "literal_assignment", "result": ["my_str"], "value": _StringLiteral("hello")}]
+
+    # This call would hang indefinitely before the fix
+    result_ir = run_constant_folding_and_validate(input_ir)
+
+    assert result_ir == input_ir
+
+
+def test_folds_basic_math_operations():
+    """Tests that simple math expressions with literals are folded."""
+    input_ir = [
+        {"type": "execution_assignment", "result": ["x"], "function": "add", "args": [5, 10]},
+        {"type": "execution_assignment", "result": ["y"], "function": "multiply", "args": [2, 3, 4]},
+    ]
+    expected_ir = [
+        {"type": "literal_assignment", "result": ["x"], "value": 15.0, "line": -1},
+        {"type": "literal_assignment", "result": ["y"], "value": 24.0, "line": -1},
+    ]
+    result_ir = run_constant_folding_and_validate(input_ir)
+    assert result_ir == expected_ir
+
+
+def test_propagates_constants_and_folds():
+    """Tests that the optimizer propagates a constant and then folds a subsequent expression."""
+    input_ir = [
+        {"type": "literal_assignment", "result": ["a"], "value": 10},
+        {"type": "execution_assignment", "result": ["b"], "function": "subtract", "args": ["a", 3]},
+    ]
+    expected_ir = [
+        {"type": "literal_assignment", "result": ["a"], "value": 10},
+        {"type": "literal_assignment", "result": ["b"], "value": 7.0, "line": -1},
+    ]
+    result_ir = run_constant_folding_and_validate(input_ir)
+    assert result_ir == expected_ir
+
+
+def test_preserves_unfoldable_expressions():
+    """Ensures that expressions involving variables are not changed."""
+    input_ir = [
+        {"type": "execution_assignment", "result": ["x"], "function": "Normal", "args": [10, 1]},
+        {"type": "literal_assignment", "result": ["a"], "value": 10},
+        {"type": "execution_assignment", "result": ["b"], "function": "add", "args": ["a", "x"]},
+    ]
+    # The 'a' should be propagated, but the expression cannot be fully folded.
+    expected_ir = [
+        {"type": "execution_assignment", "result": ["x"], "function": "Normal", "args": [10, 1]},
+        {"type": "literal_assignment", "result": ["a"], "value": 10},
+        {"type": "execution_assignment", "result": ["b"], "function": "add", "args": [10, "x"]},
+    ]
+    result_ir = run_constant_folding_and_validate(input_ir)
+    print(result_ir)
+    assert result_ir == expected_ir

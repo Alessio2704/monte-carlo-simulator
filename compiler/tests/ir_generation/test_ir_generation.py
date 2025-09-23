@@ -3,7 +3,7 @@ from pathlib import Path
 from textwrap import dedent
 
 # --- Test Dependencies ---
-from vsc.parser import parse_valuascript
+from vsc.parser import parse_valuascript, _StringLiteral
 from vsc.symbol_discovery import discover_symbols
 from vsc.type_inferrer import infer_types_and_taint
 from vsc.semantic_validator import validate_semantics
@@ -60,7 +60,7 @@ def test_ir_for_basic_literal_assignments(tmp_path):
     assert ir[0] == {"type": "literal_assignment", "result": ["s"], "value": 10.5, "line": 3}
     assert ir[1] == {"type": "literal_assignment", "result": ["b"], "value": True, "line": 4}
     assert ir[2] == {"type": "literal_assignment", "result": ["v"], "value": [1, 2, 3], "line": 5}
-    assert ir[3] == {"type": "literal_assignment", "result": ["str"], "value": "hello", "line": 6}
+    assert ir[3] == {"type": "literal_assignment", "result": ["str"], "value": _StringLiteral("hello"), "line": 6}
 
 
 def test_ir_for_execution_and_conditional_assignments(tmp_path):

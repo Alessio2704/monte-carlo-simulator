@@ -119,10 +119,8 @@ class IRGenerator:
                 self._process_step(body_step, mangled_context)
 
     def _transform_expression(self, expr: Any, context: Optional[Dict[str, str]]) -> Any:
-        if isinstance(expr, (int, float, bool)):
-            return expr
-        if isinstance(expr, _StringLiteral):
-            return expr.value
+        if isinstance(expr, (int, float, bool, _StringLiteral)):
+            return expr  # Keep _StringLiteral wrapper
         if isinstance(expr, Token):
             return self._mangle_vars([expr.value], context)[0]
         if isinstance(expr, list):
