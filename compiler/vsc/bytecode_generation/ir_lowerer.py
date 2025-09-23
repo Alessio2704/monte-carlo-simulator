@@ -63,17 +63,9 @@ class IRLowerer:
         new_instruction = instruction.copy()
 
         line = new_instruction.get("line")
-        if "args" in new_instruction:
-            new_instruction["args"] = self._lift_expressions_recursive(new_instruction["args"], lifted_instructions, line)
-        if "condition" in new_instruction:
-            new_instruction["condition"] = self._lift_expressions_recursive(new_instruction["condition"], lifted_instructions, line)
-        if "then_expr" in new_instruction:
-            new_instruction["then_expr"] = self._lift_expressions_recursive(new_instruction["then_expr"], lifted_instructions, line)
-        if "else_expr" in new_instruction:
-            new_instruction["else_expr"] = self._lift_expressions_recursive(new_instruction["else_expr"], lifted_instructions, line)
-        if "value" in new_instruction:
-            new_instruction["value"] = self._lift_expressions_recursive(new_instruction["value"], lifted_instructions, line)
-
+        for key in ["args", "condition", "then_expr", "else_expr", "value"]:
+            if key in new_instruction:
+                new_instruction[key] = self._lift_expressions_recursive(new_instruction[key], lifted_instructions, line)
         return lifted_instructions, new_instruction
 
     def _lift_expressions_recursive(self, node: Any, lifted_instructions: List[Dict[str, Any]], line: int) -> Any:
@@ -87,15 +79,9 @@ class IRLowerer:
 
         if not isinstance(node, dict):
             return node
-
-        if "args" in node:
-            node["args"] = [self._lift_expressions_recursive(arg, lifted_instructions, line) for arg in node.get("args", [])]
-        if "condition" in node:
-            node["condition"] = self._lift_expressions_recursive(node["condition"], lifted_instructions, line)
-        if "then_expr" in node:
-            node["then_expr"] = self._lift_expressions_recursive(node["then_expr"], lifted_instructions, line)
-        if "else_expr" in node:
-            node["else_expr"] = self._lift_expressions_recursive(node["else_expr"], lifted_instructions, line)
+        for key in ["args", "condition", "then_expr", "else_expr"]:
+            if key in node:
+                node[key] = self._lift_expressions_recursive(node[key], lifted_instructions, line)
 
         is_function = "function" in node
         is_conditional = node.get("type") == "conditional_expression"
@@ -103,76 +89,66 @@ class IRLowerer:
         if not (is_function or is_conditional):
             return node
 
-        temp_var_name = self._create_and_register_temp_var(node)
+        return_types = self._get_expression_type(node)
+        temp_var_names = self._create_and_register_temp_vars(return_types)
 
         if is_function:
-            lifted_instructions.append({"type": "execution_assignment", "result": [temp_var_name], "function": node["function"], "args": node.get("args", []), "line": line})
+            lifted_instructions.append({"type": "execution_assignment", "result": temp_var_names, "function": node["function"], "args": node.get("args", []), "line": line})
         elif is_conditional:
             lifted_instructions.append(
-                {"type": "conditional_assignment", "result": [temp_var_name], "condition": node["condition"], "then_expr": node["then_expr"], "else_expr": node["else_expr"], "line": line}
+                {"type": "conditional_assignment", "result": temp_var_names, "condition": node["condition"], "then_expr": node["then_expr"], "else_expr": node["else_expr"], "line": line}
             )
 
-        return temp_var_name
+        return temp_var_names[0] if len(temp_var_names) == 1 else temp_var_names
 
-    def _get_expression_type(self, expr: Any) -> str:
-        """Determines the data type of an expression node."""
+    def _get_expression_type(self, expr: Any) -> List[str]:
         if isinstance(expr, (int, float)):
-            return "scalar"
+            return ["scalar"]
         if isinstance(expr, bool):
-            return "boolean"
-        if isinstance(expr, str) and not expr.startswith("__"):
-            return "string"
-
+            return ["boolean"]
+        if isinstance(expr, list):
+            return ["vector"]
+        if isinstance(expr, str):
+            if expr in self.registries["variable_map"]:
+                return [self.registries["variable_map"][expr]["type"].lower()]
+            return ["scalar"]
         if isinstance(expr, dict):
             if expr.get("type") == "conditional_expression":
-                # Type of a conditional is the type of its 'then' branch.
                 return self._get_expression_type(expr["then_expr"])
-
             if "function" in expr:
                 sig = self.signatures.get(expr["function"])
                 if sig:
-                    # For now, we handle simple string return types. A full implementation
-                    # would handle callable return_type rules as well.
                     ret_type = sig.get("return_type")
                     if isinstance(ret_type, str):
+                        return [ret_type]
+                    if isinstance(ret_type, list):
                         return ret_type
+        return ["scalar"]
 
-        # Fallback for variables or complex types not yet handled
-        return "scalar"
-
-    def _create_and_register_temp_var(self, expression_node: Dict[str, Any]) -> str:
-        """Generates a new temporary variable, determines its type, and adds it to the registries."""
-        self.temp_var_counter += 1
-        temp_name = f"__temp_lifted_{self.temp_var_counter}"
-
-        var_type_str = self._get_expression_type(expression_node)
-        registry_type = var_type_str.upper()
-
-        if registry_type not in self.registries["variable_registries"]:
-            # This can happen if a new type like 'BOOLEAN' appears for the first time
-            # as a temporary variable.
-            registry_type = "SCALAR"  # Fallback
-
-        registry = self.registries["variable_registries"][registry_type]
-        index = len(registry)
-        registry.append(temp_name)
-        self.registries["variable_map"][temp_name] = {"type": registry_type, "index": index}
-
-        return temp_name
-
-    # --- Sub-phase B2: High-Level Instruction Lowering ---
+    def _create_and_register_temp_vars(self, var_types: List[str]) -> List[str]:
+        temp_names = []
+        for var_type_str in var_types:
+            self.temp_var_counter += 1
+            temp_name = f"__temp_lifted_{self.temp_var_counter}"
+            registry_type = var_type_str.upper()
+            if registry_type not in self.registries["variable_registries"]:
+                registry_type = "SCALAR"
+            registry = self.registries["variable_registries"][registry_type]
+            index = len(registry)
+            registry.append(temp_name)
+            self.registries["variable_map"][temp_name] = {"type": registry_type, "index": index}
+            temp_names.append(temp_name)
+        return temp_names
 
     def _lower_control_flow(self, ir_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Scans the flattened IR and replaces `conditional_assignment` with
-        a sequence of labels and jumps.
-        """
         lowered_ir = []
         for instruction in ir_list:
             if instruction.get("type") == "conditional_assignment":
                 lowered_ir.extend(self._lower_one_conditional(instruction))
             elif instruction.get("function") == "identity":
-                lowered_ir.append({"type": "copy", "result": instruction["result"], "source": instruction["args"][0] if instruction.get("args") else None, "line": instruction.get("line")})
+                # Handle both single and multi-variable copies
+                source = instruction["args"][0] if len(instruction["args"]) == 1 else instruction["args"]
+                lowered_ir.append({"type": "copy", "result": instruction["result"], "source": source, "line": instruction.get("line")})
             else:
                 lowered_ir.append(instruction)
         return lowered_ir
