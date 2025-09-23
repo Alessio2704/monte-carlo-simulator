@@ -1,9 +1,8 @@
 import os
 import json
 from typing import List, Optional, Dict, Any
-from lark import Token
 from .exceptions import ValuaScriptError
-from .parser import parse_valuascript, _StringLiteral
+from .parser import parse_valuascript
 from .symbol_discovery import discover_symbols
 from .type_inferrer import infer_types_and_taint
 from .semantic_validator import validate_semantics
@@ -18,41 +17,7 @@ from .ir_partitioner import partition_ir
 
 from .bytecode_generator import BytecodeGenerator
 from .optimizer.ir_validator import IRValidator, IRValidationError
-
-
-class CompilerArtifactEncoder(json.JSONEncoder):
-    """
-    Custom JSON encoder for compiler artifacts. It handles special types
-    like Tokens, sets, and our custom _StringLiteral class.
-    """
-
-    def default(self, o):
-        from .data_structures import Scope
-
-        if isinstance(o, Token):
-            return o.value
-        if isinstance(o, set):
-            return list(o)
-        if isinstance(o, _StringLiteral):
-            # Encode _StringLiteral as a dictionary to preserve its type info
-            return {"__type__": "_StringLiteral", "value": o.value}
-        if isinstance(o, Scope):
-            # Avoid circular references and excessive nesting in JSON output
-            return {"symbols": o.symbols, "parent": "<PARENT_SCOPE_OMITTED_FOR_SERIALIZATION>" if o.parent else None}
-        if hasattr(o, "__dict__"):
-            return o.__dict__
-        # Fallback for any other types
-        return str(o)
-
-
-def compiler_artifact_decoder_hook(d: Dict) -> Any:
-    """
-    A custom object_hook for json.load() to "rehydrate" _StringLiteral
-    objects from their special dictionary representation.
-    """
-    if d.get("__type__") == "_StringLiteral":
-        return _StringLiteral(d.get("value"))
-    return d
+from .utils import CompilerArtifactEncoder
 
 
 class CompilationPipeline:

@@ -4,9 +4,9 @@ import sys
 import os
 import time
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters
-from .compiler import compile_valuascript, CompilerArtifactEncoder
+from .compiler import compile_valuascript
 from .exceptions import ValuaScriptError
-from .utils import TerminalColors, format_lark_error
+from .utils import CompilerArtifactEncoder, TerminalColors, format_lark_error
 
 
 def main():

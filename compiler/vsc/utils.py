@@ -1,12 +1,18 @@
 """
 Utility functions for the ValuaScript compiler, including terminal coloring,
-error formatting, executable searching, and output plotting.
+error formatting, executable searching, and artifact serialization.
 """
 
 import os
 import sys
+import json
 from shutil import which
+from typing import Dict, Any
+from lark import Token
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters
+
+from .parser import _StringLiteral
+from .data_structures import Scope
 from .config import TOKEN_FRIENDLY_NAMES
 
 
@@ -16,6 +22,39 @@ class TerminalColors:
     YELLOW = "\033[93m"
     CYAN = "\033[96m"
     RESET = "\033[033m"
+
+
+class CompilerArtifactEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder for compiler artifacts. It handles special types
+    like Tokens, sets, and our custom _StringLiteral class.
+    """
+
+    def default(self, o):
+        if isinstance(o, Token):
+            return o.value
+        if isinstance(o, set):
+            return list(o)
+        if isinstance(o, _StringLiteral):
+            # Encode _StringLiteral as a dictionary to preserve its type info
+            return {"__type__": "_StringLiteral", "value": o.value}
+        if isinstance(o, Scope):
+            # Avoid circular references and excessive nesting in JSON output
+            return {"symbols": o.symbols, "parent": "<PARENT_SCOPE_OMITTED_FOR_SERIALIZATION>" if o.parent else None}
+        if hasattr(o, "__dict__"):
+            return o.__dict__
+        # Fallback for any other types
+        return str(o)
+
+
+def compiler_artifact_decoder_hook(d: Dict) -> Any:
+    """
+    A custom object_hook for json.load() to "rehydrate" _StringLiteral
+    objects from their special dictionary representation.
+    """
+    if d.get("__type__") == "_StringLiteral":
+        return _StringLiteral(d.get("value"))
+    return d
 
 
 def format_lark_error(e, script_content: str) -> str:

@@ -7,7 +7,7 @@ from typing import Dict, Any
 from vsc.bytecode_generation.resource_allocator import ResourceAllocator
 from vsc.bytecode_generation.ir_lowerer import IRLowerer
 from vsc.parser import _StringLiteral
-from vsc.compiler import compiler_artifact_decoder_hook
+from vsc.utils import compiler_artifact_decoder_hook
 
 # --- Test Helpers ---
 
