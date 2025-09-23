@@ -7,6 +7,7 @@ from typing import Dict, Any
 from vsc.bytecode_generation.resource_allocator import ResourceAllocator
 from vsc.bytecode_generation.ir_lowerer import IRLowerer
 from vsc.parser import _StringLiteral
+from vsc.compiler import compiler_artifact_decoder_hook
 
 # --- Test Helpers ---
 
@@ -15,38 +16,15 @@ GOLDEN_FILES_DIR = Path(__file__).parent / "golden_files"
 
 
 def load_golden_file(file_path: Path) -> Dict[str, Any]:
-    """Helper to load a JSON file for testing."""
+    """
+    Helper to load a JSON file for testing, using a custom decoder to
+    restore _StringLiteral objects.
+    """
     if not file_path.exists():
         pytest.fail(f"Golden file not found: {file_path}. " f"Please run the compiler with flags -c 4, -c 7, -c 8a and -c 8b to generate it.")
     with open(file_path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def rehydrate_string_literals(node: Any) -> Any:
-    """
-    Recursively traverses a data structure loaded from JSON and converts
-    string values that represent string literals back into _StringLiteral objects.
-    This is necessary because the JSON format loses this type information.
-    """
-    if isinstance(node, list):
-        return [rehydrate_string_literals(item) for item in node]
-    if isinstance(node, dict):
-        # The key for a string literal in the AST is 'value' inside a literal_assignment
-        if node.get("type") == "literal_assignment" and isinstance(node.get("value"), str):
-            # Check if the key 'value' holds what should be a string literal
-            node["value"] = _StringLiteral(node["value"])
-            return node
-
-        # In function arguments, a raw string is a string literal.
-        # We need a more careful check here, but for BlackScholes, it's safe.
-        if node.get("function") == "BlackScholes":
-            for i, arg in enumerate(node.get("args", [])):
-                if isinstance(arg, str) and arg in ("call", "put"):
-                    node["args"][i] = _StringLiteral(arg)
-
-        # Recurse through the dictionary
-        return {key: rehydrate_string_literals(value) for key, value in node.items()}
-    return node
+        # Use the object_hook to automatically "rehydrate" the JSON data
+        return json.load(f, object_hook=compiler_artifact_decoder_hook)
 
 
 # --- The Golden File Regression Test ---
@@ -60,16 +38,12 @@ def test_resource_allocator_against_golden_file_contract():
     running the Resource Allocator on the results of the lowering phase.
     """
     # --- 1. Load the golden input and expected output files ---
-    model_from_json = load_golden_file(GOLDEN_FILES_DIR / "model_stage_4.json")
-    partitioned_ir_from_json = load_golden_file(GOLDEN_FILES_DIR / "model_stage_7.json")
+    # The load_golden_file helper now automatically restores the necessary types.
+    model = load_golden_file(GOLDEN_FILES_DIR / "model_stage_4.json")
+    partitioned_ir = load_golden_file(GOLDEN_FILES_DIR / "model_stage_7.json")
     expected_result = load_golden_file(GOLDEN_FILES_DIR / "model_stage_8b.json")
 
-    # --- 2. Rehydrate the loaded data to restore _StringLiteral objects ---
-    # This step is CRITICAL to make the test environment match the live compiler.
-    model = rehydrate_string_literals(model_from_json)
-    partitioned_ir = rehydrate_string_literals(partitioned_ir_from_json)
-
-    # --- 3. Run the units under test IN THE CORRECT PIPELINE ORDER ---
+    # --- 2. Run the units under test IN THE CORRECT PIPELINE ORDER ---
     # First, run the IR Lowerer (Phase 8a)
     lowerer = IRLowerer(partitioned_ir, model)
     lowered_ir, updated_model = lowerer.lower()
@@ -78,7 +52,7 @@ def test_resource_allocator_against_golden_file_contract():
     allocator = ResourceAllocator(lowered_ir, updated_model)
     actual_result = allocator.allocate()
 
-    # --- 4. Assert that the actual output matches the contract ---
+    # --- 3. Assert that the actual output matches the contract ---
     assert actual_result == expected_result
 
 

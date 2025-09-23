@@ -11,14 +11,34 @@
       "type": "execution_assignment",
       "result": ["op1"],
       "function": "BlackScholes",
-      "args": [100, 105, 0.05, 1, 0.2, "call"],
+      "args": [
+        100,
+        105,
+        0.05,
+        1,
+        0.2,
+        {
+          "__type__": "_StringLiteral",
+          "value": "call"
+        }
+      ],
       "line": 22
     },
     {
       "type": "execution_assignment",
       "result": ["op2"],
       "function": "BlackScholes",
-      "args": [100, 105, 0.05, 1, 0.2, "put"],
+      "args": [
+        100,
+        105,
+        0.05,
+        1,
+        0.2,
+        {
+          "__type__": "_StringLiteral",
+          "value": "put"
+        }
+      ],
       "line": 71
     },
     {

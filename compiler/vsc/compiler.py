@@ -21,6 +21,11 @@ from .optimizer.ir_validator import IRValidator, IRValidationError
 
 
 class CompilerArtifactEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder for compiler artifacts. It handles special types
+    like Tokens, sets, and our custom _StringLiteral class.
+    """
+
     def default(self, o):
         from .data_structures import Scope
 
@@ -29,7 +34,8 @@ class CompilerArtifactEncoder(json.JSONEncoder):
         if isinstance(o, set):
             return list(o)
         if isinstance(o, _StringLiteral):
-            return o.value
+            # Encode _StringLiteral as a dictionary to preserve its type info
+            return {"__type__": "_StringLiteral", "value": o.value}
         if isinstance(o, Scope):
             # Avoid circular references and excessive nesting in JSON output
             return {"symbols": o.symbols, "parent": "<PARENT_SCOPE_OMITTED_FOR_SERIALIZATION>" if o.parent else None}
@@ -37,6 +43,16 @@ class CompilerArtifactEncoder(json.JSONEncoder):
             return o.__dict__
         # Fallback for any other types
         return str(o)
+
+
+def compiler_artifact_decoder_hook(d: Dict) -> Any:
+    """
+    A custom object_hook for json.load() to "rehydrate" _StringLiteral
+    objects from their special dictionary representation.
+    """
+    if d.get("__type__") == "_StringLiteral":
+        return _StringLiteral(d.get("value"))
+    return d
 
 
 class CompilationPipeline:

@@ -828,14 +828,24 @@
           "line": 70,
           "type": "execution_assignment",
           "function": "get_option1",
-          "args": ["call"]
+          "args": [
+            {
+              "__type__": "_StringLiteral",
+              "value": "call"
+            }
+          ]
         },
         {
           "result": "op2",
           "line": 71,
           "type": "execution_assignment",
           "function": "get_option2",
-          "args": ["put"]
+          "args": [
+            {
+              "__type__": "_StringLiteral",
+              "value": "put"
+            }
+          ]
         },
         {
           "results": ["sir1", "sir2", "sir3"],
