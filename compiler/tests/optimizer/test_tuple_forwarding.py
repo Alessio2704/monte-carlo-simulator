@@ -20,7 +20,7 @@ def test_forwards_tuple_assignment_and_eliminates_identity():
         {
             "type": "execution_assignment",
             "result": ["__get_rd_1__capitalized_assets", "__get_rd_1__amortization_current_year"],
-            "function": "capitalize_expense",
+            "function": "CapitalizeExpenses",
             "args": [52927, [49326, 45427, 39500], 3],
             "line": 52,
         },
@@ -41,7 +41,7 @@ def test_forwards_tuple_assignment_and_eliminates_identity():
             "type": "execution_assignment",
             # The result is now forwarded directly to the final variables.
             "result": ["value_of_research_assets", "current_year_amortization"],
-            "function": "capitalize_expense",
+            "function": "CapitalizeExpenses",
             "args": [52927, [49326, 45427, 39500], 3],
             "line": 52,
         },

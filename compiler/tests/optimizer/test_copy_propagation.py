@@ -223,7 +223,7 @@ def test_propagates_vector_literal(tmp_path):
     assert len(optimized_ir) == 1
     final_step = optimized_ir[0]
     assert final_step["function"] == "identity"
-    assert final_step["args"][0]["function"] == "get_element"
+    assert final_step["args"][0]["function"] == "GetElement"
     assert final_step["args"][0]["args"][0] == [10, 20, 30]
 
 
@@ -304,10 +304,10 @@ def test_propagates_into_deeply_nested_argument_structure(tmp_path):
     assert len(optimized_ir) == 2
     temp_var_assignment = optimized_ir[1]
     assert temp_var_assignment["function"] == "identity"
-    get_element_call = temp_var_assignment["args"][0]
-    assert get_element_call["function"] == "get_element"
+    GetElement_call = temp_var_assignment["args"][0]
+    assert GetElement_call["function"] == "GetElement"
     expected_arg_vector = [10, 99, "x", 101]
-    assert get_element_call["args"][0] == expected_arg_vector
+    assert GetElement_call["args"][0] == expected_arg_vector
 
 
 def test_propagated_variable_can_still_be_used_elsewhere(tmp_path):

@@ -66,7 +66,7 @@ def test_infer_from_builtin_functions(tmp_path):
     """Tests inference from built-in functions with fixed return types."""
     script = """
     let sample = Normal(0, 1) # Normal returns a scalar
-    let total = sum_series([1, 2]) # sum_series returns a scalar
+    let total = SumVector([1, 2]) # SumVector returns a scalar
     let b = Bernoulli(0.5) # Bernoulli returns a scalar
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
@@ -103,13 +103,13 @@ def test_infer_from_dynamic_return_type_functions(tmp_path):
 def test_infer_from_multi_return_builtin(tmp_path):
     """Tests inference from a built-in function with a tuple return type."""
     script = """
-    let v_asset, v_amort = capitalize_expense(10, [8, 9], 5)
+    let v_asset, v_amort = CapitalizeExpenses(10, [8, 9], 5)
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     table = run_inference(script, file_path)
 
     variables = table["global_variables"]
-    # capitalize_expense returns (scalar, scalar)
+    # CapitalizeExpenses returns (scalar, scalar)
     assert variables["v_asset"]["inferred_type"] == "scalar"
     assert variables["v_amort"]["inferred_type"] == "scalar"
 
@@ -175,12 +175,12 @@ def test_infer_type_from_conditional(tmp_path):
 def test_infer_type_from_nested_calls(tmp_path):
     """Tests correct inference through nested function calls."""
     script = """
-    let result = sum_series([Normal(0, 1), 10, 20])
+    let result = SumVector([Normal(0, 1), 10, 20])
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     table = run_inference(script, file_path)
 
-    # sum_series returns a scalar, regardless of the complexity of its arguments
+    # SumVector returns a scalar, regardless of the complexity of its arguments
     assert table["global_variables"]["result"]["inferred_type"] == "scalar"
 
 

@@ -3,7 +3,7 @@ Signatures for data input/output functions.
 """
 
 SIGNATURES = {
-    "read_csv_scalar": {
+    "ReadCsvScalar": {
         "variadic": False,
         "arg_types": ["string", "string", "scalar"],
         "return_type": "scalar",
@@ -18,7 +18,7 @@ SIGNATURES = {
             "returns": "The value of the cell as a scalar.",
         },
     },
-    "read_csv_vector": {
+    "ReadCsvVector": {
         "variadic": False,
         "arg_types": ["string", "string"],
         "return_type": "vector",

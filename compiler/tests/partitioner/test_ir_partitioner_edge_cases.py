@@ -56,8 +56,8 @@ def test_deterministic_nested_conditional_is_pre_trial(tmp_path):
     script = """
     @iterations=1
     @output=z
-    let v1_vec = grow_series(10,0,1)
-    let v2_vec = grow_series(20,0,1)
+    let v1_vec = GrowSerie(10,0,1)
+    let v2_vec = GrowSerie(20,0,1)
     let v1 = v1_vec[0]
     let v2 = v2_vec[0]
     let z = if v1 > 5 then (if v2 < 30 then 100 else 200) else 300
@@ -77,7 +77,7 @@ def test_deterministic_udf_in_conditional_is_pre_trial(tmp_path):
     @iterations=1
     @output=z
     func process(val: scalar) -> scalar { return val * 10 }
-    let x_vec = grow_series(5,0,1)
+    let x_vec = GrowSerie(5,0,1)
     let x = x_vec[0]
     let z = if x > 0 then process(x) else 0
     """
@@ -99,7 +99,7 @@ def test_taint_propagates_out_of_nested_conditional(tmp_path):
     @iterations=1
     @output=z
     let s = Normal(0, 1)
-    let d_vec = grow_series(10, 0, 1) # Use non-foldable function
+    let d_vec = GrowSerie(10, 0, 1) # Use non-foldable function
     let d = d_vec[0]
     let cond1 = d > 5
     let cond2 = d < 15

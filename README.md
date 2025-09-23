@@ -203,8 +203,8 @@ let my_vector = [100, 200, 300]
 let first_element = my_vector[0]   # Accesses the first element (100)
 let last_element = my_vector[-1]    # Accesses the last element (300)
 
-# To create a new vector with an element removed, use the `delete_element` function.
-let vector_without_last = delete_element(my_vector, -1) # Returns a new vector [100, 200]
+# To create a new vector with an element removed, use the `DeleteElement` function.
+let vector_without_last = DeleteElement(my_vector, -1) # Returns a new vector [100, 200]
 
 # --- Conditional Logic (if/then/else) ---
 let tax_regime = if is_high_income then 0.40 else 0.25
@@ -226,8 +226,8 @@ ValuaScript supports fully type-checked, user-defined functions that can return 
 # This function returns two values: a scalar and a vector.
 func process_inputs(base_value: scalar, rates: vector) -> (scalar, vector) {
     """Processes inputs and returns a discounted value and the original vector."""
-    let projected = compound_series(base_value, rates)
-    let total_value = sum_series(projected)
+    let projected = CompoundSerie(base_value, rates)
+    let total_value = SumVector(projected)
     let discounted_value = total_value / (1 + 0.05)
     return (discounted_value, projected)
 }
@@ -250,14 +250,14 @@ let final_value, projected_series = process_inputs(initial, growth_rates)
 
 A comprehensive library of built-in functions is available for math, series manipulation, I/O, and statistical sampling. Functions that return multiple values are noted with a tuple return type.
 
-| Category       | Functions                                                                                                                                      |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Core**       | `log`, `log10`, `exp`, `sin`, `cos`, `tan`, `identity`                                                                                         |
-| **Series**     | `grow_series`, `compound_series`, `interpolate_series`, `sum_series`, `series_delta`, `npv`, `get_element`, `delete_element`, `compose_vector` |
-| **Statistics** | `Normal`, `Lognormal`, `Beta`, `Uniform`, `Bernoulli`, `Pert`, `Triangular`                                                                    |
-| **Data I/O**   | `read_csv_scalar`, `read_csv_vector`                                                                                                           |
-| **Financial**  | `BlackScholes`, `capitalize_expense` -> `(scalar, scalar, string)`                                                                             |
-| **Scientific** | `SirModel` -> `(vector, vector, vector)`                                                                                                       |
+| Category       | Functions                                                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Core**       | `log`, `log10`, `exp`, `sin`, `cos`, `tan`, `identity`                                                                              |
+| **Series**     | `GrowSerie`, `CompoundSerie`, `InterpolateSerie`, `SumVector`, `VectorDelta`, `Npv`, `GetElement`, `DeleteElement`, `ComposeVector` |
+| **Statistics** | `Normal`, `Lognormal`, `Beta`, `Uniform`, `Bernoulli`, `Pert`, `Triangular`                                                         |
+| **Data I/O**   | `ReadCsvScalar`, `ReadCsvVector`                                                                                                    |
+| **Financial**  | `BlackScholes`, `CapitalizeExpenses` -> `(scalar, scalar, string)`                                                                  |
+| **Scientific** | `SirModel` -> `(vector, vector, vector)`                                                                                            |
 
 </details>
 

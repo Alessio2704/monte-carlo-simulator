@@ -269,7 +269,7 @@ def test_nested_consitional_assignment(tmp_path):
     let stochastic_income = project_cash_flow + Normal(5000, 2000)
     let tax_due = calculate_tax(stochastic_income)
     
-    let a, b = capitalize_expense(110, [100, 90, 80], 3)
+    let a, b = CapitalizeExpenses(110, [100, 90, 80], 3)
     
     
     let income_after_tax = stochastic_income - tax_due + b

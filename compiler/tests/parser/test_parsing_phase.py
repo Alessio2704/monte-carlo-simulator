@@ -199,8 +199,8 @@ def test_full_function_definition_parsing():
         \"\"\"
         Calculates the Discounted Cash Flow.
         \"\"\"
-        let npv = npv(rate, cashflows)
-        return npv
+        let Npv = Npv(rate, cashflows)
+        return Npv
     }
     """
     ast = parse_valuascript(script)
@@ -471,7 +471,7 @@ def test_empty_and_whitespace_only_files():
         assert len(ast["function_definitions"]) == 0
 
 
-def test_delete_element_syntax():
+def test_DeleteElement_syntax():
     """Tests the special syntax for deleting an element from a vector."""
     script = "let shorter_vector = my_vector[:2]"
     ast = parse_valuascript(script)
@@ -479,7 +479,7 @@ def test_delete_element_syntax():
 
     assert step["type"] == "execution_assignment"
     assert step["result"] == "shorter_vector"
-    assert step["function"] == "delete_element"
+    assert step["function"] == "DeleteElement"
     assert len(step["args"]) == 2
     assert step["args"][0].value == "my_vector"
     assert step["args"][1] == 2
@@ -493,7 +493,7 @@ def test_expression_as_vector_index():
 
     assert step["type"] == "execution_assignment"
     assert step["result"] == "item"
-    assert step["function"] == "get_element"
+    assert step["function"] == "GetElement"
 
     # The second argument should be the AST for the 'some_index + 1' expression
     index_expression_node = step["args"][1]

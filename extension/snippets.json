@@ -81,59 +81,59 @@
     "body": ["Bernoulli(${1:p})"],
     "description": "Bernoulli(p)"
   },
-  "grow_series": {
-    "prefix": "grow_series",
-    "body": ["grow_series(${1:base_value}, ${2:growth_rate}, ${3:periods})"],
-    "description": "grow_series(base_value, growth_rate, periods)"
+  "GrowSerie": {
+    "prefix": "GrowSerie",
+    "body": ["GrowSerie(${1:base_value}, ${2:growth_rate}, ${3:periods})"],
+    "description": "GrowSerie(base_value, growth_rate, periods)"
   },
-  "compound_series": {
-    "prefix": "compound_series",
-    "body": ["compound_series(${1:base_value}, ${2:rates_vector})"],
-    "description": "compound_series(base_value, rates_vector)"
+  "CompoundSerie": {
+    "prefix": "CompoundSerie",
+    "body": ["CompoundSerie(${1:base_value}, ${2:rates_vector})"],
+    "description": "CompoundSerie(base_value, rates_vector)"
   },
-  "interpolate_series": {
-    "prefix": "interpolate_series",
+  "InterpolateSerie": {
+    "prefix": "InterpolateSerie",
     "body": [
-      "interpolate_series(${1:start_value}, ${2:end_value}, ${3:periods})"
+      "InterpolateSerie(${1:start_value}, ${2:end_value}, ${3:periods})"
     ],
-    "description": "interpolate_series(start_value, end_value, periods)"
+    "description": "InterpolateSerie(start_value, end_value, periods)"
   },
-  "sum_series": {
-    "prefix": "sum_series",
-    "body": ["sum_series(${1:vector})"],
-    "description": "sum_series(vector)"
+  "SumVector": {
+    "prefix": "SumVector",
+    "body": ["SumVector(${1:vector})"],
+    "description": "SumVector(vector)"
   },
-  "series_delta": {
-    "prefix": "series_delta",
-    "body": ["series_delta(${1:vector})"],
-    "description": "series_delta(vector)"
+  "VectorDelta": {
+    "prefix": "VectorDelta",
+    "body": ["VectorDelta(${1:vector})"],
+    "description": "VectorDelta(vector)"
   },
-  "npv": {
-    "prefix": "npv",
-    "body": ["npv(${1:rate}, ${2:cashflows_vector})"],
-    "description": "npv(rate, cashflows_vector)"
+  "Npv": {
+    "prefix": "Npv",
+    "body": ["Npv(${1:rate}, ${2:cashflows_vector})"],
+    "description": "Npv(rate, cashflows_vector)"
   },
-  "get_element": {
-    "prefix": "get_element",
-    "body": ["get_element(${1:vector}, ${2:index})"],
-    "description": "get_element(vector, index)"
+  "GetElement": {
+    "prefix": "GetElement",
+    "body": ["GetElement(${1:vector}, ${2:index})"],
+    "description": "GetElement(vector, index)"
   },
-  "delete_element": {
-    "prefix": "delete_element",
-    "body": ["delete_element(${1:vector}, ${2:index})"],
-    "description": "delete_element(vector, index)"
+  "DeleteElement": {
+    "prefix": "DeleteElement",
+    "body": ["DeleteElement(${1:vector}, ${2:index})"],
+    "description": "DeleteElement(vector, index)"
   },
-  "compose_vector": {
-    "prefix": "compose_vector",
-    "body": ["compose_vector(${1:value1}, ${2:value2})"],
-    "description": "compose_vector(value1, value2, ...)"
+  "ComposeVector": {
+    "prefix": "ComposeVector",
+    "body": ["ComposeVector(${1:value1}, ${2:value2})"],
+    "description": "ComposeVector(value1, value2, ...)"
   },
-  "capitalize_expense": {
-    "prefix": "capitalize_expense",
+  "CapitalizeExpenses": {
+    "prefix": "CapitalizeExpenses",
     "body": [
-      "capitalize_expense(${1:current_expense}, ${2:past_expenses_vector}, ${3:amortization_period})"
+      "CapitalizeExpenses(${1:current_expense}, ${2:past_expenses_vector}, ${3:amortization_period})"
     ],
-    "description": "capitalize_expense(current_expense, past_expenses_vector, amortization_period)"
+    "description": "CapitalizeExpenses(current_expense, past_expenses_vector, amortization_period)"
   },
   "log": {
     "prefix": "log",
@@ -165,16 +165,16 @@
     "body": ["tan(${1:value})"],
     "description": "tan(value)"
   },
-  "read_csv_vector": {
-    "prefix": "read_csv_vector",
-    "body": ["read_csv_vector(\"${1:file.csv}\", \"${2:column_name}\")"],
-    "description": "read_csv_vector(\"file.csv\", \"column_name\")"
+  "ReadCsvVector": {
+    "prefix": "ReadCsvVector",
+    "body": ["ReadCsvVector(\"${1:file.csv}\", \"${2:column_name}\")"],
+    "description": "ReadCsvVector(\"file.csv\", \"column_name\")"
   },
-  "read_csv_scalar": {
-    "prefix": "read_csv_scalar",
+  "ReadCsvScalar": {
+    "prefix": "ReadCsvScalar",
     "body": [
-      "read_csv_scalar(\"${1:file.csv}\", \"${2:column_name}\", ${3:row_index})"
+      "ReadCsvScalar(\"${1:file.csv}\", \"${2:column_name}\", ${3:row_index})"
     ],
-    "description": "read_csv_scalar(\"file.csv\", \"column_name\", row_index)"
+    "description": "ReadCsvScalar(\"file.csv\", \"column_name\", row_index)"
   }
 }

@@ -174,11 +174,11 @@ class ValuaScriptTransformer(Transformer):
 
     def element_access(self, items):
         var_token, index_expression = items
-        return {"function": "get_element", "args": [var_token, index_expression]}
+        return {"function": "GetElement", "args": [var_token, index_expression]}
 
     def delete_element_vector(self, items):
         var_token, end_expression = items
-        return {"function": "delete_element", "args": [var_token, end_expression]}
+        return {"function": "DeleteElement", "args": [var_token, end_expression]}
 
     def directive_setting(self, items):
         return {"type": "directive", "name": str(items[0]), "value": items[1], "line": items[0].line}

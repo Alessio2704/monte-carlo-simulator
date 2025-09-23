@@ -54,7 +54,7 @@
           "results": ["capitalized_assets", "amortization_current_year"],
           "line": 9,
           "type": "multi_assignment",
-          "function": "capitalize_expense",
+          "function": "CapitalizeExpenses",
           "args": ["current_expense", "past_expenses", "amortization_period"]
         },
         {
@@ -469,7 +469,7 @@
           "results": ["a", "b"],
           "line": 65,
           "type": "multi_assignment",
-          "function": "capitalize_expense",
+          "function": "CapitalizeExpenses",
           "args": [
             110,
             {
@@ -624,7 +624,7 @@
               "results": ["capitalized_assets", "amortization_current_year"],
               "line": 9,
               "type": "multi_assignment",
-              "function": "capitalize_expense",
+              "function": "CapitalizeExpenses",
               "args": [
                 "current_expense",
                 "past_expenses",
@@ -978,7 +978,7 @@
         "returns": "The theoretical price of the European option as a scalar."
       }
     },
-    "read_csv_scalar": {
+    "ReadCsvScalar": {
       "variadic": false,
       "arg_types": ["string", "string", "scalar"],
       "return_type": "scalar",
@@ -1002,7 +1002,7 @@
         "returns": "The value of the cell as a scalar."
       }
     },
-    "read_csv_vector": {
+    "ReadCsvVector": {
       "variadic": false,
       "arg_types": ["string", "string"],
       "return_type": "vector",
@@ -1022,7 +1022,7 @@
         "returns": "The column data as a new vector."
       }
     },
-    "compose_vector": {
+    "ComposeVector": {
       "variadic": true,
       "arg_types": ["any"],
       "return_type": "vector",
@@ -1038,7 +1038,7 @@
         "returns": "A new vector."
       }
     },
-    "sum_series": {
+    "SumVector": {
       "variadic": false,
       "arg_types": ["vector"],
       "return_type": "scalar",
@@ -1054,7 +1054,7 @@
         "returns": "The sum as a scalar."
       }
     },
-    "series_delta": {
+    "VectorDelta": {
       "variadic": false,
       "arg_types": ["vector"],
       "return_type": "vector",
@@ -1070,13 +1070,13 @@
         "returns": "A new vector of the differences, with one fewer element."
       }
     },
-    "npv": {
+    "Npv": {
       "variadic": false,
       "arg_types": ["scalar", "vector"],
       "return_type": "scalar",
       "is_stochastic": false,
       "doc": {
-        "summary": "Calculates the Net Present Value (NPV) of a series of cash flows.",
+        "summary": "Calculates the Net Present Value (Npv) of a series of cash flows.",
         "params": [
           {
             "name": "rate",
@@ -1087,10 +1087,10 @@
             "desc": "A vector of cash flows."
           }
         ],
-        "returns": "The NPV as a scalar."
+        "returns": "The Npv as a scalar."
       }
     },
-    "compound_series": {
+    "CompoundSerie": {
       "variadic": false,
       "arg_types": ["scalar", "vector"],
       "return_type": "vector",
@@ -1110,7 +1110,7 @@
         "returns": "A new vector of compounded values."
       }
     },
-    "get_element": {
+    "GetElement": {
       "variadic": false,
       "arg_types": ["vector", "scalar"],
       "return_type": "scalar",
@@ -1130,7 +1130,7 @@
         "returns": "The element at the specified index as a scalar."
       }
     },
-    "delete_element": {
+    "DeleteElement": {
       "variadic": false,
       "arg_types": ["vector", "scalar"],
       "return_type": "vector",
@@ -1150,7 +1150,7 @@
         "returns": "A new vector with the element removed."
       }
     },
-    "grow_series": {
+    "GrowSerie": {
       "variadic": false,
       "arg_types": ["scalar", "scalar", "scalar"],
       "return_type": "vector",
@@ -1174,7 +1174,7 @@
         "returns": "A vector of projected values."
       }
     },
-    "interpolate_series": {
+    "InterpolateSerie": {
       "variadic": false,
       "arg_types": ["scalar", "scalar", "scalar"],
       "return_type": "vector",
@@ -1198,7 +1198,7 @@
         "returns": "A new vector with the interpolated values."
       }
     },
-    "capitalize_expense": {
+    "CapitalizeExpenses": {
       "variadic": false,
       "arg_types": ["scalar", "vector", "scalar"],
       "return_type": ["scalar", "scalar"],

@@ -214,7 +214,7 @@ def test_ir_for_vector_manipulation_through_udfs(tmp_path):
     # `get_data()` is inlined to a temp identity assignment.
     assert ir[0] == {"type": "execution_assignment", "result": ["__temp_1"], "function": "identity", "args": [[10, 20, 30]], "line": 8}
     assert ir[1]["function"] == "identity"
-    assert ir[2]["function"] == "get_element"
+    assert ir[2]["function"] == "GetElement"
     assert ir[3]["function"] == "identity"
 
 

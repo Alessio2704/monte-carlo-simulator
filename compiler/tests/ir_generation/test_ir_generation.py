@@ -303,14 +303,14 @@ def test_ir_for_nested_expressions_in_arguments(tmp_path):
     @output=z
     let x = 10
     let y = true
-    let z = sum_series([1, 2, if y then x else 0])
+    let z = SumVector([1, 2, if y then x else 0])
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     ir = run_ir_generation_pipeline(script, file_path)
 
     assert len(ir) == 3
     z_assignment = ir[2]
-    assert z_assignment["function"] == "sum_series"
+    assert z_assignment["function"] == "SumVector"
     arg_list = z_assignment["args"][0]
     assert isinstance(arg_list, list)
     assert arg_list[2] == {

@@ -70,7 +70,7 @@ def test_simple_stochastic_variable_moves_to_per_trial(tmp_path):
     script = """
     @iterations=1
     @output=z
-    let d_vec = grow_series(100, 0, 1) # Deterministic, but won't be folded
+    let d_vec = GrowSerie(100, 0, 1) # Deterministic, but won't be folded
     let d = d_vec[0]
     let s = Normal(0, 1)              # Stochastic
     let z = d + s                     # Keeps 'd' alive
@@ -106,7 +106,7 @@ def test_conditional_with_stochastic_branch_is_per_trial(tmp_path):
     @iterations=1
     @output=z
     let s = Normal(0, 1)
-    let d_vec = grow_series(10, 0, 1)
+    let d_vec = GrowSerie(10, 0, 1)
     let d = d_vec[0]
     let cond = d > 5
     let z = if cond then s else d
@@ -207,7 +207,7 @@ def test_importing_a_stochastic_udf(tmp_path):
     @iterations=1
     @output=y
     @import "module.vs"
-    let br_vec = grow_series(0.07, 0, 1)
+    let br_vec = GrowSerie(0.07, 0, 1)
     let base_return = br_vec[0]
     let y = base_return + get_market_shock()
     """
@@ -227,7 +227,7 @@ def test_deeply_nested_imports_propagate_stochasticity(tmp_path):
     @iterations=1
     @output=final_value
     @import "p2.vs"
-    let sv_vec = grow_series(1000, 0, 1)
+    let sv_vec = GrowSerie(1000, 0, 1)
     let start_value = sv_vec[0]
     let final_value = p2(start_value)
     """

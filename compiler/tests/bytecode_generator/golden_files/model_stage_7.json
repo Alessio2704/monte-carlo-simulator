@@ -3,7 +3,7 @@
     {
       "type": "execution_assignment",
       "result": ["a", "b"],
-      "function": "capitalize_expense",
+      "function": "CapitalizeExpenses",
       "args": [110, [100, 90, 80], 3],
       "line": 65
     }
@@ -79,7 +79,7 @@
     {
       "type": "execution_assignment",
       "result": ["c", "d"],
-      "function": "capitalize_expense",
+      "function": "CapitalizeExpenses",
       "args": ["__get_rd_1__current_expense", [49326, 45427, 39500], 3],
       "line": 9
     },

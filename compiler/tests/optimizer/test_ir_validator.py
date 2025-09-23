@@ -171,7 +171,7 @@ def test_validator_on_valid_nested_ir():
         {
             "type": "execution_assignment",
             "result": ["z"],
-            "function": "sum_series",
+            "function": "SumVector",
             "args": [[1, 2, {"type": "conditional_expression", "condition": "my_cond", "then_expr": "my_var", "else_expr": 0}]],
         },
     ]
@@ -187,7 +187,7 @@ def test_validator_fails_on_undefined_in_deeply_nested_ir():
         {
             "type": "execution_assignment",
             "result": ["z"],
-            "function": "sum_series",
+            "function": "SumVector",
             "args": [[1, 2, {"type": "conditional_expression", "condition": "my_cond", "then_expr": "undefined_var", "else_expr": 0}]],
         },
     ]
@@ -234,7 +234,7 @@ def test_validator_fails_on_undefined_vector_index():
     invalid_ir = [
         {"type": "literal_assignment", "result": ["my_vec"], "value": [1, 2, 3]},
         # 'bad_index' is not defined.
-        {"type": "execution_assignment", "result": ["item"], "function": "get_element", "args": ["my_vec", "bad_index"]},
+        {"type": "execution_assignment", "result": ["item"], "function": "GetElement", "args": ["my_vec", "bad_index"]},
     ]
     with pytest.raises(IRValidationError) as excinfo:
         IRValidator(invalid_ir).validate()

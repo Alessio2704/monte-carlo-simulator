@@ -17,11 +17,11 @@ ValuaScript was created to bridge this gap. It is not a general-purpose language
 
 This approach is guided by three principles:
 
-*   **Declarative & Readable:** A ValuaScript file describes **what** the model is, not **how** to compute it. There are no loops, complex data structures, or pointers. The script reads like a novel or a specification sheet, making models easy to write, review, and maintain for domain experts and programmers alike.
+- **Declarative & Readable:** A ValuaScript file describes **what** the model is, not **how** to compute it. There are no loops, complex data structures, or pointers. The script reads like a novel or a specification sheet, making models easy to write, review, and maintain for domain experts and programmers alike.
 
-*   **High-Performance by Design:** All the heavy lifting—numerical calculations, statistical sampling, and data aggregation—is handled by a multi-threaded C++17 engine. Scripting a model in ValuaScript is simply wiring together these pre-compiled, high-speed components. A simulation that might take minutes in other tools is executed in seconds.
+- **High-Performance by Design:** All the heavy lifting—numerical calculations, statistical sampling, and data aggregation—is handled by a multi-threaded C++17 engine. Scripting a model in ValuaScript is simply wiring together these pre-compiled, high-speed components. A simulation that might take minutes in other tools is executed in seconds.
 
-*   **Extensible through Contribution:** The language grows by expanding its C++ core. Need a niche financial model or a specific epidemiological simulation? Implement it once in optimized C++, and it instantly becomes a new "word" in the ValuaScript vocabulary for everyone to use. This creates a powerful, community-driven flywheel for growth.
+- **Extensible through Contribution:** The language grows by expanding its C++ core. Need a niche financial model or a specific epidemiological simulation? Implement it once in optimized C++, and it instantly becomes a new "word" in the ValuaScript vocabulary for everyone to use. This creates a powerful, community-driven flywheel for growth.
 
 ## See it in Action: A Simple Modular DCF Model
 
@@ -41,7 +41,7 @@ func calculate_wacc(beta: scalar) -> scalar {
 
 func present_value(cashflows: vector, discount_rate: scalar) -> scalar {
     """Discounts a vector of cash flows to their present value."""
-    return npv(discount_rate, cashflows)
+    return Npv(discount_rate, cashflows)
 }
 ```
 
@@ -63,7 +63,7 @@ let revenue_growth = Normal(0.10, 0.15)
 
 # --- Logic ---
 let discount_rate = calculate_wacc(asset_beta)
-let future_revenues = grow_series(initial_revenue, revenue_growth, 5)
+let future_revenues = GrowSerie(initial_revenue, revenue_growth, 5)
 
 # Call the imported function to get the final result
 let dcf_value = present_value(future_revenues, discount_rate)
@@ -113,6 +113,7 @@ graph TD
 ## Key Features
 
 ### ✨ The ValuaScript Language
+
 - **Intuitive Syntax:** A clean, declarative language with a familiar, spreadsheet-like formula syntax.
 - **📦 Code Modularity:** Organize models into reusable modules with `@import`. The compiler resolves the entire dependency graph, including nested and shared ("diamond") dependencies.
 - **🔧 User-Defined Functions:** Create reusable, type-safe functions with docstrings, strict lexical scoping, and compile-time recursion detection.
@@ -120,14 +121,16 @@ graph TD
 - **🎲 Integrated Monte Carlo Support:** Natively supports a rich library of statistical distributions (`Normal`, `Pert`, `Lognormal`, `Beta`, etc.).
 
 ### 🚀 The AOT Compiler & C++ Engine
+
 - **High-Performance Backend:** A multi-threaded Virtual Machine (VM) written in modern C++17, designed to leverage all available CPU cores for maximum parallelism.
-- **🧠 Intelligent AOT Compiler:** Performs all semantic analysis and optimization *before* execution, generating a low-level JSON bytecode for the engine.
+- **🧠 Intelligent AOT Compiler:** Performs all semantic analysis and optimization _before_ execution, generating a low-level JSON bytecode for the engine.
 - **⚙️ Advanced Optimizations:**
   - **Function Inlining:** User-defined functions are seamlessly inlined, eliminating call overhead.
   - **Loop-Invariant Code Motion:** Deterministic calculations are automatically identified and run only once.
   - **Dead Code Elimination:** Unused variables are stripped from the final bytecode.
 
 ### ⚡ The VS Code Extension
+
 - **Live Value Preview:** Hover over any variable to see its calculated value instantly. For stochastic variables, the engine runs a sample simulation in the background and displays the mean.
 - **Real-Time Diagnostics:** Get immediate, as-you-type feedback on errors.
 - **Hover-for-Help:** See full signatures and docstrings for all built-in and user-defined functions.
@@ -145,6 +148,7 @@ Get started in minutes with our automated installation scripts.
 #### macOS & Linux
 
 Open your terminal and run the following one-line command:
+
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.sh)"
 ```
@@ -152,6 +156,7 @@ Open your terminal and run the following one-line command:
 #### Windows
 
 Open a new **PowerShell terminal as Administrator** and run:
+
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Alessio2704/monte-carlo-simulator/main/scripts/install.ps1'))
 ```
@@ -159,6 +164,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 After installation, **you must open a new terminal window** for the changes to take effect.
 
 #### Uninstalling
+
 The same scripts can be used to uninstall the tools. Simply replace `install.sh` with `uninstall.sh` (for Mac/Linux) or `install.ps1` with `uninstall.ps1` (for Windows) in the commands above.
 
 ## ValuaScript Language Guide
@@ -202,8 +208,8 @@ let my_vector = [100, 200, 300]
 let first_element = my_vector[0]   # Accesses the first element (100)
 let last_element = my_vector[-1]    # Accesses the last element (300)
 
-# To create a new vector with an element removed, use the `delete_element` function.
-let vector_without_last = delete_element(my_vector, -1) # Returns a new vector [100, 200]
+# To create a new vector with an element removed, use the `DeleteElement` function.
+let vector_without_last = DeleteElement(my_vector, -1) # Returns a new vector [100, 200]
 
 # --- Conditional Logic (if/then/else) ---
 let tax_regime = if is_high_income then 0.40 else 0.25
@@ -232,7 +238,7 @@ func calculate_cogs(sales: vector, gross_margin: scalar) -> vector {
 @iterations = 1000
 @output = final_cogs
 
-let revenue = grow_series(1000, 0.1, 5)
+let revenue = GrowSerie(1000, 0.1, 5)
 let margin = Normal(0.4, 0.05)
 
 # Call the user-defined function
@@ -246,12 +252,12 @@ let final_cogs = calculate_cogs(revenue, margin)
 
 A comprehensive library of built-in functions is available for math, series manipulation, I/O, and statistical sampling.
 
-| Category                 | Functions                                                                                                                                                            |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Math**                 | `log`, `log10`, `exp`, `sin`, `cos`, `tan`                                                                                                                           |
-| **Vector & Series**      | `grow_series`, `compound_series`, `interpolate_series`, `sum_series`, `series_delta`, `npv`, `get_element`, `delete_element`, `compose_vector`, `capitalize_expense` |
-| **Statistical Samplers** | `Normal`, `Lognormal`, `Beta`, `Uniform`, `Bernoulli`, `Pert`, `Triangular`                                                                                          |
-| **Data I/O**             | `read_csv_scalar`, `read_csv_vector`                                                                                                                                 |
+| Category                 | Functions                                                                                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Math**                 | `log`, `log10`, `exp`, `sin`, `cos`, `tan`                                                                                                                |
+| **Vector & Series**      | `GrowSerie`, `CompoundSerie`, `InterpolateSerie`, `SumVector`, `VectorDelta`, `Npv`, `GetElement`, `DeleteElement`, `ComposeVector`, `CapitalizeExpenses` |
+| **Statistical Samplers** | `Normal`, `Lognormal`, `Beta`, `Uniform`, `Bernoulli`, `Pert`, `Triangular`                                                                               |
+| **Data I/O**             | `ReadCsvScalar`, `ReadCsvVector`                                                                                                                          |
 
 </details>
 
@@ -260,6 +266,7 @@ A comprehensive library of built-in functions is available for math, series mani
 This project is built with a professional CI/CD pipeline and has a comprehensive test suite. Contributions are welcome, especially those that expand the engine's vocabulary.
 
 ### How to Contribute
+
 The most valuable contribution is adding new, specialized functions to the C++ engine.
 
 1.  **File an issue** to discuss the new function's design and use case.
@@ -272,7 +279,9 @@ The most valuable contribution is adding new, specialized functions to the C++ e
 ### Running the Test Suite
 
 #### 1. C++ Engine Tests (GoogleTest & CTest)
+
 From the root directory of the project:
+
 ```bash
 # Configure and build the project
 cmake -S . -B build
@@ -284,6 +293,7 @@ ctest --verbose
 ```
 
 #### 2. Python Compiler Tests (Pytest)
+
 ```bash
 # Navigate to the compiler directory
 cd compiler
@@ -301,8 +311,8 @@ pytest -v
 
 ## Roadmap
 
--   [ ] **Empirical Distribution Sampling for Unparalleled Realism:** Add a function to create a custom sampler from a real-world data series (e.g., historical stock returns), allowing models to be driven by actual data instead of theoretical distributions.
--   [ ] **Massive Parallelism with GPU Acceleration:** Explore CUDA/OpenCL to offload the "embarrassingly parallel" Monte Carlo workload to the GPU, providing an order-of-magnitude performance increase for simulations with millions of trials.
+- [ ] **Empirical Distribution Sampling for Unparalleled Realism:** Add a function to create a custom sampler from a real-world data series (e.g., historical stock returns), allowing models to be driven by actual data instead of theoretical distributions.
+- [ ] **Massive Parallelism with GPU Acceleration:** Explore CUDA/OpenCL to offload the "embarrassingly parallel" Monte Carlo workload to the GPU, providing an order-of-magnitude performance increase for simulations with millions of trials.
 
 ## License
 
