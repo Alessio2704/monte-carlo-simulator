@@ -85,7 +85,7 @@ def test_lowers_nested_conditional_assignments_correctly(base_registries):
 
     # ACT
     lowerer = IRLowerer(partitioned_ir, registries, model={})
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
 
     # ASSERT
     assert actual_result == final_expected_ir
@@ -110,7 +110,7 @@ def test_lifts_simple_nested_function_call(base_registries):
 
     # ACT
     lowerer = IRLowerer(partitioned_ir, registries, model={})
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
 
     # ASSERT
     assert actual_result == expected_ir
@@ -137,7 +137,7 @@ def test_lifts_multiple_nested_calls_in_one_instruction(base_registries):
     }
     # ACT
     lowerer = IRLowerer(partitioned_ir, registries, model={})
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == expected_ir
     validate_ir(actual_result["per_trial_steps"])
@@ -163,7 +163,7 @@ def test_lifts_deeply_nested_function_call(base_registries):
     }
     # ACT
     lowerer = IRLowerer(partitioned_ir, registries, model={})
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == expected_ir
     validate_ir(actual_result["per_trial_steps"], ["x", "y"])
@@ -177,7 +177,7 @@ def test_lowers_identity_to_copy(base_registries):
     expected_ir = {"pre_trial_steps": [{"type": "copy", "result": ["a"], "source": "b", "line": 10}], "per_trial_steps": []}
     # ACT
     lowerer = IRLowerer(partitioned_ir, registries, model={})
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == expected_ir
     validate_ir(actual_result["pre_trial_steps"], ["b"])
@@ -194,12 +194,12 @@ def test_counters_continue_across_partitions(base_registries):
     }
     # ACT
     lowerer = IRLowerer(partitioned_ir, registries, model={})
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
     # ASSERT
     assert lowerer.label_counter == 2
     assert lowerer.temp_var_counter == 1
     validate_ir(actual_result["pre_trial_steps"], ["cond"])
-    validate_ir(actual_result["per_trial_steps"], ["x"])  # x is defined in pre-trial
+    validate_ir(actual_result["per_trial_steps"], ["x"])
 
 
 def test_handles_empty_ir_gracefully(base_registries):
@@ -207,7 +207,7 @@ def test_handles_empty_ir_gracefully(base_registries):
     partitioned_ir = {"pre_trial_steps": [], "per_trial_steps": []}
     # ACT
     lowerer = IRLowerer(partitioned_ir, base_registries, model={})
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == partitioned_ir
 
@@ -223,7 +223,7 @@ def test_preserves_ir_with_no_lowerable_instructions(base_registries):
     original_ir = json.loads(json.dumps(partitioned_ir))
     # ACT
     lowerer = IRLowerer(partitioned_ir, registries, model={})
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == original_ir
     validate_ir(actual_result["pre_trial_steps"])
@@ -272,7 +272,7 @@ def test_kitchen_sink_nested_conditional_with_nested_function(base_registries):
     }
     # ACT
     lowerer = IRLowerer(partitioned_ir, registries, model={})
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == full_expected
     validate_ir(actual_result["per_trial_steps"], ["is_critical", "use_stochastic"])
@@ -301,7 +301,7 @@ def test_lifts_function_call_from_condition(base_registries):
     }
     # ACT
     lowerer = IRLowerer(partitioned_ir, registries, model)
-    actual_result = lowerer.lower()[0]
+    actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == expected_ir
     assert registries["variable_map"]["__temp_lifted_1"]["type"] == "BOOLEAN"
