@@ -31,7 +31,6 @@ class IRValidator:
         """
         for i, step in enumerate(self.ir):
             # 1. Find all variables used as INPUTS in the current step.
-            # This is now done by the much more precise _find_used_variables method.
             used_vars_candidates = self._find_used_variables(step)
 
             # 2. Filter this list to find which ones are actually undefined.
@@ -53,28 +52,24 @@ class IRValidator:
         """
         used = set()
 
-        # Base case 1: If it's a string, it's a potential variable name.
         if isinstance(node, str):
             used.add(node)
             return used
 
-        # Base case 2: If it's a number or boolean, it's a literal, not a variable.
         if not isinstance(node, (dict, list)):
             return used
 
-        # Recursive case for lists (e.g., inside 'args')
         if isinstance(node, list):
             for item in node:
                 used.update(self._find_used_variables(item))
             return used
 
-        # Recursive and SPECIFIC case for dictionaries.
-        # We no longer iterate over all values. We only look inside keys
-        # that are known to hold input expressions.
         if isinstance(node, dict):
-            # These are the only fields in our IR that can contain variable inputs.
-            # We explicitly ignore "type", "result", "function", "line", etc.
-            keys_with_inputs = ["args", "condition", "then_expr", "else_expr"]
+            # For literal assignments, the 'value' is not a variable.
+            if node.get("type") == "literal_assignment":
+                return used  # Do not scan the 'value' field.
+
+            keys_with_inputs = ["args", "condition", "then_expr", "else_expr", "value", "source"]
 
             for key in keys_with_inputs:
                 if key in node:

@@ -182,8 +182,13 @@ class CompilationPipeline:
             self.artifacts[stage_name] = result
 
             # Validate the output if it's an IR-producing stage
-            if stage_name.startswith("ir") or stage_name in ["copy_propagation", "tuple_forwarding", "alias_resolver", "constant_folding", "dead_code_elimination"]:
-                self._validate_ir(result if isinstance(result, list) else [], stage_name)
+            if stage_name.startswith("ir") or stage_name in ["copy_propagation", "tuple_forwarding", "alias_resolver", "constant_folding", "dead_code_elimination", "bytecode_ir_lowering"]:
+                # For partitioned IR, validate each partition
+                if isinstance(result, dict) and "pre_trial_steps" in result:
+                    self._validate_ir(result.get("pre_trial_steps", []), stage_name)
+                    self._validate_ir(result.get("per_trial_steps", []), stage_name)
+                elif isinstance(result, list):
+                    self._validate_ir(result, stage_name)
 
             if stage_name in self.dump_stages:
                 self.save_artifact(stage_name, result)
