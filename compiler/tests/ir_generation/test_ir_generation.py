@@ -48,7 +48,7 @@ def run_ir_generation_pipeline(script_content: str, file_path: str):
 def test_ir_for_basic_literal_assignments(tmp_path):
     script = """
     @iterations=1
-    @output=x
+    @output=s
     let s = 10.5
     let b = true
     let v = [1, 2, 3]

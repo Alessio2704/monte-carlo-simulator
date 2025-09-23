@@ -212,3 +212,19 @@ def test_catches_non_scalar_types_in_vector_literal(tmp_path, vector_literal):
     """
     file_path = create_dummy_file(tmp_path, "main.vs", script)
     run_validation_with_error(script, file_path, ErrorCode.INVALID_ITEM_TYPE_IN_VECTOR)
+
+
+def test_fails_on_undefined_output_variable(tmp_path):
+    """
+    Negative integration test to ensure the SemanticValidator catches an
+    @output directive that points to a non-existent variable.
+    """
+    script = """
+    @iterations = 1
+    @output = some_invented_variable_that_does_not_exist
+
+    let x = 10
+    """
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+
+    run_validation_with_error(script, file_path, ErrorCode.UNDEFINED_VARIABLE)

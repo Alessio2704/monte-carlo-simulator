@@ -54,6 +54,7 @@ class SemanticValidator:
         main_file_path = self.table["main_file_path"]
         main_ast = self.table["processed_asts"][main_file_path]
         directives = {d["name"]: d for d in main_ast.get("directives", [])}
+        global_vars = self.table["global_variables"]
 
         if not self.is_main_file_a_module:
             for name, config in DIRECTIVE_CONFIG.items():
@@ -72,18 +73,24 @@ class SemanticValidator:
             if self.is_main_file_a_module and not config["allowed_in_module"]:
                 raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=d["line"], name=name)
 
-            value = d.get("value")
+            value_node = d.get("value")
             expected_py_type = config["value_type"]
+
+            # After validating the type, validate the value itself for @output.
+            if name == "output":
+                output_var_name = str(value_node)
+                if output_var_name not in global_vars:
+                    raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, line=d["line"], name=output_var_name, context="the @output directive")
 
             valid = False
             if expected_py_type == str:
-                if isinstance(value, (_StringLiteral, Token)):
+                if isinstance(value_node, (_StringLiteral, Token)):
                     valid = True
             elif expected_py_type == int:
-                if isinstance(value, int):
+                if isinstance(value_node, int):
                     valid = True
             elif expected_py_type == bool:
-                if isinstance(value, bool):
+                if isinstance(value_node, bool):
                     valid = True
 
             if not valid:
@@ -111,10 +118,9 @@ class SemanticValidator:
             if len(items) > 1:
                 item_types = {self._get_node_type(item, scope) for item in items}
                 if len(item_types) > 1:
-                    # Format the set of found types for a clean error message
                     found_types_str = ", ".join(sorted(list(item_types)))
                     raise ValuaScriptError(ErrorCode.MIXED_TYPES_IN_VECTOR, line=line, found_types=found_types_str)
-                
+
             for item in node.get("items", []):
                 item_type = self._get_node_type(item, scope)
                 if item_type != "scalar":
@@ -161,7 +167,6 @@ class SemanticValidator:
                 raise ValuaScriptError(ErrorCode.UNKNOWN_FUNCTION, line=line, name=func_name)
 
             arg_nodes = node.get("args", [])
-
             MATH_OPERATORS = {"add": "+", "subtract": "-", "multiply": "*", "divide": "/", "power": "^"}
             if func_name in MATH_OPERATORS:
                 arg_types = [self._get_node_type(arg, scope) for arg in arg_nodes]
@@ -174,7 +179,6 @@ class SemanticValidator:
             if not is_variadic:
                 if len(arg_nodes) != len(sig["arg_types"]):
                     raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=func_name, expected=len(sig["arg_types"]), provided=len(arg_nodes))
-
                 for i, arg_node in enumerate(arg_nodes):
                     expected_type = sig["arg_types"][i]
                     if expected_type == "any":
@@ -192,10 +196,6 @@ class SemanticValidator:
                                 raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line, arg_num=i + 1, name=func_name, expected=expected_type, provided=actual_type)
 
     def _get_node_type(self, node: Any, scope: Dict) -> Union[str, List[str]]:
-        """
-        Calculates the type of any node. For variables, it looks up the pre-computed
-        type. For expressions, it calculates the type recursively.
-        """
         if isinstance(node, bool):
             return "boolean"
         if isinstance(node, (int, float)):
@@ -208,33 +208,27 @@ class SemanticValidator:
             return [self._get_node_type(n, scope) for n in node]
         if node.get("_is_vector_literal"):
             return "vector"
-
         if not isinstance(node, dict):
             return "any"
-
         if node.get("type") == "conditional_expression":
             return self._get_node_type(node["then_expr"], scope)
-
         if "function" in node:
             func_name = node["function"]
             sig = self.all_signatures.get(func_name)
             if not sig:
                 return "any"
-
             return_type_rule = sig["return_type"]
             if callable(return_type_rule):
                 arg_types = [self._get_node_type(arg, scope) for arg in node.get("args", [])]
                 return return_type_rule(arg_types)
             else:
                 return return_type_rule
-
         var_name = node.get("result")
         if var_name:
             if self.current_scope_name == "global":
                 return self.table["global_variables"].get(var_name, {}).get("inferred_type", "any")
             else:
                 return scope.get(var_name, {}).get("inferred_type", "any")
-
         return "any"
 
     def _check_for_recursion(self):
@@ -255,7 +249,6 @@ class SemanticValidator:
                         q.append(val)
                     elif isinstance(val, list):
                         q.extend(val)
-
         visiting, visited = set(), set()
         for func_name in sorted(list(call_graph.keys())):
             if func_name not in visited:
