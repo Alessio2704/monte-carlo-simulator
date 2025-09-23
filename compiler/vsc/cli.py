@@ -26,8 +26,8 @@ def main():
         "6e": ("dead_code_elimination", "Optimized IR (Dead Code Elimination)"),
         "6": ("optimized_ir", "Final Optimized IR"),
         "7": ("ir_partitioning", "Partitioned IR (Pre-trial/Per-trial)"),
-        "8a": ("bytecode_resource_allocation", "Bytecode Gen: Resource Allocation"),
-        "8b": ("bytecode_ir_lowering", "Bytecode Gen: IR Transformation (Lowering)"),
+        "8a": ("bytecode_ir_lowering", "Bytecode Gen: IR Transformation (Lowering)"),
+        "8b": ("bytecode_resource_allocation", "Bytecode Gen: Resource Allocation"),
         "8c": ("bytecode_code_emission", "Bytecode Gen: Code Emission"),
         "8": ("recipe", "Final Simulation Recipe (Bytecode)"),
     }

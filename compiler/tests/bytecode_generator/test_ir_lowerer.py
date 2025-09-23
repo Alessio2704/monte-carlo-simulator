@@ -26,13 +26,15 @@ def pretty_format_ir(ir: Dict[str, Any]) -> str:
 
 
 @pytest.fixture
-def base_registries() -> Dict[str, Any]:
-    """Provides a clean, boilerplate registry object for tests."""
+def base_model() -> Dict[str, Any]:
+    """Provides a clean, boilerplate model object for tests."""
     return {
-        "variable_registries": {"SCALAR": [], "VECTOR": [], "BOOLEAN": [], "STRING": []},
-        "variable_map": {},
-        "constant_pools": {"SCALAR": [], "VECTOR": [], "BOOLEAN": [], "STRING": []},
-        "constant_map": {},
+        "global_variables": {},
+        "all_signatures": {
+            "Normal": {"return_type": "scalar", "is_stochastic": True},
+            "multiply": {"return_type": "scalar", "is_stochastic": False},
+            "add": {"return_type": "scalar", "is_stochastic": False},
+        },
     }
 
 
@@ -47,11 +49,14 @@ def validate_ir(ir: List[Dict[str, Any]], pre_defined_vars: List[str] = None):
 # --- Comprehensive Test Suite for IRLowerer ---
 
 
-def test_lowers_nested_conditional_assignments_correctly(base_registries):
+def test_lowers_nested_conditional_assignments_correctly(base_model):
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["tax_rate"])
-    registries["variable_registries"]["BOOLEAN"].extend(["is_high_income", "is_medium_income"])
+    model = base_model
+    model["global_variables"] = {
+        "tax_rate": {"inferred_type": "scalar"},
+        "is_high_income": {"inferred_type": "boolean"},
+        "is_medium_income": {"inferred_type": "boolean"},
+    }
     partitioned_ir = {
         "pre_trial_steps": [],
         "per_trial_steps": [
@@ -78,13 +83,13 @@ def test_lowers_nested_conditional_assignments_correctly(base_registries):
             {"type": "literal_assignment", "result": ["tax_rate"], "value": 0.4, "line": 59},
             {"type": "jump", "target": "__end_label_3", "line": 59},
             {"type": "label", "name": "__else_label_2", "line": 59},
-            {"type": "literal_assignment", "result": ["tax_rate"], "value": "__temp_lifted_1", "line": 59},
+            {"type": "copy", "result": ["tax_rate"], "source": "__temp_lifted_1", "line": 59},
             {"type": "label", "name": "__end_label_3", "line": 59},
         ],
     }
 
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    lowerer = IRLowerer(partitioned_ir, model)
     actual_result, _ = lowerer.lower()
 
     # ASSERT
@@ -92,10 +97,10 @@ def test_lowers_nested_conditional_assignments_correctly(base_registries):
     validate_ir(actual_result["per_trial_steps"], ["is_high_income", "is_medium_income"])
 
 
-def test_lifts_simple_nested_function_call(base_registries):
+def test_lifts_simple_nested_function_call(base_model):
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["x", "result"])
+    model = base_model
+    model["global_variables"] = {"x": {"inferred_type": "scalar"}, "result": {"inferred_type": "scalar"}}
     partitioned_ir = {
         "pre_trial_steps": [],
         "per_trial_steps": [{"type": "execution_assignment", "result": ["result"], "function": "add", "args": ["x", {"function": "Normal", "args": [0, 1]}], "line": 10}],
@@ -109,7 +114,7 @@ def test_lifts_simple_nested_function_call(base_registries):
     }
 
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    lowerer = IRLowerer(partitioned_ir, model)
     actual_result, _ = lowerer.lower()
 
     # ASSERT
@@ -117,10 +122,10 @@ def test_lifts_simple_nested_function_call(base_registries):
     validate_ir(actual_result["per_trial_steps"], ["x"])
 
 
-def test_lifts_multiple_nested_calls_in_one_instruction(base_registries):
+def test_lifts_multiple_nested_calls_in_one_instruction(base_model):
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["result"])
+    model = base_model
+    model["global_variables"] = {"result": {"inferred_type": "scalar"}}
     partitioned_ir = {
         "pre_trial_steps": [],
         "per_trial_steps": [
@@ -136,17 +141,17 @@ def test_lifts_multiple_nested_calls_in_one_instruction(base_registries):
         ],
     }
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    lowerer = IRLowerer(partitioned_ir, model)
     actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == expected_ir
     validate_ir(actual_result["per_trial_steps"])
 
 
-def test_lifts_deeply_nested_function_call(base_registries):
+def test_lifts_deeply_nested_function_call(base_model):
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["x", "y", "result"])
+    model = base_model
+    model["global_variables"] = {"x": {"inferred_type": "scalar"}, "y": {"inferred_type": "scalar"}, "result": {"inferred_type": "scalar"}}
     partitioned_ir = {
         "pre_trial_steps": [],
         "per_trial_steps": [
@@ -162,38 +167,37 @@ def test_lifts_deeply_nested_function_call(base_registries):
         ],
     }
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    lowerer = IRLowerer(partitioned_ir, model)
     actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == expected_ir
     validate_ir(actual_result["per_trial_steps"], ["x", "y"])
 
 
-def test_lowers_identity_to_copy(base_registries):
+def test_lowers_identity_to_copy(base_model):
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["a", "b"])
+    model = base_model
+    model["global_variables"] = {"a": {"inferred_type": "scalar"}, "b": {"inferred_type": "scalar"}}
     partitioned_ir = {"pre_trial_steps": [{"type": "execution_assignment", "result": ["a"], "function": "identity", "args": ["b"], "line": 10}], "per_trial_steps": []}
     expected_ir = {"pre_trial_steps": [{"type": "copy", "result": ["a"], "source": "b", "line": 10}], "per_trial_steps": []}
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    lowerer = IRLowerer(partitioned_ir, model)
     actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == expected_ir
     validate_ir(actual_result["pre_trial_steps"], ["b"])
 
 
-def test_counters_continue_across_partitions(base_registries):
+def test_counters_continue_across_partitions(base_model):
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["BOOLEAN"].extend(["cond"])
-    registries["variable_registries"]["SCALAR"].extend(["x"])
+    model = base_model
+    model["global_variables"] = {"cond": {"inferred_type": "boolean"}, "x": {"inferred_type": "scalar"}}
     partitioned_ir = {
         "pre_trial_steps": [{"type": "conditional_assignment", "result": ["x"], "condition": "cond", "then_expr": 1, "else_expr": 2, "line": 1}],
         "per_trial_steps": [{"type": "execution_assignment", "result": ["x"], "function": "add", "args": ["x", {"function": "Normal", "args": [0, 1]}], "line": 2}],
     }
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    lowerer = IRLowerer(partitioned_ir, model)
     actual_result, _ = lowerer.lower()
     # ASSERT
     assert lowerer.label_counter == 2
@@ -202,38 +206,41 @@ def test_counters_continue_across_partitions(base_registries):
     validate_ir(actual_result["per_trial_steps"], ["x"])
 
 
-def test_handles_empty_ir_gracefully(base_registries):
+def test_handles_empty_ir_gracefully(base_model):
     # ARRANGE
     partitioned_ir = {"pre_trial_steps": [], "per_trial_steps": []}
     # ACT
-    lowerer = IRLowerer(partitioned_ir, base_registries, model={})
+    lowerer = IRLowerer(partitioned_ir, base_model)
     actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == partitioned_ir
 
 
-def test_preserves_ir_with_no_lowerable_instructions(base_registries):
+def test_preserves_ir_with_no_lowerable_instructions(base_model):
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["a", "b"])
+    model = base_model
+    model["global_variables"] = {"a": {"inferred_type": "scalar"}, "b": {"inferred_type": "scalar"}}
     partitioned_ir = {
         "pre_trial_steps": [{"type": "literal_assignment", "result": ["a"], "value": 10, "line": 1}, {"type": "execution_assignment", "result": ["b"], "function": "add", "args": ["a", 5], "line": 2}],
         "per_trial_steps": [],
     }
     original_ir = json.loads(json.dumps(partitioned_ir))
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    lowerer = IRLowerer(partitioned_ir, model)
     actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == original_ir
     validate_ir(actual_result["pre_trial_steps"])
 
 
-def test_kitchen_sink_nested_conditional_with_nested_function(base_registries):
+def test_kitchen_sink_nested_conditional_with_nested_function(base_model):
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["result"])
-    registries["variable_registries"]["BOOLEAN"].extend(["is_critical", "use_stochastic"])
+    model = base_model
+    model["global_variables"] = {
+        "result": {"inferred_type": "scalar"},
+        "is_critical": {"inferred_type": "boolean"},
+        "use_stochastic": {"inferred_type": "boolean"},
+    }
     partitioned_ir = {
         "pre_trial_steps": [],
         "per_trial_steps": [
@@ -257,7 +264,7 @@ def test_kitchen_sink_nested_conditional_with_nested_function(base_registries):
         "per_trial_steps": [
             {"type": "execution_assignment", "result": ["__temp_lifted_1"], "function": "Normal", "args": [50, 5], "line": 40},
             {"type": "jump_if_false", "condition": "use_stochastic", "target": "__else_label_0", "line": 40},
-            {"type": "literal_assignment", "result": ["__temp_lifted_2"], "value": "__temp_lifted_1", "line": 40},
+            {"type": "copy", "result": ["__temp_lifted_2"], "source": "__temp_lifted_1", "line": 40},
             {"type": "jump", "target": "__end_label_1", "line": 40},
             {"type": "label", "name": "__else_label_0", "line": 40},
             {"type": "literal_assignment", "result": ["__temp_lifted_2"], "value": 25, "line": 40},
@@ -266,23 +273,24 @@ def test_kitchen_sink_nested_conditional_with_nested_function(base_registries):
             {"type": "literal_assignment", "result": ["result"], "value": 100, "line": 40},
             {"type": "jump", "target": "__end_label_3", "line": 40},
             {"type": "label", "name": "__else_label_2", "line": 40},
-            {"type": "literal_assignment", "result": ["result"], "value": "__temp_lifted_2", "line": 40},
+            {"type": "copy", "result": ["result"], "source": "__temp_lifted_2", "line": 40},
             {"type": "label", "name": "__end_label_3", "line": 40},
         ],
     }
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model={})
+    lowerer = IRLowerer(partitioned_ir, model)
     actual_result, _ = lowerer.lower()
     # ASSERT
     assert actual_result == full_expected
     validate_ir(actual_result["per_trial_steps"], ["is_critical", "use_stochastic"])
 
 
-def test_lifts_function_call_from_condition(base_registries):
+def test_lifts_function_call_from_condition(base_model):
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["a", "result"])
-    model = {"all_signatures": {"greater_than": {"return_type": "boolean"}}}
+    model = base_model
+    model["global_variables"] = {"a": {"inferred_type": "scalar"}, "result": {"inferred_type": "scalar"}}
+    model["all_signatures"]["greater_than"] = {"return_type": "boolean"}
+
     partitioned_ir = {
         "pre_trial_steps": [{"type": "conditional_assignment", "result": ["result"], "condition": {"function": "greater_than", "args": ["a", 10]}, "then_expr": 100, "else_expr": 200, "line": 50}],
         "per_trial_steps": [],
@@ -300,11 +308,11 @@ def test_lifts_function_call_from_condition(base_registries):
         "per_trial_steps": [],
     }
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model)
-    actual_result, _ = lowerer.lower()
+    lowerer = IRLowerer(partitioned_ir, model)
+    actual_result, updated_model = lowerer.lower()
     # ASSERT
     assert actual_result == expected_ir
-    assert registries["variable_map"]["__temp_lifted_1"]["type"] == "BOOLEAN"
+    assert updated_model["global_variables"]["__temp_lifted_1"]["inferred_type"] == "boolean"
     validate_ir(actual_result["pre_trial_steps"], ["a"])
 
 
@@ -352,7 +360,7 @@ def test_pipeline_handles_multi_return_udf_correctly(tmp_path):
                 "type": "execution_assignment",
                 "result": ["__temp_lifted_1", "__temp_lifted_2", "__temp_lifted_3"],
                 "function": "SirModel",
-                "args": [999990, 10, 0, 0.35, 0.07142857142857142, 120, 1.0],
+                "args": [999990.0, 10.0, 0.0, 0.35, 0.07142857142857142, 120.0, 1.0],
                 "line": 21,
             },
             {"type": "copy", "result": ["sir1", "sir2", "sir3"], "source": ["__temp_lifted_1", "__temp_lifted_2", "__temp_lifted_3"], "line": 21},  # Correct line number
@@ -362,7 +370,7 @@ def test_pipeline_handles_multi_return_udf_correctly(tmp_path):
 
     # ACT
     try:
-        actual_artifact = compile_valuascript(main_script, file_path=main_file_path, stop_after_stage="bytecode_ir_lowering")["lowered_ir"]
+        actual_artifact = compile_valuascript(main_script, file_path=main_file_path, stop_after_stage="bytecode_ir_lowering")
         # Unwrap any _StringLiteral objects for comparison
         sir_args = actual_artifact["pre_trial_steps"][0]["args"]
         for i, arg in enumerate(sir_args):

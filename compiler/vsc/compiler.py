@@ -149,8 +149,8 @@ class CompilationPipeline:
         # The sequence of bytecode generation sub-phases.
         # The key is the stage name from the CLI, the value is the method to call.
         phases = {
-            "bytecode_resource_allocation": generator.run_phase_a_resource_allocation,
-            "bytecode_ir_lowering": generator.run_phase_b_ir_lowering,
+            "bytecode_ir_lowering": generator.run_phase_a_ir_lowering,
+            "bytecode_resource_allocation": generator.run_phase_b_resource_allocation,
             "bytecode_code_emission": generator.run_phase_c_code_emission,
             "recipe": generator.run_final_assembly,
         }
@@ -158,13 +158,6 @@ class CompilationPipeline:
         for name, phase_func in phases.items():
             # We use _run_stage to handle artifact saving and error wrapping.
             artifact = self._run_stage(name, phase_func)
-
-            # The artifact for 8b is now a dictionary containing both the
-            # lowered IR and the updated registries.
-            if name == "bytecode_ir_lowering":
-                # We need to validate the IR *inside* the combined artifact
-                if "lowered_ir" in artifact:
-                    self._validate_ir_partition(artifact["lowered_ir"], "bytecode_ir_lowering")
 
             bytecode_artifacts[name] = artifact
 
@@ -199,7 +192,15 @@ class CompilationPipeline:
             result = stage_func(*args, **kwargs)
             self.artifacts[stage_name] = result
 
-            if stage_name.startswith("ir") or stage_name in ["copy_propagation", "tuple_forwarding", "alias_resolver", "constant_folding", "dead_code_elimination", "ir_partitioning"]:
+            if stage_name.startswith("ir") or stage_name in [
+                "copy_propagation",
+                "tuple_forwarding",
+                "alias_resolver",
+                "constant_folding",
+                "dead_code_elimination",
+                "ir_partitioning",
+                "bytecode_ir_lowering",
+            ]:
                 self._validate_ir_partition(result, stage_name)
             elif isinstance(result, list):
                 self._validate_ir(result, stage_name)

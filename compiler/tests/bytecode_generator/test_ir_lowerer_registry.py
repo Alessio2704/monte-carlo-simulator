@@ -6,88 +6,86 @@ from vsc.bytecode_generation.ir_lowerer import IRLowerer
 
 
 @pytest.fixture
-def base_registries() -> Dict[str, Any]:
-    """Provides a clean, boilerplate registry object for tests."""
+def base_model() -> Dict[str, Any]:
+    """Provides a clean, boilerplate model object for tests."""
     return {
-        "variable_registries": {"SCALAR": [], "VECTOR": [], "BOOLEAN": [], "STRING": []},
-        "variable_map": {},
+        "global_variables": {},
+        "all_signatures": {},
     }
 
 
-def test_registry_after_simple_scalar_lift(base_registries):
+def test_registry_after_simple_scalar_lift(base_model):
     """
-    Tests that a single lifted scalar temporary is correctly added to the registries.
+    Tests that a single lifted scalar temporary is correctly added to the model.
     """
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["x", "result"])
-    registries["variable_map"]["x"] = {"type": "SCALAR", "index": 0}
-    registries["variable_map"]["result"] = {"type": "SCALAR", "index": 1}
+    model = base_model
+    model["global_variables"] = {
+        "x": {"inferred_type": "scalar", "is_stochastic": False},
+        "result": {"inferred_type": "scalar", "is_stochastic": True},
+    }
+    model["all_signatures"]["Normal"] = {"return_type": "scalar", "is_stochastic": True}
+    model["all_signatures"]["add"] = {"return_type": "scalar", "is_stochastic": False}
 
     partitioned_ir = {"per_trial_steps": [{"type": "execution_assignment", "result": ["result"], "function": "add", "args": ["x", {"function": "Normal", "args": [0, 1]}]}]}
-    model = {"all_signatures": {"Normal": {"return_type": "scalar"}}}
 
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model)
-    _, updated_registries = lowerer.lower()
+    lowerer = IRLowerer(partitioned_ir, model)
+    _, updated_model = lowerer.lower()
 
     # ASSERT
-    # Check the variable_registries
-    assert "__temp_lifted_1" in updated_registries["variable_registries"]["SCALAR"]
-    assert len(updated_registries["variable_registries"]["SCALAR"]) == 3
-
-    # Check the variable_map
-    temp_var_info = updated_registries["variable_map"].get("__temp_lifted_1")
+    temp_var_info = updated_model["global_variables"].get("__temp_lifted_1")
     assert temp_var_info is not None
-    assert temp_var_info["type"] == "SCALAR"
-    assert temp_var_info["index"] == 2  # Should be the next available scalar index
+    assert temp_var_info["inferred_type"] == "scalar"
+    assert temp_var_info["is_stochastic"] is True
 
 
-def test_registry_after_multi_return_lift(base_registries):
+def test_registry_after_multi_return_lift(base_model):
     """
     Tests that temporary variables from a multi-return function are all
-    correctly added to the registries with sequential indices.
+    correctly added to the model.
     """
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["VECTOR"].extend(["sir1", "sir2", "sir3"])
-    registries["variable_map"]["sir1"] = {"type": "VECTOR", "index": 0}
-    registries["variable_map"]["sir2"] = {"type": "VECTOR", "index": 1}
-    registries["variable_map"]["sir3"] = {"type": "VECTOR", "index": 2}
+    model = base_model
+    model["global_variables"] = {
+        "sir1": {"inferred_type": "vector", "is_stochastic": False},
+        "sir2": {"inferred_type": "vector", "is_stochastic": False},
+        "sir3": {"inferred_type": "vector", "is_stochastic": False},
+    }
+    # This identity is a placeholder for a complex multi-return call
+    model["all_signatures"]["identity"] = {"return_type": lambda types: types[0]}
+    model["all_signatures"]["get_sir"] = {"return_type": ["vector", "vector", "vector"], "is_stochastic": False}
 
     partitioned_ir = {"pre_trial_steps": [{"type": "execution_assignment", "result": ["sir1", "sir2", "sir3"], "function": "identity", "args": [{"function": "get_sir", "args": []}]}]}
-    model = {"all_signatures": {"get_sir": {"return_type": ["vector", "vector", "vector"]}}}
 
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model)
-    _, updated_registries = lowerer.lower()
+    lowerer = IRLowerer(partitioned_ir, model)
+    _, updated_model = lowerer.lower()
 
     # ASSERT
-    vec_registry = updated_registries["variable_registries"]["VECTOR"]
-    var_map = updated_registries["variable_map"]
+    global_vars = updated_model["global_variables"]
+    temp1 = global_vars.get("__temp_lifted_1")
+    temp2 = global_vars.get("__temp_lifted_2")
+    temp3 = global_vars.get("__temp_lifted_3")
 
-    assert "__temp_lifted_1" in vec_registry
-    assert "__temp_lifted_2" in vec_registry
-    assert "__temp_lifted_3" in vec_registry
-    assert len(vec_registry) == 6
-
-    # Check the variable_map entries for all three new variables
-    assert var_map["__temp_lifted_1"] == {"type": "VECTOR", "index": 3}
-    assert var_map["__temp_lifted_2"] == {"type": "VECTOR", "index": 4}
-    assert var_map["__temp_lifted_3"] == {"type": "VECTOR", "index": 5}
+    assert temp1 is not None and temp1["inferred_type"] == "vector"
+    assert temp2 is not None and temp2["inferred_type"] == "vector"
+    assert temp3 is not None and temp3["inferred_type"] == "vector"
 
 
-def test_registry_after_mixed_type_lifting(base_registries):
+def test_registry_after_mixed_type_lifting(base_model):
     """
     Tests that lifting functions with different return types correctly populates
-    the different typed lists within the registries.
+    the model with correctly typed temporary variables.
     """
     # ARRANGE
-    registries = base_registries
-    registries["variable_registries"]["SCALAR"].extend(["result"])
-    registries["variable_map"]["result"] = {"type": "SCALAR", "index": 0}
-
-    model = {"all_signatures": {"is_ready": {"return_type": "boolean"}, "create_data": {"return_type": "vector"}, "process_data": {"return_type": "scalar"}}}
+    model = base_model
+    model["global_variables"]["result"] = {"inferred_type": "scalar"}
+    model["all_signatures"] = {
+        "is_ready": {"return_type": "boolean", "is_stochastic": False},
+        "create_data": {"return_type": "vector", "is_stochastic": False},
+        "process_data": {"return_type": "scalar", "is_stochastic": False},
+    }
     partitioned_ir = {
         "pre_trial_steps": [
             {
@@ -101,18 +99,15 @@ def test_registry_after_mixed_type_lifting(base_registries):
     }
 
     # ACT
-    lowerer = IRLowerer(partitioned_ir, registries, model)
-    _, updated_registries = lowerer.lower()
+    lowerer = IRLowerer(partitioned_ir, model)
+    _, updated_model = lowerer.lower()
 
     # ASSERT
-    var_map = updated_registries["variable_map"]
+    global_vars = updated_model["global_variables"]
+    temp1 = global_vars.get("__temp_lifted_1")  # is_ready() -> boolean
+    temp2 = global_vars.get("__temp_lifted_2")  # create_data() -> vector
+    temp3 = global_vars.get("__temp_lifted_3")  # process_data() -> scalar
 
-    # Check that each temporary variable landed in the correct typed registry
-    assert "__temp_lifted_1" in updated_registries["variable_registries"]["BOOLEAN"]
-    assert "__temp_lifted_2" in updated_registries["variable_registries"]["VECTOR"]
-    assert "__temp_lifted_3" in updated_registries["variable_registries"]["SCALAR"]
-
-    # Check that their indices are correct WITHIN their own type
-    assert var_map["__temp_lifted_1"] == {"type": "BOOLEAN", "index": 0}  # First boolean
-    assert var_map["__temp_lifted_2"] == {"type": "VECTOR", "index": 0}  # First vector
-    assert var_map["__temp_lifted_3"] == {"type": "SCALAR", "index": 1}  # Second scalar
+    assert temp1 is not None and temp1["inferred_type"] == "boolean"
+    assert temp2 is not None and temp2["inferred_type"] == "vector"
+    assert temp3 is not None and temp3["inferred_type"] == "scalar"

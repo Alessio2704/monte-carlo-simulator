@@ -27,36 +27,34 @@ class BytecodeGenerator:
         Convenience method to run the entire bytecode generation pipeline.
         The main compiler driver may call the sub-phases individually.
         """
-        self.run_phase_a_resource_allocation()
-        self.run_phase_b_ir_lowering()
+        self.run_phase_a_ir_lowering()
+        self.run_phase_b_resource_allocation()
         self.run_phase_c_code_emission()
         return self.run_final_assembly()
 
-    def run_phase_a_resource_allocation(self) -> Dict[str, Any]:
+    def run_phase_a_ir_lowering(self) -> Dict[str, List[Dict[str, Any]]]:
         """
-        PHASE 8a: Scans the entire IR to build a complete inventory of
+        PHASE 8a: Converts the high-level IR into a flat, linear sequence of
+        simple, machine-like operations. It updates the semantic model with
+        any new temporary variables created.
+        """
+        lowerer = IRLowerer(self.partitioned_ir, self.model)
+
+        # The lowerer returns the new IR and the enriched model
+        self.lowered_ir, self.model = lowerer.lower()
+
+        return self.lowered_ir
+
+    def run_phase_b_resource_allocation(self) -> Dict[str, Any]:
+        """
+        PHASE 8b: Scans the final, lowered IR to build a complete inventory of
         all variables and constants.
         """
-        allocator = ResourceAllocator(self.partitioned_ir, self.model)
+        # Note: This phase now uses self.lowered_ir and the updated self.model
+        # from the previous phase.
+        allocator = ResourceAllocator(self.lowered_ir, self.model)
         self.registries = allocator.allocate()
         return self.registries
-
-    def run_phase_b_ir_lowering(self) -> Tuple[Dict, Dict]:
-        """
-        PHASE 8b: Converts the high-level IR into a flat, linear sequence of
-        simple, machine-like operations. Returns the lowered IR and the
-        updated registries.
-        """
-        lowerer = IRLowerer(self.partitioned_ir, self.registries, self.model)
-
-        # The lowerer returns the new IR and the enriched registries
-        self.lowered_ir, self.registries = lowerer.lower()
-
-        # Return a combined artifact for the pipeline orchestrator
-        return {
-            "lowered_ir": self.lowered_ir,
-            "registries": self.registries,
-        }
 
     def run_phase_c_code_emission(self) -> Dict[str, List[Dict[str, Any]]]:
         """

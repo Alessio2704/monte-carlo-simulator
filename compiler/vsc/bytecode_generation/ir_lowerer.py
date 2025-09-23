@@ -4,7 +4,7 @@ import re
 
 class IRLowerer:
     """
-    Implements Phase 8b of the bytecode pipeline.
+    Implements Phase 8a of the bytecode pipeline.
 
     This class is responsible for lowering the abstraction level of the IR.
     It takes the high-level, partitioned IR from the optimizer and converts
@@ -13,14 +13,14 @@ class IRLowerer:
     This is a stateful process that performs two main sub-phases:
     1.  Expression Flattening (Lifting): Eliminates all nested function calls
         and conditional expressions by introducing temporary variables. This
-        sub-phase modifies the resource registries from Phase 8a in-place.
+        sub-phase modifies the semantic model in-place by adding new temp
+        variables to its 'global_variables' dictionary.
     2.  Control-Flow Lowering: Replaces high-level conditional_assignment
         instructions with a procedural sequence of labels and jumps.
     """
 
-    def __init__(self, partitioned_ir: Dict[str, List[Dict[str, Any]]], registries: Dict[str, Any], model: Dict[str, Any]):
+    def __init__(self, partitioned_ir: Dict[str, List[Dict[str, Any]]], model: Dict[str, Any]):
         self.partitioned_ir = partitioned_ir
-        self.registries = registries
         self.model = model
         self.temp_var_counter = 0
         self.label_counter = 0
@@ -35,7 +35,7 @@ class IRLowerer:
         Returns:
             A tuple containing:
             - The new, lowered IR dictionary.
-            - The updated registries dictionary, now including any new
+            - The updated model dictionary, now including any new
               temporary variables created during lifting.
         """
         lowered_pre_trial = self._lower_ir_list(self.partitioned_ir.get("pre_trial_steps", []))
@@ -43,7 +43,7 @@ class IRLowerer:
 
         lowered_ir = {"pre_trial_steps": lowered_pre_trial, "per_trial_steps": lowered_per_trial}
 
-        return lowered_ir, self.registries
+        return lowered_ir, self.model
 
     def _lower_ir_list(self, ir_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Orchestrates the two lowering sub-phases for a single list of instructions."""
@@ -51,7 +51,7 @@ class IRLowerer:
         control_flow_lowered_ir = self._lower_control_flow(flattened_ir)
         return control_flow_lowered_ir
 
-    # --- Sub-phase B1: Expression Flattening (Lifting) ---
+    # --- Sub-phase A1: Expression Flattening (Lifting) ---
 
     def _flatten_ir_list(self, ir_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -97,8 +97,8 @@ class IRLowerer:
         if not (is_function or is_conditional):
             return node
 
-        return_types = self._get_expression_type(node)
-        temp_var_names = self._create_and_register_temp_vars(return_types)
+        return_types, is_stochastic = self._get_expression_details(node)
+        temp_var_names = self._create_and_add_temp_vars_to_model(return_types, is_stochastic)
 
         if is_function:
             lifted_instructions.append({"type": "execution_assignment", "result": temp_var_names, "function": node["function"], "args": node.get("args", []), "line": line})
@@ -109,46 +109,72 @@ class IRLowerer:
 
         return temp_var_names[0] if len(temp_var_names) == 1 else temp_var_names
 
-    def _get_expression_type(self, expr: Any) -> List[str]:
+    def _get_expression_details(self, expr: Any) -> Tuple[List[str], bool]:
+        """Determines the return type(s) and stochasticity of an expression."""
+        # --- Type Determination ---
+        types = ["scalar"]  # Default
         if isinstance(expr, (int, float)):
-            return ["scalar"]
-        if isinstance(expr, bool):
-            return ["boolean"]
-        if isinstance(expr, list):
-            return ["vector"]
-        if isinstance(expr, str):
-            if expr in self.registries["variable_map"]:
-                return [self.registries["variable_map"][expr]["type"].lower()]
-            return ["scalar"]
-        if isinstance(expr, dict):
+            types = ["scalar"]
+        elif isinstance(expr, bool):
+            types = ["boolean"]
+        elif isinstance(expr, list):
+            types = ["vector"]
+        elif isinstance(expr, str):
+            # It must be a variable name. Look it up in the model.
+            var_info = self.model.get("global_variables", {}).get(expr)
+            if var_info:
+                types = [var_info["inferred_type"]]
+        elif isinstance(expr, dict):
             if expr.get("type") == "conditional_expression":
-                return self._get_expression_type(expr["then_expr"])
-            if "function" in expr:
+                types, _ = self._get_expression_details(expr["then_expr"])
+            elif "function" in expr:
                 sig = self.signatures.get(expr["function"])
                 if sig:
                     ret_type = sig.get("return_type")
                     if isinstance(ret_type, str):
-                        return [ret_type]
-                    if isinstance(ret_type, list):
-                        return ret_type
-        return ["scalar"]
+                        types = [ret_type]
+                    elif isinstance(ret_type, list):
+                        types = ret_type
 
-    def _create_and_register_temp_vars(self, var_types: List[str]) -> List[str]:
+        # --- Stochasticity Determination ---
+        is_stochastic = False
+        if isinstance(expr, str):
+            var_info = self.model.get("global_variables", {}).get(expr)
+            if var_info:
+                is_stochastic = var_info.get("is_stochastic", False)
+        elif isinstance(expr, dict):
+            # An expression is stochastic if it calls a stochastic function
+            if "function" in expr:
+                sig = self.signatures.get(expr["function"], {})
+                if sig.get("is_stochastic"):
+                    is_stochastic = True
+
+            # OR if any of its inputs are stochastic
+            for arg in expr.get("args", []):
+                if self._get_expression_details(arg)[1]:
+                    is_stochastic = True
+            for key in ["condition", "then_expr", "else_expr"]:
+                if key in expr:
+                    if self._get_expression_details(expr[key])[1]:
+                        is_stochastic = True
+        return types, is_stochastic
+
+    def _create_and_add_temp_vars_to_model(self, var_types: List[str], is_stochastic: bool) -> List[str]:
+        """Creates temp var names and adds them to the model for the allocator to find later."""
         temp_names = []
         for var_type_str in var_types:
             self.temp_var_counter += 1
             temp_name = f"__temp_lifted_{self.temp_var_counter}"
-            registry_type = var_type_str.upper()
-            if registry_type not in self.registries["variable_registries"]:
-                registry_type = "SCALAR"
-            registry = self.registries["variable_registries"][registry_type]
-            index = len(registry)
-            registry.append(temp_name)
-            self.registries["variable_map"][temp_name] = {"type": registry_type, "index": index}
+            # Add this new temporary variable to the model's global scope so the
+            # resource allocator can discover its type and stochasticity.
+            self.model["global_variables"][temp_name] = {"inferred_type": var_type_str.lower(), "is_stochastic": is_stochastic}
             temp_names.append(temp_name)
         return temp_names
 
+    # --- Sub-phase A2: Control-Flow Lowering ---
+
     def _lower_control_flow(self, ir_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Replaces high-level constructs with jumps and labels."""
         lowered_ir = []
         for instruction in ir_list:
             if instruction.get("type") == "conditional_assignment":
@@ -171,7 +197,11 @@ class IRLowerer:
         """Helper to build a standard assignment from a result list and an expression node."""
         if isinstance(expr, dict) and "function" in expr:
             return {"type": "execution_assignment", "result": result, "function": expr["function"], "args": expr.get("args", []), "line": line}
+        elif isinstance(expr, str):
+            # This is a variable-to-variable assignment, which is a 'copy'.
+            return {"type": "copy", "result": result, "source": expr, "line": line}
         else:
+            # This is an assignment from a literal value.
             return {"type": "literal_assignment", "result": result, "value": expr, "line": line}
 
     def _lower_one_conditional(self, instruction: Dict[str, Any]) -> List[Dict[str, Any]]:

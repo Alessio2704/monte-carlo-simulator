@@ -5,10 +5,10 @@ from ..parser import _StringLiteral
 
 class ResourceAllocator:
     """
-    Implements Phase 8a of the bytecode pipeline.
+    Implements Phase 8b of the bytecode pipeline.
 
-    Scans the entire partitioned IR to create partitioned, typed registries for
-    all variables and constants.
+    Scans the entire lowered and partitioned IR to create partitioned, typed
+    registries for all variables and constants.
     """
 
     def __init__(self, partitioned_ir: Dict[str, List[Dict[str, Any]]], model: Dict[str, Any]):
@@ -105,6 +105,11 @@ class ResourceAllocator:
             self._find_literals_in_expression(step)
 
     def _get_variable_type_from_model(self, var_name: str) -> str:
+        # Check global variables first, which now includes temp variables from the lowerer
+        if var_name in self.model["global_variables"]:
+            return self.model["global_variables"][var_name]["inferred_type"]
+
+        # Check for mangled UDF variables as a fallback
         mangled_match = re.match(r"^__(.+)_[0-9]+__(.+)$", var_name)
         if mangled_match:
             original_func_name, original_var_name = mangled_match.groups()
@@ -112,10 +117,11 @@ class ResourceAllocator:
                 func_scope = self.model["user_defined_functions"][original_func_name]
                 if original_var_name in func_scope["discovered_body"]:
                     return func_scope["discovered_body"][original_var_name]["inferred_type"]
-        if var_name in self.model["global_variables"]:
-            return self.model["global_variables"][var_name]["inferred_type"]
-        if var_name.startswith("__temp"):
+
+        # Fallback for older temporary variables from the IR generator (pre-lifting)
+        if var_name.startswith("__temp_"):
             return "scalar"
+
         raise NameError(f"Internal Compiler Error: Could not find type for variable '{var_name}' in model.")
 
     def _allocate_variables(self):
