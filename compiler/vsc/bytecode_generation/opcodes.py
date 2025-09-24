@@ -105,13 +105,16 @@ class OpCode(IntEnum):
     GetElement_S_VS = 47
     GrowSerie_V_SSS = 48
     InterpolateSerie_V_SSS = 49
+    CompoundSerie_V_SV = 50
+    VectorDelta_V_V = 51
+    DeleteElement_V_VS = 52
 
     # === Statistical Samplers ===
     # Contract: All operands are PACKED.
-    Normal_S_SS = 50
-    Lognormal_S_SS = 51
-    Beta_S_SS = 52
-    Uniform_S_SS = 53
-    Pert_S_SSS = 54
-    Triangular_S_SSS = 55
-    Bernoulli_S_S = 56
+    Normal_S_SS = 53
+    Lognormal_S_SS = 54
+    Beta_S_SS = 55
+    Uniform_S_SS = 56
+    Pert_S_SSS = 57
+    Triangular_S_SSS = 58
+    Bernoulli_S_S = 59
