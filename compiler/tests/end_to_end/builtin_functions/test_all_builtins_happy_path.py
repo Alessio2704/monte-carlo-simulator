@@ -1,7 +1,7 @@
 import pytest
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError
-from .builtin_test_cases import BUILTIN_TEST_CASES
+from .cases import BUILTIN_TEST_CASES
 from tests.end_to_end.utils import _unpack_operand
 from vsc.exceptions import ValuaScriptError
 
