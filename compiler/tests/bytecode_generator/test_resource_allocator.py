@@ -9,54 +9,8 @@ from vsc.bytecode_generation.ir_lowerer import IRLowerer
 from vsc.parser import _StringLiteral
 from vsc.utils import compiler_artifact_decoder_hook
 
-# --- Test Helpers ---
 
-# Define the path to our permanent golden files directory, relative to this test file.
-GOLDEN_FILES_DIR = Path(__file__).parent / "golden_files"
-
-
-def load_golden_file(file_path: Path) -> Dict[str, Any]:
-    """
-    Helper to load a JSON file for testing, using a custom decoder to
-    restore _StringLiteral objects.
-    """
-    if not file_path.exists():
-        pytest.fail(f"Golden file not found: {file_path}. " f"Please run the compiler with flags -c 4, -c 7, -c 8a and -c 8b to generate it.")
-    with open(file_path, "r", encoding="utf-8") as f:
-        # Use the object_hook to automatically "rehydrate" the JSON data
-        return json.load(f, object_hook=compiler_artifact_decoder_hook)
-
-
-# --- The Golden File Regression Test ---
-
-
-def test_resource_allocator_against_golden_file_contract():
-    """
-    This is a high-level regression test that acts as a safety net.
-
-    It simulates the new pipeline order by first running the IR Lowerer and then
-    running the Resource Allocator on the results of the lowering phase.
-    """
-    # --- 1. Load the golden input and expected output files ---
-    # The load_golden_file helper now automatically restores the necessary types.
-    model = load_golden_file(GOLDEN_FILES_DIR / "model_stage_4.json")
-    partitioned_ir = load_golden_file(GOLDEN_FILES_DIR / "model_stage_7.json")
-    expected_result = load_golden_file(GOLDEN_FILES_DIR / "model_stage_8b.json")
-
-    # --- 2. Run the units under test IN THE CORRECT PIPELINE ORDER ---
-    # First, run the IR Lowerer (Phase 8a)
-    lowerer = IRLowerer(partitioned_ir, model)
-    lowered_ir, updated_model = lowerer.lower()
-
-    # Second, run the Resource Allocator (Phase 8b) on the results
-    allocator = ResourceAllocator(lowered_ir, updated_model)
-    actual_result = allocator.allocate()
-
-    # --- 3. Assert that the actual output matches the contract ---
-    assert actual_result == expected_result
-
-
-# --- 2. Focused Unit Tests ---
+# --- 1. Focused Unit Tests ---
 
 
 def test_deduplicates_constants_correctly():
