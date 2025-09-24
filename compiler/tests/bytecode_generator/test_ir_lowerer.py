@@ -32,8 +32,9 @@ def base_model() -> Dict[str, Any]:
         "global_variables": {},
         "all_signatures": {
             "Normal": {"return_type": "scalar", "is_stochastic": True},
-            "multiply": {"return_type": "scalar", "is_stochastic": False},
-            "add": {"return_type": "scalar", "is_stochastic": False},
+            "multiply": {"return_type": "scalar", "is_stochastic": False, "variadic": True},
+            "add": {"return_type": "scalar", "is_stochastic": False, "variadic": True},
+            "__and__": {"return_type": "boolean", "is_stochastic": False, "variadic": True},
         },
     }
 
@@ -120,6 +121,45 @@ def test_lifts_simple_nested_function_call(base_model):
     # ASSERT
     assert actual_result == expected_ir
     validate_ir(actual_result["per_trial_steps"], ["x"])
+
+
+@pytest.mark.parametrize("func_name, var_type", [("add", "scalar"), ("__and__", "boolean")])
+def test_decomposes_variadic_operations_into_binary_chain(base_model, func_name, var_type):
+    """
+    Explicitly tests that a single variadic instruction like add(a, b, c, d)
+    is correctly decomposed into a chain of simple binary operations.
+    """
+    # ARRANGE
+    model = base_model
+    model["global_variables"] = {
+        "a": {"inferred_type": var_type},
+        "b": {"inferred_type": var_type},
+        "c": {"inferred_type": var_type},
+        "d": {"inferred_type": var_type},
+        "result": {"inferred_type": var_type},
+    }
+    partitioned_ir = {
+        "pre_trial_steps": [{"type": "execution_assignment", "result": ["result"], "function": func_name, "args": ["a", "b", "c", "d"], "line": 10}],
+        "per_trial_steps": [],
+    }
+    expected_ir = {
+        "pre_trial_steps": [
+            {"type": "execution_assignment", "result": ["__temp_lifted_1"], "function": func_name, "args": ["a", "b"], "line": 10},
+            {"type": "execution_assignment", "result": ["__temp_lifted_2"], "function": func_name, "args": ["__temp_lifted_1", "c"], "line": 10},
+            {"type": "execution_assignment", "result": ["result"], "function": func_name, "args": ["__temp_lifted_2", "d"], "line": 10},
+        ],
+        "per_trial_steps": [],
+    }
+
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, model)
+    actual_result, updated_model = lowerer.lower()
+
+    # ASSERT
+    assert actual_result == expected_ir
+    assert "__temp_lifted_1" in updated_model["global_variables"]
+    assert "__temp_lifted_2" in updated_model["global_variables"]
+    validate_ir(actual_result["pre_trial_steps"], ["a", "b", "c", "d"])
 
 
 def test_lifts_multiple_nested_calls_in_one_instruction(base_model):
@@ -354,7 +394,7 @@ def test_pipeline_handles_multi_return_udf_correctly(tmp_path):
     main_file_path = create_dummy_file(tmp_path, "main.vs", main_script)
 
     # Define the expected final, lowered IR structure. The multi-assignment copy
-    # from the UDF's return is decomposed into a sequence of single copies.
+    # from the UDF's return is now decomposed into a sequence of single copies.
     expected_lowered_ir = {
         "pre_trial_steps": [
             {
