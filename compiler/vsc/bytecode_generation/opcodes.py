@@ -4,19 +4,20 @@ from enum import IntEnum, auto
 class OperandType(IntEnum):
     """
     Defines the type of an operand, encoded in the top 5 bits of a 32-bit integer.
+    All values are 1-based to ensure a non-zero type header.
     """
 
     # Register Types (Read/Write Memory)
-    SCALAR_REG = 0
-    VECTOR_REG = 1
-    BOOLEAN_REG = 2
-    STRING_REG = 3
+    SCALAR_REG = 1
+    VECTOR_REG = 2
+    BOOLEAN_REG = 3
+    STRING_REG = 4
 
     # Constant Pool Types (Read-Only Memory)
-    SCALAR_CONST = 16
-    VECTOR_CONST = 17
-    BOOLEAN_CONST = 18
-    STRING_CONST = 19
+    SCALAR_CONST = 17
+    VECTOR_CONST = 18
+    BOOLEAN_CONST = 19
+    STRING_CONST = 20
 
 
 class OpCode(IntEnum):
