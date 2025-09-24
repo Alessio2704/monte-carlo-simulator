@@ -2,6 +2,7 @@ from typing import Dict, Any, List, Tuple
 
 from .bytecode_generation.resource_allocator import ResourceAllocator
 from .bytecode_generation.ir_lowerer import IRLowerer
+from .bytecode_generation.code_emitter import CodeEmitter
 
 
 class BytecodeGenerator:
@@ -61,23 +62,29 @@ class BytecodeGenerator:
         PHASE 8c: Translates the final, lowered IR into the integer-based
         instruction format.
         """
-        # --- PLACEHOLDER ---
-        # In the future, this will instantiate and run the Code Emitter.
-        print("--- NOTE: Stage 8c (Code Emission) is not yet implemented. ---")
-        self.emitted_code = {
-            "pre_trial_instructions": [],
-            "per_trial_instructions": [],
-        }
+        emitter = CodeEmitter(self.lowered_ir, self.registries)
+        self.emitted_code = emitter.emit()
         return self.emitted_code
 
     def run_final_assembly(self) -> Dict[str, Any]:
         """
         Assembles the final JSON recipe from the artifacts of all previous phases.
         """
-        # This will assemble the final recipe structure as defined in the design doc.
+        main_ast = self.model["processed_asts"][self.model["main_file_path"]]
+        iterations_directive = next((d for d in main_ast.get("directives", []) if d["name"] == "iterations"), None)
+        num_trials = iterations_directive["value"] if iterations_directive else 1
+
+        variable_registries = self.registries.get("variable_registries", {})
+        register_counts = {
+            "SCALAR": len(variable_registries.get("SCALAR", [])),
+            "VECTOR": len(variable_registries.get("VECTOR", [])),
+            "BOOLEAN": len(variable_registries.get("BOOLEAN", [])),
+            "STRING": len(variable_registries.get("STRING", [])),
+        }
+
         final_recipe = {
-            "simulation_config": {"num_trials": 10000},  # Placeholder
-            "variable_register_counts": self.registries.get("variable_register_counts", {}),
+            "simulation_config": {"num_trials": num_trials},
+            "variable_register_counts": register_counts,
             "constants": self.registries.get("constant_pools", {}),
             "pre_trial_instructions": self.emitted_code.get("pre_trial_instructions", []),
             "per_trial_instructions": self.emitted_code.get("per_trial_instructions", []),

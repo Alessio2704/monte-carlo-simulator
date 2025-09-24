@@ -50,8 +50,20 @@
     },
     {
       "type": "copy",
-      "result": ["sir1", "sir2", "sir3"],
-      "source": ["__temp_lifted_1", "__temp_lifted_2", "__temp_lifted_3"],
+      "result": ["sir1"],
+      "source": "__temp_lifted_1",
+      "line": 73
+    },
+    {
+      "type": "copy",
+      "result": ["sir2"],
+      "source": "__temp_lifted_2",
+      "line": 73
+    },
+    {
+      "type": "copy",
+      "result": ["sir3"],
+      "source": "__temp_lifted_3",
       "line": 73
     }
   ],
@@ -241,14 +253,42 @@
     },
     {
       "type": "execution_assignment",
-      "result": ["income_after_tax"],
+      "result": ["__temp_lifted_9"],
       "function": "add",
-      "args": ["__temp_lifted_7", "b", "c", "op1", "op2", "__temp_lifted_8"],
+      "args": ["__temp_lifted_7", "b"],
       "line": 75
     },
     {
       "type": "execution_assignment",
-      "result": ["__temp_lifted_9"],
+      "result": ["__temp_lifted_10"],
+      "function": "add",
+      "args": ["__temp_lifted_9", "c"],
+      "line": 75
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__temp_lifted_11"],
+      "function": "add",
+      "args": ["__temp_lifted_10", "op1"],
+      "line": 75
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__temp_lifted_12"],
+      "function": "add",
+      "args": ["__temp_lifted_11", "op2"],
+      "line": 75
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["income_after_tax"],
+      "function": "add",
+      "args": ["__temp_lifted_12", "__temp_lifted_8"],
+      "line": 75
+    },
+    {
+      "type": "execution_assignment",
+      "result": ["__temp_lifted_13"],
       "function": "divide",
       "args": ["income_after_tax", 1.08],
       "line": 80
@@ -257,7 +297,7 @@
       "type": "execution_assignment",
       "result": ["final_project_value"],
       "function": "multiply",
-      "args": ["__temp_lifted_9", 0.95],
+      "args": ["__temp_lifted_13", 0.95],
       "line": 80
     }
   ]

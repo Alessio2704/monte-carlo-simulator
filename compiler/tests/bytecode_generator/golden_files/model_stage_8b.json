@@ -4,6 +4,10 @@
       "__calculate_tax_1__tax_rate",
       "__get_rd_1__a",
       "__get_rd_1__current_expense",
+      "__temp_lifted_10",
+      "__temp_lifted_11",
+      "__temp_lifted_12",
+      "__temp_lifted_13",
       "__temp_lifted_5",
       "__temp_lifted_6",
       "__temp_lifted_7",
@@ -50,73 +54,89 @@
       "type": "SCALAR",
       "index": 2
     },
-    "__temp_lifted_5": {
+    "__temp_lifted_10": {
       "type": "SCALAR",
       "index": 3
     },
-    "__temp_lifted_6": {
+    "__temp_lifted_11": {
       "type": "SCALAR",
       "index": 4
     },
-    "__temp_lifted_7": {
+    "__temp_lifted_12": {
       "type": "SCALAR",
       "index": 5
     },
-    "__temp_lifted_8": {
+    "__temp_lifted_13": {
       "type": "SCALAR",
       "index": 6
     },
-    "__temp_lifted_9": {
+    "__temp_lifted_5": {
       "type": "SCALAR",
       "index": 7
     },
-    "a": {
+    "__temp_lifted_6": {
       "type": "SCALAR",
       "index": 8
     },
-    "b": {
+    "__temp_lifted_7": {
       "type": "SCALAR",
       "index": 9
     },
-    "c": {
+    "__temp_lifted_8": {
       "type": "SCALAR",
       "index": 10
     },
-    "d": {
+    "__temp_lifted_9": {
       "type": "SCALAR",
       "index": 11
     },
-    "final_project_value": {
+    "a": {
       "type": "SCALAR",
       "index": 12
     },
-    "income_after_tax": {
+    "b": {
       "type": "SCALAR",
       "index": 13
     },
-    "op1": {
+    "c": {
       "type": "SCALAR",
       "index": 14
     },
-    "op2": {
+    "d": {
       "type": "SCALAR",
       "index": 15
     },
-    "project_cash_flow": {
+    "final_project_value": {
       "type": "SCALAR",
       "index": 16
     },
-    "project_succeeds": {
+    "income_after_tax": {
       "type": "SCALAR",
       "index": 17
     },
-    "stochastic_income": {
+    "op1": {
       "type": "SCALAR",
       "index": 18
     },
-    "tax_due": {
+    "op2": {
       "type": "SCALAR",
       "index": 19
+    },
+    "project_cash_flow": {
+      "type": "SCALAR",
+      "index": 20
+    },
+    "project_succeeds": {
+      "type": "SCALAR",
+      "index": 21
+    },
+    "stochastic_income": {
+      "type": "SCALAR",
+      "index": 22
+    },
+    "tax_due": {
+      "type": "SCALAR",
+      "index": 23
     },
     "__temp_lifted_1": {
       "type": "VECTOR",
