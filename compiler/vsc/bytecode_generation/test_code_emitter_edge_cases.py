@@ -46,22 +46,23 @@ def test_emits_complex_multi_type_function_call(extended_registries):
     # ARRANGE
     lowered_ir = {
         "pre_trial_steps": [],
-        "per_trial_steps": [{"type": "execution_assignment", "result": ["result_scalar"], "function": "BlackScholes", "args": ["spot", "strike", 0.05, 1.0, 0.2, _StringLiteral("call")]}],
+        "per_trial_steps": [{"type": "execution_assignment", "result": ["result_scalar"], "function": "BlackScholes", "args": ["spot", "strike", 0.05, 1.0, 0.2, _StringLiteral("call")], "line": 50}],
     }
     expected_bytecode = {
         "pre_trial_instructions": [],
         "per_trial_instructions": [
             {
                 "op": OpCode.BlackScholes_S_SSSSSSTR.value,
-                "dests": [_pack(OperandType.SCALAR_REG, 2)],  # result_scalar
+                "dests": [_pack(OperandType.SCALAR_REG, 2)],
                 "srcs": [
-                    _pack(OperandType.SCALAR_REG, 0),  # spot
-                    _pack(OperandType.SCALAR_REG, 1),  # strike
-                    _pack(OperandType.SCALAR_CONST, 0),  # 0.05
-                    _pack(OperandType.SCALAR_CONST, 1),  # 1.0
-                    _pack(OperandType.SCALAR_CONST, 2),  # 0.2
-                    _pack(OperandType.STRING_CONST, 0),  # "call"
+                    _pack(OperandType.SCALAR_REG, 0),
+                    _pack(OperandType.SCALAR_REG, 1),
+                    _pack(OperandType.SCALAR_CONST, 0),
+                    _pack(OperandType.SCALAR_CONST, 1),
+                    _pack(OperandType.SCALAR_CONST, 2),
+                    _pack(OperandType.STRING_CONST, 0),
                 ],
+                "line": 50,
             }
         ],
     }
@@ -81,14 +82,13 @@ def test_emits_zero_argument_function_call(extended_registries, monkeypatch):
     """
 
     # ARRANGE
-    # FIX: Use monkeypatch.setitem on the enum's internal map for a reliable mock.
     class MockOpCodeMember:
         value = 999
 
     monkeypatch.setitem(OpCode._member_map_, "get_pi_S_", MockOpCodeMember)
 
-    lowered_ir = {"pre_trial_steps": [{"type": "execution_assignment", "result": ["result_scalar"], "function": "get_pi", "args": []}], "per_trial_steps": []}
-    expected_bytecode = {"pre_trial_instructions": [{"op": 999, "dests": [_pack(OperandType.SCALAR_REG, 2)], "srcs": []}], "per_trial_instructions": []}
+    lowered_ir = {"pre_trial_steps": [{"type": "execution_assignment", "result": ["result_scalar"], "function": "get_pi", "args": [], "line": 60}], "per_trial_steps": []}
+    expected_bytecode = {"pre_trial_instructions": [{"op": 999, "dests": [_pack(OperandType.SCALAR_REG, 2)], "srcs": [], "line": 60}], "per_trial_instructions": []}
 
     # ACT
     emitter = CodeEmitter(lowered_ir, extended_registries)
@@ -105,23 +105,20 @@ def test_emits_both_partitions_correctly_and_independently(extended_registries):
     """
     # ARRANGE
     lowered_ir = {
-        # Pre-trial has a simple operation
-        "pre_trial_steps": [{"type": "execution_assignment", "result": ["result_scalar"], "function": "add", "args": ["spot", 1.0]}],
-        # Per-trial has control flow to test label resolution independence
+        "pre_trial_steps": [{"type": "execution_assignment", "result": ["result_scalar"], "function": "add", "args": ["spot", 1.0], "line": 70}],
         "per_trial_steps": [
-            {"type": "jump_if_false", "condition": "b_var", "target": "__per_trial_label"},
-            {"type": "execution_assignment", "result": ["strike"], "function": "add", "args": ["strike", 1.0]},
-            {"type": "label", "name": "__per_trial_label"},
+            {"type": "jump_if_false", "condition": "b_var", "target": "__per_trial_label", "line": 80},
+            {"type": "execution_assignment", "result": ["strike"], "function": "add", "args": ["strike", 1.0], "line": 81},
+            {"type": "label", "name": "__per_trial_label", "line": 82},
         ],
     }
     expected_bytecode = {
         "pre_trial_instructions": [
-            {"op": OpCode.add_S_SS.value, "dests": [_pack(OperandType.SCALAR_REG, 2)], "srcs": [_pack(OperandType.SCALAR_REG, 0), _pack(OperandType.SCALAR_CONST, 1)]}  # result_scalar  # spot, 1.0
+            {"op": OpCode.add_S_SS.value, "dests": [_pack(OperandType.SCALAR_REG, 2)], "srcs": [_pack(OperandType.SCALAR_REG, 0), _pack(OperandType.SCALAR_CONST, 1)], "line": 70}
         ],
         "per_trial_instructions": [
-            # Jump target should be 2 (the address *after* the final instruction in the block).
-            {"op": OpCode.JUMP_IF_FALSE.value, "dests": [], "srcs": [_pack(OperandType.BOOLEAN_REG, 0), 2]},
-            {"op": OpCode.add_S_SS.value, "dests": [_pack(OperandType.SCALAR_REG, 1)], "srcs": [_pack(OperandType.SCALAR_REG, 1), _pack(OperandType.SCALAR_CONST, 1)]},  # strike  # strike, 1.0
+            {"op": OpCode.JUMP_IF_FALSE.value, "dests": [], "srcs": [_pack(OperandType.BOOLEAN_REG, 0), 2], "line": 80},
+            {"op": OpCode.add_S_SS.value, "dests": [_pack(OperandType.SCALAR_REG, 1)], "srcs": [_pack(OperandType.SCALAR_REG, 1), _pack(OperandType.SCALAR_CONST, 1)], "line": 81},
         ],
     }
 

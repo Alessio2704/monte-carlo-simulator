@@ -43,15 +43,26 @@ class CodeEmitter:
         bytecode: List[Dict[str, Any]] = []
         for instruction in final_ir:
             instr_type = instruction.get("type")
+            line_num = instruction.get("line", -1)  # Get the line number
+
+            if instr_type == "copy" and isinstance(instruction.get("source"), list):
+                dests = instruction.get("result", [])
+                srcs = instruction.get("source", [])
+                for dest_var, src_var in zip(dests, srcs):
+                    single_copy_instr = {"type": "copy", "result": [dest_var], "source": src_var}
+                    op_code_val = self._resolve_opcode(single_copy_instr)
+                    dest_op = [self._resolve_operand(dest_var)]
+                    src_op = [self._resolve_operand(src_var)]
+                    bytecode.append({"op": op_code_val, "dests": dest_op, "srcs": src_op, "line": line_num})
+                continue
+
             op_code_val = 0
             dests: List[int] = []
             srcs: List[int] = []
 
             if instr_type in ("execution_assignment", "copy", "literal_assignment"):
-                # Remap literal_assignment to a copy instruction for uniform opcode resolution
                 if instr_type == "literal_assignment":
                     instruction = {"function": "copy", "result": instruction["result"], "args": [instruction["value"]]}
-
                 op_code_val = self._resolve_opcode(instruction)
                 dests = [self._resolve_operand(res) for res in instruction.get("result", [])]
                 srcs_values = instruction.get("args", []) if instr_type != "copy" else [instruction.get("source")]
@@ -65,7 +76,7 @@ class CodeEmitter:
                 target_addr = label_map[instruction["target"]]
                 srcs = [condition_op, target_addr]
 
-            bytecode.append({"op": op_code_val, "dests": dests, "srcs": srcs})
+            bytecode.append({"op": op_code_val, "dests": dests, "srcs": srcs, "line": line_num})
 
         return bytecode
 

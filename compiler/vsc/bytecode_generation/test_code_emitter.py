@@ -44,10 +44,15 @@ def test_emits_simple_binary_operation(base_registries):
     Tests emission of a standard execution_assignment with one register and one constant source.
     """
     # ARRANGE
-    lowered_ir = {"pre_trial_steps": [{"type": "execution_assignment", "result": ["s_var2"], "function": "add", "args": ["s_var1", 100.0]}], "per_trial_steps": []}
+    lowered_ir = {"pre_trial_steps": [{"type": "execution_assignment", "result": ["s_var2"], "function": "add", "args": ["s_var1", 100.0], "line": 10}], "per_trial_steps": []}
     expected_bytecode = {
         "pre_trial_instructions": [
-            {"op": OpCode.add_S_SS.value, "dests": [_pack(OperandType.SCALAR_REG, 1)], "srcs": [_pack(OperandType.SCALAR_REG, 0), _pack(OperandType.SCALAR_CONST, 0)]}  # s_var2  # s_var1, 100.0
+            {
+                "op": OpCode.add_S_SS.value,
+                "dests": [_pack(OperandType.SCALAR_REG, 1)],  # s_var2
+                "srcs": [_pack(OperandType.SCALAR_REG, 0), _pack(OperandType.SCALAR_CONST, 0)],  # s_var1, 100.0
+                "line": 10,
+            }
         ],
         "per_trial_instructions": [],
     }
@@ -65,13 +70,17 @@ def test_emits_multi_return_function_call(base_registries):
     Tests emission of an instruction with multiple destinations.
     """
     # ARRANGE
-    lowered_ir = {"per_trial_steps": [{"type": "execution_assignment", "result": ["s_var1", "s_var2"], "function": "CapitalizeExpenses", "args": [100.0, "v_var1", 50.0]}], "pre_trial_steps": []}
+    lowered_ir = {
+        "per_trial_steps": [{"type": "execution_assignment", "result": ["s_var1", "s_var2"], "function": "CapitalizeExpenses", "args": [100.0, "v_var1", 50.0], "line": 20}],
+        "pre_trial_steps": [],
+    }
     expected_bytecode = {
         "per_trial_instructions": [
             {
                 "op": OpCode.CapitalizeExpenses_SS_SVS.value,
                 "dests": [_pack(OperandType.SCALAR_REG, 0), _pack(OperandType.SCALAR_REG, 1)],  # s_var1, s_var2
                 "srcs": [_pack(OperandType.SCALAR_CONST, 0), _pack(OperandType.VECTOR_REG, 0), _pack(OperandType.SCALAR_CONST, 1)],  # 100.0, v_var1, 50.0
+                "line": 20,
             }
         ],
         "pre_trial_instructions": [],
@@ -91,13 +100,13 @@ def test_emits_data_movement_and_literal_assignment(base_registries):
     """
     # ARRANGE
     lowered_ir = {
-        "pre_trial_steps": [{"type": "copy", "result": ["s_var1"], "source": "s_var2"}, {"type": "literal_assignment", "result": ["str_var1"], "value": _StringLiteral("hello")}],
+        "pre_trial_steps": [{"type": "copy", "result": ["s_var1"], "source": "s_var2", "line": 5}, {"type": "literal_assignment", "result": ["str_var1"], "value": _StringLiteral("hello"), "line": 6}],
         "per_trial_steps": [],
     }
     expected_bytecode = {
         "pre_trial_instructions": [
-            {"op": OpCode.copy_S_S.value, "dests": [_pack(OperandType.SCALAR_REG, 0)], "srcs": [_pack(OperandType.SCALAR_REG, 1)]},  # s_var1  # s_var2
-            {"op": OpCode.copy_STR_STR.value, "dests": [_pack(OperandType.STRING_REG, 0)], "srcs": [_pack(OperandType.STRING_CONST, 0)]},  # str_var1  # "hello"
+            {"op": OpCode.copy_S_S.value, "dests": [_pack(OperandType.SCALAR_REG, 0)], "srcs": [_pack(OperandType.SCALAR_REG, 1)], "line": 5},  # s_var1  # s_var2
+            {"op": OpCode.copy_STR_STR.value, "dests": [_pack(OperandType.STRING_REG, 0)], "srcs": [_pack(OperandType.STRING_CONST, 0)], "line": 6},  # str_var1  # "hello"
         ],
         "per_trial_instructions": [],
     }
@@ -116,27 +125,24 @@ def test_emits_control_flow_instructions(base_registries):
     and letting the emitter's internal linking phase handle it.
     """
     # ARRANGE
-    # This IR now includes the label instructions, which is the correct input format.
     lowered_ir = {
         "pre_trial_steps": [
-            {"type": "jump_if_false", "condition": "b_var1", "target": "__else_label_0"},
-            {"type": "copy", "result": ["s_var1"], "source": "s_var2"},  # Executable instruction at Address 1
-            {"type": "jump", "target": "__end_label_1"},
-            {"type": "label", "name": "__else_label_0"},
-            {"type": "copy", "result": ["s_var2"], "source": "s_var1"},  # Executable instruction at Address 3
-            {"type": "label", "name": "__end_label_1"},
+            {"type": "jump_if_false", "condition": "b_var1", "target": "__else_label_0", "line": 30},
+            {"type": "copy", "result": ["s_var1"], "source": "s_var2", "line": 31},
+            {"type": "jump", "target": "__end_label_1", "line": 32},
+            {"type": "label", "name": "__else_label_0", "line": 33},
+            {"type": "copy", "result": ["s_var2"], "source": "s_var1", "line": 34},
+            {"type": "label", "name": "__end_label_1", "line": 35},
         ],
         "per_trial_steps": [],
     }
 
     expected_bytecode = {
         "pre_trial_instructions": [
-            # The JUMP_IF_FALSE should target address 3 (the instruction after the label).
-            {"op": OpCode.JUMP_IF_FALSE.value, "dests": [], "srcs": [_pack(OperandType.BOOLEAN_REG, 0), 3]},
-            {"op": OpCode.copy_S_S.value, "dests": [_pack(OperandType.SCALAR_REG, 0)], "srcs": [_pack(OperandType.SCALAR_REG, 1)]},
-            # The JUMP should target address 4 (the end of the executable block).
-            {"op": OpCode.JUMP.value, "dests": [], "srcs": [4]},
-            {"op": OpCode.copy_S_S.value, "dests": [_pack(OperandType.SCALAR_REG, 1)], "srcs": [_pack(OperandType.SCALAR_REG, 0)]},
+            {"op": OpCode.JUMP_IF_FALSE.value, "dests": [], "srcs": [_pack(OperandType.BOOLEAN_REG, 0), 3], "line": 30},
+            {"op": OpCode.copy_S_S.value, "dests": [_pack(OperandType.SCALAR_REG, 0)], "srcs": [_pack(OperandType.SCALAR_REG, 1)], "line": 31},
+            {"op": OpCode.JUMP.value, "dests": [], "srcs": [4], "line": 32},
+            {"op": OpCode.copy_S_S.value, "dests": [_pack(OperandType.SCALAR_REG, 1)], "srcs": [_pack(OperandType.SCALAR_REG, 0)], "line": 34},
         ],
         "per_trial_instructions": [],
     }
@@ -154,14 +160,10 @@ def test_emits_sanitized_operator_names(base_registries):
     Tests that internal operator names like '__eq__' are correctly sanitized before opcode lookup.
     """
     # ARRANGE
-    lowered_ir = {"per_trial_steps": [{"type": "execution_assignment", "result": ["b_var2"], "function": "__eq__", "args": ["s_var1", 100.0]}], "pre_trial_steps": []}
+    lowered_ir = {"per_trial_steps": [{"type": "execution_assignment", "result": ["b_var2"], "function": "__eq__", "args": ["s_var1", 100.0], "line": 40}], "pre_trial_steps": []}
     expected_bytecode = {
         "per_trial_instructions": [
-            {
-                "op": OpCode.eq_B_SS.value,  # Correctly resolves to 'eq_B_SS', not '__eq___B_SS'
-                "dests": [_pack(OperandType.BOOLEAN_REG, 1)],  # b_var2
-                "srcs": [_pack(OperandType.SCALAR_REG, 0), _pack(OperandType.SCALAR_CONST, 0)],  # s_var1, 100.0
-            }
+            {"op": OpCode.eq_B_SS.value, "dests": [_pack(OperandType.BOOLEAN_REG, 1)], "srcs": [_pack(OperandType.SCALAR_REG, 0), _pack(OperandType.SCALAR_CONST, 0)], "line": 40}
         ],
         "pre_trial_instructions": [],
     }
