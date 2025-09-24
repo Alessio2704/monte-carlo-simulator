@@ -65,3 +65,21 @@ def test_black_sholes_arg_num_mismatch():
         compile_valuascript(script_content)
 
     assert excinfo.value.code == ErrorCode.ARGUMENT_COUNT_MISMATCH
+
+
+def test_black_sholes_stochastic_input_is_per_trial():
+
+    script_content = load_script("tests/end_to_end/builtin/financial/black_sholes/black_sholes_stochastic.vs")
+    recipe = compile_valuascript(script_content)
+
+    # 1. The pre-trial block should now be EMPTY, as the optimizer will see
+    #    that `random_spot` is only used by a per-trial instruction.
+    assert len(recipe["pre_trial_instructions"]) == 0
+
+    # 2. The per-trial block should contain the logic.
+    #    It will have the Normal() call and the BlackScholes() call.
+    assert len(recipe["per_trial_instructions"]) == 2
+
+    # 3. The final instruction MUST be the BlackScholes call.
+    final_instruction = recipe["per_trial_instructions"][-1]
+    assert final_instruction["op"] == OpCode.BlackScholes_S_SSSSSSTR.value
