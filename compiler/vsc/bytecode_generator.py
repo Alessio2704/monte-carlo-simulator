@@ -71,9 +71,23 @@ class BytecodeGenerator:
         Assembles the final JSON recipe from the artifacts of all previous phases.
         """
         main_ast = self.model["processed_asts"][self.model["main_file_path"]]
-        iterations_directive = next((d for d in main_ast.get("directives", []) if d["name"] == "iterations"), None)
-        num_trials = iterations_directive["value"] if iterations_directive else 1
 
+        # --- Extract configuration from directives ---
+        directives = {d["name"]: d for d in main_ast.get("directives", [])}
+
+        num_trials = directives.get("iterations", {}).get("value", 1)
+        output_variable = directives.get("output", {}).get("value")
+        # The value from the parser is a _StringLiteral, so we need to get its .value attribute
+        output_file_node = directives.get("output_file", {}).get("value")
+        output_file = output_file_node.value if output_file_node else None
+
+        simulation_config = {
+            "num_trials": num_trials,
+            "output_variable": output_variable,
+            "output_file": output_file,
+        }
+
+        # --- Assemble register counts ---
         variable_registries = self.registries.get("variable_registries", {})
         register_counts = {
             "SCALAR": len(variable_registries.get("SCALAR", [])),
@@ -83,7 +97,7 @@ class BytecodeGenerator:
         }
 
         final_recipe = {
-            "simulation_config": {"num_trials": num_trials},
+            "simulation_config": simulation_config,
             "variable_register_counts": register_counts,
             "constants": self.registries.get("constant_pools", {}),
             "pre_trial_instructions": self.emitted_code.get("pre_trial_instructions", []),
