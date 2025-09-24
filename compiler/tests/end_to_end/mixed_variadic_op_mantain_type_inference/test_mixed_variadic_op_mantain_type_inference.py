@@ -4,13 +4,13 @@ from vsc.bytecode_generation.opcodes import OpCode, OperandType
 from tests.end_to_end.utils import _pack, load_script
 
 
-def test_mixed_scalar_vector_subtract():
+def test_mixed_variadic_op_mantain_type_inference():
     """
     Tests that a chain of vector additions is correctly lowered, optimized,
     and emitted as valid bytecode.
     """
     # 1. ARRANGE: Load the script and compile it to the final recipe
-    script_content = load_script("tests/end_to_end/mixed_scalar_vector_subtract/mixed_scalar_vector_subtract.vs")
+    script_content = load_script("tests/end_to_end/mixed_variadic_op_mantain_type_inference/mixed_variadic_op_mantain_type_inference.vs")
     recipe = compile_valuascript(script_content)
 
     # 2. ASSERT: Inspect the final recipe for correctness
@@ -18,6 +18,7 @@ def test_mixed_scalar_vector_subtract():
     # --- Assert on the high-level configuration ---
     assert recipe["simulation_config"]["num_trials"] == 1
     assert recipe["simulation_config"]["output_variable"] == "z"
+    assert recipe["variable_register_counts"]["SCALAR"] == 0
     assert recipe["variable_register_counts"]["VECTOR"] == 1
     assert len(recipe["constants"]["SCALAR"]) == 1
     assert len(recipe["constants"]["VECTOR"]) == 1
@@ -33,7 +34,7 @@ def test_mixed_scalar_vector_subtract():
     assert len(final_instruction["dests"]) == 1
     assert len(final_instruction["srcs"]) == 2
 
-    assert final_instruction["srcs"][0] == _pack(OperandType.VECTOR_CONST, 0)
-    assert final_instruction["srcs"][1] == _pack(OperandType.SCALAR_CONST, 0)
+    assert final_instruction["srcs"][0] == _pack(OperandType.SCALAR_CONST, 0)
+    assert final_instruction["srcs"][1] == _pack(OperandType.VECTOR_CONST, 0)
     assert final_instruction["dests"][0] == _pack(OperandType.VECTOR_REG, 0)
-    assert final_instruction["op"] == OpCode.subtract_V_VS.value
+    assert final_instruction["op"] == OpCode.add_V_SV.value

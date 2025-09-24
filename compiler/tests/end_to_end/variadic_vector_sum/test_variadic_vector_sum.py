@@ -4,7 +4,7 @@ from vsc.bytecode_generation.opcodes import OpCode, OperandType
 from tests.end_to_end.utils import _pack, load_script
 
 
-def test_vector_add_chain_compiles_correctly():
+def test_variadic_vector_sum():
     """
     Tests that a chain of vector additions is correctly lowered, optimized,
     and emitted as valid bytecode.
