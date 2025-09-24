@@ -72,3 +72,13 @@ class ValuaScriptError(Exception):
 
     def __str__(self):
         return self.message
+
+
+class InternalCompilerError(Exception):
+    """
+    Custom exception for bugs within the compiler itself.
+    This ensures that multi-line error messages are formatted correctly by test runners.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(message)

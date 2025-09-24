@@ -1,6 +1,7 @@
 from typing import Dict, Any, List
 from ..parser import _StringLiteral
 from .opcodes import OpCode, OperandType
+from ..exceptions import InternalCompilerError
 
 
 class CodeEmitter:
@@ -61,8 +62,10 @@ class CodeEmitter:
             srcs: List[int] = []
 
             if instr_type in ("execution_assignment", "copy", "literal_assignment"):
+                # For literal assignments, treat them as a copy from a constant for opcode resolution
                 if instr_type == "literal_assignment":
-                    instruction = {"function": "copy", "result": instruction["result"], "args": [instruction["value"]]}
+                    instruction = {"type": "copy", "function": "copy", "result": instruction["result"], "args": [instruction["value"]]}
+
                 op_code_val = self._resolve_opcode(instruction)
                 dests = [self._resolve_operand(res) for res in instruction.get("result", [])]
                 srcs_values = instruction.get("args", []) if instr_type != "copy" else [instruction.get("source")]
@@ -131,4 +134,22 @@ class CodeEmitter:
         src_key = "".join(self.type_char_map[t] for t in src_types)
 
         isa_key = f"{func_name}_{dest_key}_{src_key}"
-        return OpCode[isa_key].value
+
+        try:
+            return OpCode[isa_key].value
+        except KeyError:
+            # Using a triple-quoted f-string ensures newlines are preserved.
+            message = f"""
+--- INTERNAL COMPILER ERROR ---
+CodeEmitter failed to find a valid OpCode for the instruction:
+
+  Instruction: {instruction}
+  Function: '{func_name}'
+  Inferred Destination Types: {dest_types}
+  Inferred Source Types: {src_types}
+  Generated ISA Key: '{isa_key}'
+
+This is a bug, likely in the TypeInferrer, IRLowerer, or SemanticValidator,
+which allowed a logically invalid instruction to reach the code emission stage.
+"""
+            raise InternalCompilerError(message)
