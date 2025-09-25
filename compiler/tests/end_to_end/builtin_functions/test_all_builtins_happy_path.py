@@ -51,7 +51,7 @@ def test_happy_path_compilation(case):
     expected_dests_types = case["happy_path"]["dests_types"]
 
     variable_register_counts = case["happy_path"]["variable_register_counts"]
-    constants = case["happy_path"]["constants"]
+    constants = case["happy_path"].get("constants", None)
 
     assert len(per_trial_instructions if is_stochastic else pre_trial_instructions) == 1
 
@@ -66,9 +66,9 @@ def test_happy_path_compilation(case):
     assert src_op_types == expected_srcs_types
     assert dest_op_types == expected_dests_types
 
-    # if not will_be_folded:
-    #     assert last_instruction["op"] == (expected_opcode)
-    # else:
-    #     assert last_instruction["op"] == 3
+    will_be_folded = case["happy_path"].get("will_be_folded", False)
 
-    # assert recipe["constants"] == constants
+    if not will_be_folded:
+        assert recipe["constants"] == constants
+
+    assert last_instruction["op"] == (expected_opcode)
