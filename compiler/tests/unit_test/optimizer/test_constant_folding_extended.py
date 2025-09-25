@@ -54,6 +54,13 @@ def test_folds_variadic_logical_or(tmp_path):
     assert optimized_ir[0]["value"] is True
 
 
+def test_folds_variadic_logical_and_or(tmp_path):
+    script = "@iterations = 10000\nlet a = true and false and true or false\n@output = a"  # Expected: false
+    file_path = create_dummy_file(tmp_path, "main.vs", script)
+    optimized_ir = run_full_pipeline_to_optimized_ir(script, file_path)
+    assert optimized_ir[0]["value"] is False
+
+
 # --- 2. Tests for All Mathematical and Logical Functions ---
 
 
