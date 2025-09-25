@@ -116,7 +116,7 @@ SIGNATURES = {
         "arg_types": ["any"],
         "return_type": lambda types: types[0] if types else "any",
         "is_stochastic": False,
-        "const_folder": lambda args: args[0],  # Identity folding is just returning the argument
+        "const_folder": None,
     },
     "log": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar", "is_stochastic": False, "const_folder": lambda args: math.log(args[0]) if args[0] > 0 else None},
     "log10": {"variadic": False, "arg_types": ["scalar"], "return_type": "scalar", "is_stochastic": False, "const_folder": lambda args: math.log10(args[0]) if args[0] > 0 else None},

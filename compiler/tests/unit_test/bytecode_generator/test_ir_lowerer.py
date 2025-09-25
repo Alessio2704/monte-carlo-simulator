@@ -228,6 +228,43 @@ def test_lowers_identity_to_copy(base_model):
     validate_ir(actual_result["pre_trial_steps"], ["b"])
 
 
+def test_lowers_identity_to_copy_for_tuples(base_model):
+    # ARRANGE
+    model = base_model
+    model["global_variables"] = ({"z": {"inferred_type": "vector", "is_stochastic": False}, "d": {"inferred_type": "vector", "is_stochastic": False}},)
+    partitioned_ir = {
+        "pre_trial_steps": [
+            {"type": "literal_assignment", "result": ["__get_base_segment_data_1__revenues"], "value": [1, 2, 3], "line": 5},
+            {"type": "literal_assignment", "result": ["__get_base_segment_data_1__operating_margin"], "value": [4, 5, 6], "line": 6},
+            {
+                "type": "execution_assignment",
+                "result": ["z", "d"],
+                "function": "identity",
+                "args": [["__get_base_segment_data_1__revenues", "__get_base_segment_data_1__operating_margin"]],
+                "line": 11,
+            },
+        ],
+        "per_trial_steps": [],
+    }
+
+    expected_ir = {
+        "pre_trial_steps": [
+            {"type": "literal_assignment", "result": ["__get_base_segment_data_1__revenues"], "value": [1, 2, 3], "line": 5},
+            {"type": "literal_assignment", "result": ["__get_base_segment_data_1__operating_margin"], "value": [4, 5, 6], "line": 6},
+            {"type": "copy", "result": ["z"], "source": "__get_base_segment_data_1__revenues", "line": 11},
+            {"type": "copy", "result": ["d"], "source": "__get_base_segment_data_1__operating_margin", "line": 11},
+        ],
+        "per_trial_steps": [],
+    }
+
+    # ACT
+    lowerer = IRLowerer(partitioned_ir, model)
+    actual_result, _ = lowerer.lower()
+    # ASSERT
+    assert actual_result == expected_ir
+    validate_ir(actual_result["pre_trial_steps"], ["b"])
+
+
 def test_counters_continue_across_partitions(base_model):
     # ARRANGE
     model = base_model

@@ -117,3 +117,31 @@ let a = x + Pert(1, 2, 3)
 
     except Exception as e:
         pytest.fail(f"Full pipeline compilation failed for valid script: {e}")
+
+
+def test_final_recipe_no_output_file(tmp_path):
+    """This is a regression test for the specific code below. It is the minimum to replicate the original error"""
+    script = """
+@iterations = 1
+func get_base_segment_data() -> (vector, vector)  {
+    let revenues = [1,2,3]
+    let operating_margin = [4,5,6]
+
+    return (revenues, operating_margin)
+}
+let z, d = get_base_segment_data()
+@output = z
+"""
+    main_file_path = create_dummy_file(tmp_path, "main.vs", script)
+
+    try:
+        # Run the full pipeline. This will raise an exception if the bug is present.
+        recipe = compile_valuascript(script, file_path=main_file_path)
+
+        # We can also add an assertion to be extra sure about the final recipe.
+        assert "simulation_config" in recipe
+        assert recipe["simulation_config"]["num_trials"] == 1
+        assert recipe["simulation_config"]["output_file"] == None
+
+    except Exception as e:
+        pytest.fail(f"Full pipeline compilation failed for valid script: {e}")
