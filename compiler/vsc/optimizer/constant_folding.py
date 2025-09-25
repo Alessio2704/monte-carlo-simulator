@@ -126,8 +126,8 @@ class ConstantFolder:
             return node
 
         args = node.get("args", [])
-        if not all(isinstance(arg, (int, float, bool)) for arg in args):
-            return node
+        if not all(isinstance(arg, (int, float, bool, list)) for arg in args):
+            return node  # Cannot fold if it contains unresolved variables
 
         sig = self.signatures.get(func_name)
         if not sig or not sig.get("const_folder"):
