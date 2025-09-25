@@ -1,21 +1,22 @@
 from typing import List, Dict, Any
-import math
 import copy
+from ..functions import FUNCTION_SIGNATURES
 
 
 class ConstantFolder:
     """
     Performs the Constant Propagation and Folding optimization phase.
     This pass iterates through the IR until a fixed point is reached, ensuring
-    that all possible constant expressions are evaluated.
+    that all possible constant expressions are evaluated. It uses a data-driven
+    approach, executing `const_folder` lambdas defined in function signatures.
     """
 
     def __init__(self):
+        self.signatures = FUNCTION_SIGNATURES
         self.constant_map: Dict[str, Any] = {}
 
     def optimize(self, ir: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Main entry point for the optimization pass."""
-
         current_ir = ir
         while True:
             ir_before_pass = copy.deepcopy(current_ir)
@@ -107,6 +108,7 @@ class ConstantFolder:
             return self.constant_map[node]
         if not isinstance(node, dict):
             return node
+
         optimized_node = node.copy()
         if "args" in optimized_node:
             optimized_node["args"] = [self._evaluate_expression(arg) for arg in optimized_node["args"]]
@@ -119,60 +121,24 @@ class ConstantFolder:
             if isinstance(condition, bool):
                 return node["then_expr"] if condition else node["else_expr"]
             return node
-        func = node.get("function")
-        if not func:
+        func_name = node.get("function")
+        if not func_name:
             return node
+
         args = node.get("args", [])
         if not all(isinstance(arg, (int, float, bool)) for arg in args):
             return node
+
+        sig = self.signatures.get(func_name)
+        if not sig or not sig.get("const_folder"):
+            return node
+
+        folder_lambda = sig["const_folder"]
         try:
-            if func in ("add", "multiply", "__and__", "__or__"):
-                if func == "add":
-                    return sum(args)
-                if func == "multiply":
-                    return math.prod(args)
-                if func == "__and__":
-                    return all(args)
-                if func == "__or__":
-                    return any(args)
-            if func in ("log", "log10", "exp", "sin", "cos", "tan", "__not__"):
-                if len(args) != 1:
-                    return node
-                if func == "log":
-                    return math.log(args[0]) if args[0] > 0 else node
-                if func == "log10":
-                    return math.log10(args[0]) if args[0] > 0 else node
-                if func == "exp":
-                    return math.exp(args[0])
-                if func == "sin":
-                    return math.sin(args[0])
-                if func == "cos":
-                    return math.cos(args[0])
-                if func == "tan":
-                    return math.tan(args[0])
-                if func == "__not__":
-                    return not args[0]
-            if len(args) != 2:
-                return node
-            if func == "subtract":
-                return args[0] - args[1]
-            if func == "divide":
-                return args[0] / args[1] if args[1] != 0 else node
-            if func == "power":
-                return args[0] ** args[1]
-            if func == "__gt__":
-                return args[0] > args[1]
-            if func == "__lt__":
-                return args[0] < args[1]
-            if func == "__gte__":
-                return args[0] >= args[1]
-            if func == "__lte__":
-                return args[0] <= args[1]
-            if func == "__eq__":
-                return args[0] == args[1]
-            if func == "__neq__":
-                return args[0] != args[1]
-        except (TypeError, IndexError, ValueError):
+            result = folder_lambda(args)
+            if result is not None:
+                return result
+        except (ValueError, TypeError, IndexError, ZeroDivisionError):
             return node
         return node
 

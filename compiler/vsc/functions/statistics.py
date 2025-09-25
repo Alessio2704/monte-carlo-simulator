@@ -8,6 +8,7 @@ SIGNATURES = {
         "arg_types": ["scalar", "scalar"],
         "return_type": "scalar",
         "is_stochastic": True,
+        "const_folder": None,
         "doc": {
             "summary": "Draws a random sample from a Normal (Gaussian) distribution.",
             "params": [{"name": "mean", "desc": "The mean (μ) of the distribution."}, {"name": "std_dev", "desc": "The standard deviation (σ) of the distribution."}],
@@ -19,6 +20,7 @@ SIGNATURES = {
         "arg_types": ["scalar", "scalar"],
         "return_type": "scalar",
         "is_stochastic": True,
+        "const_folder": None,
         "doc": {
             "summary": "Draws a random sample from a Lognormal distribution.",
             "params": [
@@ -33,6 +35,7 @@ SIGNATURES = {
         "arg_types": ["scalar", "scalar"],
         "return_type": "scalar",
         "is_stochastic": True,
+        "const_folder": None,
         "doc": {
             "summary": "Draws a random sample from a Beta distribution.",
             "params": [{"name": "alpha", "desc": "The alpha (α) shape parameter."}, {"name": "beta", "desc": "The beta (β) shape parameter."}],
@@ -44,6 +47,7 @@ SIGNATURES = {
         "arg_types": ["scalar", "scalar"],
         "return_type": "scalar",
         "is_stochastic": True,
+        "const_folder": None,
         "doc": {
             "summary": "Draws a random sample from a Uniform distribution.",
             "params": [{"name": "min", "desc": "The minimum value of the range."}, {"name": "max", "desc": "The maximum value of the range."}],
@@ -55,6 +59,7 @@ SIGNATURES = {
         "arg_types": ["scalar"],
         "return_type": "scalar",
         "is_stochastic": True,
+        "const_folder": None,
         "doc": {
             "summary": "Draws a random sample from a Bernoulli distribution (a single coin flip).",
             "params": [{"name": "p", "desc": "The probability of success (returning 1.0)."}],
@@ -66,6 +71,7 @@ SIGNATURES = {
         "arg_types": ["scalar", "scalar", "scalar"],
         "return_type": "scalar",
         "is_stochastic": True,
+        "const_folder": None,
         "doc": {
             "summary": "Draws a random sample from a PERT (a modified Beta) distribution.",
             "params": [
@@ -81,6 +87,7 @@ SIGNATURES = {
         "arg_types": ["scalar", "scalar", "scalar"],
         "return_type": "scalar",
         "is_stochastic": True,
+        "const_folder": None,
         "doc": {
             "summary": "Draws a random sample from a Triangular distribution.",
             "params": [
