@@ -8,6 +8,7 @@ from vsc.bytecode_generation.resource_allocator import ResourceAllocator
 from vsc.bytecode_generation.ir_lowerer import IRLowerer
 from vsc.parser import _StringLiteral
 from vsc.utils import compiler_artifact_decoder_hook
+from vsc.exceptions import ValuaScriptError, InternalCompilerError
 
 
 # --- 1. Focused Unit Tests ---
@@ -171,3 +172,17 @@ def test_finds_constants_in_deeply_nested_expressions():
     # It should find all unique scalars and the unique vector.
     assert result["constant_pools"]["SCALAR"] == [5.0, 10.0]
     assert result["constant_pools"]["VECTOR"] == [[1.0, 2.0]]
+
+
+def test_allocate_identity_scalar():
+    model = {
+        "global_variables": {"a": {"inferred_type": "scalar", "is_stochastic": False}},
+    }
+    ir = {"pre_trial_steps": [{"type": "copy", "result": ["a"], "source": 12, "line": 3}]}
+
+    try:
+        allocator = ResourceAllocator(ir, model)
+        result = allocator.allocate()
+        assert result["constant_pools"]["SCALAR"] == [12]
+    except:
+        pytest.fail("Failed to allocate scalar const from copy (identity) instruction")

@@ -3,6 +3,7 @@ from vsc.bytecode_generation.opcodes import OpCode, OperandType
 TEST_CASES = {
     "CompoundSerie": {
         "happy_path": {
+            "assignment": "let x",
             "args": "100, [0.05, 0.06, 0.07]",
             "expected_opcode": OpCode.CompoundSerie_V_SV,
             "variable_register_counts": {"SCALAR": 0, "VECTOR": 1, "BOOLEAN": 0, "STRING": 0},
@@ -16,6 +17,7 @@ TEST_CASES = {
     },
     "GrowSerie": {
         "happy_path": {
+            "assignment": "let x",
             "args": "100, 0.05, 10",
             "expected_opcode": OpCode.GrowSerie_V_SSS,
             "variable_register_counts": {"SCALAR": 0, "VECTOR": 1, "BOOLEAN": 0, "STRING": 0},
@@ -29,6 +31,7 @@ TEST_CASES = {
     },
     "InterpolateSerie": {
         "happy_path": {
+            "assignment": "let x",
             "args": "10, 100, 10",
             "expected_opcode": OpCode.InterpolateSerie_V_SSS,
             "variable_register_counts": {"SCALAR": 0, "VECTOR": 1, "BOOLEAN": 0, "STRING": 0},

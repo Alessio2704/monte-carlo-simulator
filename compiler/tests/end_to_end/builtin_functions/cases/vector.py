@@ -3,6 +3,7 @@ from vsc.bytecode_generation.opcodes import OpCode, OperandType
 TEST_CASES = {
     "ComposeVector": {
         "happy_path": {
+            "assignment": "let x",
             "args": "1, 2, 3",
             "expected_opcode": OpCode.ComposeVector_V_SSS,
             "variable_register_counts": {"SCALAR": 0, "VECTOR": 1, "BOOLEAN": 0, "STRING": 0},
@@ -16,6 +17,7 @@ TEST_CASES = {
     },
     "SumVector": {
         "happy_path": {
+            "assignment": "let x",
             "args": "[1, 2, 3]",
             "expected_opcode": OpCode.SumVector_S_V,
             "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
@@ -29,6 +31,7 @@ TEST_CASES = {
     },
     "VectorDelta": {
         "happy_path": {
+            "assignment": "let x",
             "args": "[1, 3, 6, 10]",
             "expected_opcode": OpCode.VectorDelta_V_V,
             "variable_register_counts": {"SCALAR": 0, "VECTOR": 1, "BOOLEAN": 0, "STRING": 0},
@@ -42,6 +45,7 @@ TEST_CASES = {
     },
     "GetElement": {
         "happy_path": {
+            "assignment": "let x",
             "args": "[10, 20, 30], 1",
             "expected_opcode": OpCode.GetElement_S_VS,
             "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
@@ -55,6 +59,7 @@ TEST_CASES = {
     },
     "DeleteElement": {
         "happy_path": {
+            "assignment": "let x",
             "args": "[10, 20, 30], 1",
             "expected_opcode": OpCode.DeleteElement_V_VS,
             "variable_register_counts": {"SCALAR": 0, "VECTOR": 1, "BOOLEAN": 0, "STRING": 0},

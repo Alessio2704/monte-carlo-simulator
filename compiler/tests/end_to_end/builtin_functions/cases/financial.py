@@ -4,6 +4,7 @@ from vsc.bytecode_generation.opcodes import OpCode, OperandType
 TEST_CASES = {
     "Npv": {
         "happy_path": {
+            "assignment": "let x",
             "args": "0.05, [1,2,3]",
             "expected_opcode": OpCode.Npv_S_SV,
             "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
@@ -17,6 +18,7 @@ TEST_CASES = {
     },
     "CapitalizeExpenses": {
         "happy_path": {
+            "assignment": "let x, y",
             "args": "100, [50, 60, 70], 5",
             "expected_opcode": OpCode.CapitalizeExpenses_SS_SVS,
             "variable_register_counts": {"SCALAR": 2, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
@@ -30,6 +32,7 @@ TEST_CASES = {
     },
     "BlackScholes": {
         "happy_path": {
+            "assignment": "let x",
             "args": '100, 110, 0.05, 0.5, 0.2, "call"',
             "expected_opcode": OpCode.BlackScholes_S_SSSSSSTR,
             "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},

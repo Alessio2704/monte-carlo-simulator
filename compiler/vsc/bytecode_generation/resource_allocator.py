@@ -90,14 +90,13 @@ class ResourceAllocator:
             return
 
         if isinstance(node, dict):
-            if node.get("function") == "identity":
-                return
-
             for arg in node.get("args", []):
                 self._find_literals_in_expression(arg)
             for key in ["condition", "then_expr", "else_expr", "value"]:
                 if key in node:
                     self._find_literals_in_expression(node[key])
+            if node.get("source", None):
+                self._find_literals_in_expression(node["source"])
             return
 
     def _allocate_constants(self):
