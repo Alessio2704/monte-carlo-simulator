@@ -53,9 +53,14 @@ def test_happy_path_compilation(case):
     variable_register_counts = case["happy_path"]["variable_register_counts"]
     constants = case["happy_path"]["constants"]
 
-    assert len(pre_trial_instructions if is_stochastic else pre_trial_instructions) == 1
+    assert len(per_trial_instructions if is_stochastic else pre_trial_instructions) == 1
 
-    assert last_instruction["op"] == (expected_opcode)
+    will_be_folded = case["happy_path"].get("will_be_folded", False)
+
+    if not will_be_folded:
+        assert last_instruction["op"] == (expected_opcode)
+    else:
+        assert last_instruction["op"] == 3
 
     assert len(srcs) == expected_srcs_count
     assert len(dests) == expected_dests_count

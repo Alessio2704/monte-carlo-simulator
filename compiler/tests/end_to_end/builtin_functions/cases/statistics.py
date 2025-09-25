@@ -1,0 +1,95 @@
+from vsc.bytecode_generation.opcodes import OpCode, OperandType
+
+TEST_CASES = {
+    "Normal": {
+        "happy_path": {
+            "args": "0, 1",
+            "expected_opcode": OpCode.Normal_S_SS,
+            "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
+            "constants": {"SCALAR": [0.0, 1.0], "VECTOR": [], "BOOLEAN": [], "STRING": []},
+            "is_stochastic": True,
+            "srcs_count": 2,
+            "srcs_types": [OperandType.SCALAR_CONST, OperandType.SCALAR_CONST],
+            "dests_count": 1,
+            "dests_types": [OperandType.SCALAR_REG],
+        },
+    },
+    "Lognormal": {
+        "happy_path": {
+            "args": "0, 0.25",
+            "expected_opcode": OpCode.Lognormal_S_SS,
+            "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
+            "constants": {"SCALAR": [0.0, 0.25], "VECTOR": [], "BOOLEAN": [], "STRING": []},
+            "is_stochastic": True,
+            "srcs_count": 2,
+            "srcs_types": [OperandType.SCALAR_CONST, OperandType.SCALAR_CONST],
+            "dests_count": 1,
+            "dests_types": [OperandType.SCALAR_REG],
+        },
+    },
+    "Beta": {
+        "happy_path": {
+            "args": "2, 5",
+            "expected_opcode": OpCode.Beta_S_SS,
+            "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
+            "constants": {"SCALAR": [2.0, 5.0], "VECTOR": [], "BOOLEAN": [], "STRING": []},
+            "is_stochastic": True,
+            "srcs_count": 2,
+            "srcs_types": [OperandType.SCALAR_CONST, OperandType.SCALAR_CONST],
+            "dests_count": 1,
+            "dests_types": [OperandType.SCALAR_REG],
+        },
+    },
+    "Uniform": {
+        "happy_path": {
+            "args": "10, 20",
+            "expected_opcode": OpCode.Uniform_S_SS,
+            "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
+            "constants": {"SCALAR": [10.0, 20.0], "VECTOR": [], "BOOLEAN": [], "STRING": []},
+            "is_stochastic": True,
+            "srcs_count": 2,
+            "srcs_types": [OperandType.SCALAR_CONST, OperandType.SCALAR_CONST],
+            "dests_count": 1,
+            "dests_types": [OperandType.SCALAR_REG],
+        },
+    },
+    "Bernoulli": {
+        "happy_path": {
+            "args": "0.5",
+            "expected_opcode": OpCode.Bernoulli_S_S,
+            "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
+            "constants": {"SCALAR": [0.5], "VECTOR": [], "BOOLEAN": [], "STRING": []},
+            "is_stochastic": True,
+            "srcs_count": 1,
+            "srcs_types": [OperandType.SCALAR_CONST],
+            "dests_count": 1,
+            "dests_types": [OperandType.SCALAR_REG],
+        },
+    },
+    "Pert": {
+        "happy_path": {
+            "args": "10, 15, 25",
+            "expected_opcode": OpCode.Pert_S_SSS,
+            "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
+            "constants": {"SCALAR": [10.0, 15.0, 25.0], "VECTOR": [], "BOOLEAN": [], "STRING": []},
+            "is_stochastic": True,
+            "srcs_count": 3,
+            "srcs_types": [OperandType.SCALAR_CONST, OperandType.SCALAR_CONST, OperandType.SCALAR_CONST],
+            "dests_count": 1,
+            "dests_types": [OperandType.SCALAR_REG],
+        },
+    },
+    "Triangular": {
+        "happy_path": {
+            "args": "10, 15, 25",
+            "expected_opcode": OpCode.Triangular_S_SSS,
+            "variable_register_counts": {"SCALAR": 1, "VECTOR": 0, "BOOLEAN": 0, "STRING": 0},
+            "constants": {"SCALAR": [10.0, 15.0, 25.0], "VECTOR": [], "BOOLEAN": [], "STRING": []},
+            "is_stochastic": True,
+            "srcs_count": 3,
+            "srcs_types": [OperandType.SCALAR_CONST, OperandType.SCALAR_CONST, OperandType.SCALAR_CONST],
+            "dests_count": 1,
+            "dests_types": [OperandType.SCALAR_REG],
+        },
+    },
+}
