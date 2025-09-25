@@ -32,6 +32,30 @@ class SemanticValidator:
         main_ast = self.table["processed_asts"][self.table["main_file_path"]]
         global_scope = self.table["global_variables"]
         for step in main_ast.get("execution_steps", []):
+
+            # Validate assignment arity ---
+            lhs_vars = step.get("results") or ([step.get("result")] if step.get("result") else [])
+            if lhs_vars:  # This is an assignment statement
+                lhs_count = len(lhs_vars)
+
+                # Determine the expression on the right-hand side (RHS)
+                rhs_expression = step.get("value")
+                if step.get("type") in ("execution_assignment", "multi_assignment", "conditional_expression"):
+                    rhs_expression = step
+
+                if rhs_expression is not None:
+                    rhs_type = self._get_node_type(rhs_expression, global_scope)
+                    rhs_count = len(rhs_type) if isinstance(rhs_type, list) else 1
+
+                    if lhs_count != rhs_count:
+                        raise ValuaScriptError(
+                            ErrorCode.ASSIGNMENT_ERROR,
+                            line=step["line"],
+                            left_num=lhs_count,
+                            right_num=rhs_count,
+                            message=f"L{step['line']}: Assignment mismatch. Expression returns {rhs_count} value(s), but {lhs_count} variable(s) are provided.",
+                        )
+
             self._validate_expression(step, global_scope)
 
         for func_name, func_info in self.table["user_defined_functions"].items():
@@ -76,7 +100,6 @@ class SemanticValidator:
             value_node = d.get("value")
             expected_py_type = config["value_type"]
 
-            # After validating the type, validate the value itself for @output.
             if name == "output":
                 output_var_name = str(value_node)
                 if output_var_name not in global_vars:

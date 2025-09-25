@@ -159,3 +159,13 @@ def test_module_with_disallowed_directive(tmp_path):
     """
     file_path = create_dummy_file(tmp_path, "module.vs", script)
     run_validation_with_error(script, file_path, ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE)
+
+
+def test_tuple_function_single_assignment(tmp_path):
+    script = """
+    @iterations = 1
+    let x = CapitalizeExpenses(1, [1,2,3], 3)
+    @output = x
+    """
+    file_path = create_dummy_file(tmp_path, "module.vs", script)
+    run_validation_with_error(script, file_path, ErrorCode.ASSIGNMENT_ERROR)

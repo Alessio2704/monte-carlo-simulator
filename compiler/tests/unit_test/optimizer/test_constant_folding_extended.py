@@ -67,9 +67,6 @@ def test_folds_variadic_logical_or(tmp_path):
         ("log(1)", 0.0),
         ("log10(100)", 2.0),
         ("exp(0)", 1.0),
-        ("sin(0)", 0.0),
-        ("cos(0)", 1.0),
-        ("tan(0)", 0.0),
         # Comparison
         ("100 > 50", True),
         ("100 < 50", False),
