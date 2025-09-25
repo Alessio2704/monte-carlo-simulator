@@ -80,15 +80,18 @@ class BytecodeGenerator:
         # The value from the parser is a _StringLiteral, so we need to get its .value attribute
         output_file_node = directives.get("output_file", {}).get("value")
         output_file = output_file_node.value if output_file_node else None
+        variable_map = self.registries.get("variable_map", {})
+        output_variable_index = variable_map[output_variable]["index"]
 
         simulation_config = {
             "num_trials": num_trials,
-            "output_variable": output_variable,
+            "output_variable": output_variable_index,
             "output_file": output_file,
         }
 
         # --- Assemble register counts ---
         variable_registries = self.registries.get("variable_registries", {})
+
         register_counts = {
             "SCALAR": len(variable_registries.get("SCALAR", [])),
             "VECTOR": len(variable_registries.get("VECTOR", [])),

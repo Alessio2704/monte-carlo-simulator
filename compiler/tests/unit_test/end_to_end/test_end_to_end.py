@@ -46,13 +46,13 @@ def test_vector_plus_vector_compiles_successfully(tmp_path):
 
         # We can also add an assertion to be extra sure about the final recipe.
         assert "simulation_config" in recipe
-        assert recipe["simulation_config"]["output_variable"] == "result"
+        assert recipe["simulation_config"]["output_variable"] == 0
 
     except Exception as e:
         pytest.fail(f"Full pipeline compilation failed for vector addition: {e}")
 
 
-def test_vector_plus_vector_compiles_successfully(tmp_path):
+def test_and_operation_compiles_successfully(tmp_path):
     script = """
 @iterations = 1
 let a = 1 == 1
@@ -66,7 +66,54 @@ let a = 1 == 1
 
         # We can also add an assertion to be extra sure about the final recipe.
         assert "simulation_config" in recipe
-        assert recipe["simulation_config"]["output_variable"] == "a"
+        assert recipe["simulation_config"]["output_variable"] == 0
 
     except Exception as e:
         pytest.fail(f"Full pipeline compilation failed for == operation (__eq__): {e}")
+
+
+def test_final_recipe_full_directives(tmp_path):
+    script = """
+@iterations = 1
+let x = Normal(1, 0.1)
+let a = x + Pert(1, 2, 3)
+@output = a
+@output_file = "test.csv"
+"""
+    main_file_path = create_dummy_file(tmp_path, "main.vs", script)
+
+    try:
+        # Run the full pipeline. This will raise an exception if the bug is present.
+        recipe = compile_valuascript(script, file_path=main_file_path)
+
+        # We can also add an assertion to be extra sure about the final recipe.
+        assert "simulation_config" in recipe
+        assert recipe["simulation_config"]["output_variable"] == 1
+        assert recipe["simulation_config"]["num_trials"] == 1
+        assert recipe["simulation_config"]["output_file"] == "test.csv"
+
+    except Exception as e:
+        pytest.fail(f"Full pipeline compilation failed for valid script: {e}")
+
+
+def test_final_recipe_no_output_file(tmp_path):
+    script = """
+@iterations = 1
+let x = Normal(1, 0.1)
+let a = x + Pert(1, 2, 3)
+@output = a
+"""
+    main_file_path = create_dummy_file(tmp_path, "main.vs", script)
+
+    try:
+        # Run the full pipeline. This will raise an exception if the bug is present.
+        recipe = compile_valuascript(script, file_path=main_file_path)
+
+        # We can also add an assertion to be extra sure about the final recipe.
+        assert "simulation_config" in recipe
+        assert recipe["simulation_config"]["output_variable"] == 1
+        assert recipe["simulation_config"]["num_trials"] == 1
+        assert recipe["simulation_config"]["output_file"] == None
+
+    except Exception as e:
+        pytest.fail(f"Full pipeline compilation failed for valid script: {e}")
