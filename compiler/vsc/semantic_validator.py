@@ -32,31 +32,8 @@ class SemanticValidator:
         main_ast = self.table["processed_asts"][self.table["main_file_path"]]
         global_scope = self.table["global_variables"]
         for step in main_ast.get("execution_steps", []):
-
-            # Validate assignment arity ---
-            lhs_vars = step.get("results") or ([step.get("result")] if step.get("result") else [])
-            if lhs_vars:  # This is an assignment statement
-                lhs_count = len(lhs_vars)
-
-                # Determine the expression on the right-hand side (RHS)
-                rhs_expression = step.get("value")
-                if step.get("type") in ("execution_assignment", "multi_assignment", "conditional_expression"):
-                    rhs_expression = step
-
-                if rhs_expression is not None:
-                    rhs_type = self._get_node_type(rhs_expression, global_scope)
-                    rhs_count = len(rhs_type) if isinstance(rhs_type, list) else 1
-
-                    if lhs_count != rhs_count:
-                        raise ValuaScriptError(
-                            ErrorCode.ASSIGNMENT_ERROR,
-                            line=step["line"],
-                            left_num=lhs_count,
-                            right_num=rhs_count,
-                            message=f"L{step['line']}: Assignment mismatch. Expression returns {rhs_count} value(s), but {lhs_count} variable(s) are provided.",
-                        )
-
-            self._validate_expression(step, global_scope)
+            self._validate_assignment_arity(step, global_scope)  # Check arity
+            self._validate_expression(step, global_scope)  # Then check contents
 
         for func_name, func_info in self.table["user_defined_functions"].items():
             self.current_scope_name = func_name
@@ -65,7 +42,8 @@ class SemanticValidator:
 
             has_return_statement = False
             for step in func_info["ast_body"]:
-                self._validate_expression(step, local_scope)
+                self._validate_assignment_arity(step, local_scope)  # Check arity
+                self._validate_expression(step, local_scope)  # Then check contents
                 if step.get("type") == "return_statement":
                     has_return_statement = True
 
@@ -73,6 +51,34 @@ class SemanticValidator:
                 raise ValuaScriptError(ErrorCode.MISSING_RETURN_STATEMENT, line=func_info["line"], name=func_name)
 
         return self.table
+
+    def _validate_assignment_arity(self, step: Dict[str, Any], scope: Dict):
+        """
+        Checks if the number of variables on the LHS of an assignment matches
+        the number of values produced by the RHS.
+        """
+        # This function only cares about assignment statements
+        if step.get("type") not in ("execution_assignment", "literal_assignment", "conditional_expression", "multi_assignment"):
+            return
+
+        lhs_vars = step.get("results") or ([step.get("result")] if step.get("result") else [])
+        if not lhs_vars:
+            return
+
+        lhs_count = len(lhs_vars)
+
+        # The node itself represents the RHS expression in our AST structure
+        rhs_type = self._get_node_type(step, scope)
+        rhs_count = len(rhs_type) if isinstance(rhs_type, list) else 1
+
+        if lhs_count != rhs_count:
+            raise ValuaScriptError(
+                ErrorCode.ASSIGNMENT_ERROR,
+                line=step["line"],
+                lhs_count=lhs_count,
+                rhs_count=rhs_count,
+                message=f"L{step['line']}: Assignment mismatch. Expression returns {rhs_count} value(s), but {lhs_count} variable(s) are provided.",
+            )
 
     def _validate_directives(self):
         main_file_path = self.table["main_file_path"]
@@ -93,7 +99,6 @@ class SemanticValidator:
             config = DIRECTIVE_CONFIG.get(name)
             if not config:
                 continue
-
             if self.is_main_file_a_module and not config["allowed_in_module"]:
                 raise ValuaScriptError(ErrorCode.DIRECTIVE_NOT_ALLOWED_IN_MODULE, line=d["line"], name=name)
 
@@ -106,28 +111,21 @@ class SemanticValidator:
                     raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, line=d["line"], name=output_var_name, context="the @output directive")
 
             valid = False
-            if expected_py_type == str:
-                if isinstance(value_node, (_StringLiteral, Token)):
-                    valid = True
-            elif expected_py_type == int:
-                if isinstance(value_node, int):
-                    valid = True
-            elif expected_py_type == bool:
-                if isinstance(value_node, bool):
-                    valid = True
+            if expected_py_type == str and isinstance(value_node, (_StringLiteral, Token)):
+                valid = True
+            elif expected_py_type == int and isinstance(value_node, int):
+                valid = True
+            elif expected_py_type == bool and isinstance(value_node, bool):
+                valid = True
 
             if not valid:
                 raise ValuaScriptError(ErrorCode.INVALID_DIRECTIVE_VALUE, line=d["line"], error_msg=config["error_type"])
 
     def _validate_expression(self, node: Any, scope: Dict):
-        """Recursively validates an expression tree, checking types and definitions."""
         if isinstance(node, Token):
             line = node.line if hasattr(node, "line") else -1
             if node.value not in scope:
-                if self.current_scope_name == "global":
-                    context_str = "the global scope"
-                else:
-                    context_str = f"function '{self.current_scope_name}'"
+                context_str = "the global scope" if self.current_scope_name == "global" else f"function '{self.current_scope_name}'"
                 raise ValuaScriptError(ErrorCode.UNDEFINED_VARIABLE, line=line, name=node.value, context=context_str)
             return
 
@@ -135,88 +133,64 @@ class SemanticValidator:
             return
 
         if node.get("_is_vector_literal"):
-            items = node.get("items", [])
-            line = node.get("line", -1)
-
+            items, line = node.get("items", []), node.get("line", -1)
             if len(items) > 1:
                 item_types = {self._get_node_type(item, scope) for item in items}
                 if len(item_types) > 1:
-                    found_types_str = ", ".join(sorted(list(item_types)))
-                    raise ValuaScriptError(ErrorCode.MIXED_TYPES_IN_VECTOR, line=line, found_types=found_types_str)
-
-            for item in node.get("items", []):
-                item_type = self._get_node_type(item, scope)
-                if item_type != "scalar":
-                    raise ValuaScriptError(ErrorCode.INVALID_ITEM_TYPE_IN_VECTOR, line=line, type=item_type)
+                    raise ValuaScriptError(ErrorCode.MIXED_TYPES_IN_VECTOR, line=line, found_types=", ".join(sorted(list(item_types))))
+            for item in items:
+                if self._get_node_type(item, scope) != "scalar":
+                    raise ValuaScriptError(ErrorCode.INVALID_ITEM_TYPE_IN_VECTOR, line=line, type=self._get_node_type(item, scope))
 
         for arg in node.get("args", []):
             self._validate_expression(arg, scope)
-        if "condition" in node:
-            self._validate_expression(node["condition"], scope)
-        if "then_expr" in node:
-            self._validate_expression(node["then_expr"], scope)
-        if "else_expr" in node:
-            self._validate_expression(node["else_expr"], scope)
-        if "value" in node:
-            self._validate_expression(node["value"], scope)
+        for key in ["condition", "then_expr", "else_expr", "value"]:
+            if key in node:
+                self._validate_expression(node[key], scope)
 
-        node_type = node.get("type")
-        line = node.get("line", -1)
+        node_type, line = node.get("type"), node.get("line", -1)
 
         if node_type == "conditional_expression":
             cond_type = self._get_node_type(node["condition"], scope)
             if cond_type != "boolean":
                 raise ValuaScriptError(ErrorCode.IF_CONDITION_NOT_BOOLEAN, line=line, provided=cond_type)
-
-            then_type = self._get_node_type(node["then_expr"], scope)
-            else_type = self._get_node_type(node["else_expr"], scope)
+            then_type, else_type = self._get_node_type(node["then_expr"], scope), self._get_node_type(node["else_expr"], scope)
             if then_type != else_type:
                 raise ValuaScriptError(ErrorCode.IF_ELSE_TYPE_MISMATCH, line=line, then_type=then_type, else_type=else_type)
-
         elif node_type == "return_statement":
             func_def = self.table["user_defined_functions"][self.current_scope_name]
-            expected_type = func_def["return_type"]
-
-            return_value = node.get("value") or node.get("values")
+            expected_type, return_value = func_def["return_type"], node.get("value") or node.get("values")
             actual_type = self._get_node_type(return_value, scope)
-
             if actual_type != expected_type:
                 raise ValuaScriptError(ErrorCode.RETURN_TYPE_MISMATCH, line=line, name=self.current_scope_name, provided=str(actual_type), expected=str(expected_type))
-
         elif "function" in node:
-            func_name = node["function"]
+            func_name, arg_nodes = node["function"], node.get("args", [])
             sig = self.all_signatures.get(func_name)
             if not sig:
                 raise ValuaScriptError(ErrorCode.UNKNOWN_FUNCTION, line=line, name=func_name)
 
-            arg_nodes = node.get("args", [])
             MATH_OPERATORS = {"add": "+", "subtract": "-", "multiply": "*", "divide": "/", "power": "^"}
             if func_name in MATH_OPERATORS:
-                arg_types = [self._get_node_type(arg, scope) for arg in arg_nodes]
-                for arg_type in arg_types:
+                for arg in arg_nodes:
+                    arg_type = self._get_node_type(arg, scope)
                     if arg_type not in ("scalar", "vector", "any"):
                         raise ValuaScriptError(ErrorCode.OPERATOR_TYPE_MISMATCH, line=line, op=MATH_OPERATORS[func_name], provided_type=arg_type)
                 return
 
-            is_variadic = sig.get("variadic", False)
-            if not is_variadic:
+            if not sig.get("variadic", False):
                 if len(arg_nodes) != len(sig["arg_types"]):
                     raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=func_name, expected=len(sig["arg_types"]), provided=len(arg_nodes))
                 for i, arg_node in enumerate(arg_nodes):
-                    expected_type = sig["arg_types"][i]
-                    if expected_type == "any":
-                        continue
-                    actual_type = self._get_node_type(arg_node, scope)
-                    if actual_type != "any" and actual_type != expected_type:
-                        raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line, arg_num=i + 1, name=func_name, expected=expected_type, provided=actual_type)
-            else:
-                if sig["arg_types"]:
-                    expected_type = sig["arg_types"][0]
-                    if expected_type != "any":
-                        for i, arg_node in enumerate(arg_nodes):
-                            actual_type = self._get_node_type(arg_node, scope)
-                            if actual_type != "any" and actual_type != expected_type:
-                                raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line, arg_num=i + 1, name=func_name, expected=expected_type, provided=actual_type)
+                    expected, actual = sig["arg_types"][i], self._get_node_type(arg_node, scope)
+                    if expected != "any" and actual != "any" and actual != expected:
+                        raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line, arg_num=i + 1, name=func_name, expected=expected, provided=actual)
+            elif sig["arg_types"]:
+                expected = sig["arg_types"][0]
+                if expected != "any":
+                    for i, arg_node in enumerate(arg_nodes):
+                        actual = self._get_node_type(arg_node, scope)
+                        if actual != "any" and actual != expected:
+                            raise ValuaScriptError(ErrorCode.ARGUMENT_TYPE_MISMATCH, line=line, arg_num=i + 1, name=func_name, expected=expected, provided=actual)
 
     def _get_node_type(self, node: Any, scope: Dict) -> Union[str, List[str]]:
         if isinstance(node, bool):
@@ -229,10 +203,10 @@ class SemanticValidator:
             return "string"
         if isinstance(node, list):
             return [self._get_node_type(n, scope) for n in node]
-        if node.get("_is_vector_literal"):
-            return "vector"
         if not isinstance(node, dict):
             return "any"
+        if node.get("_is_vector_literal"):
+            return "vector"
         if node.get("type") == "conditional_expression":
             return self._get_node_type(node["then_expr"], scope)
         if "function" in node:
@@ -244,14 +218,7 @@ class SemanticValidator:
             if callable(return_type_rule):
                 arg_types = [self._get_node_type(arg, scope) for arg in node.get("args", [])]
                 return return_type_rule(arg_types)
-            else:
-                return return_type_rule
-        var_name = node.get("result")
-        if var_name:
-            if self.current_scope_name == "global":
-                return self.table["global_variables"].get(var_name, {}).get("inferred_type", "any")
-            else:
-                return scope.get(var_name, {}).get("inferred_type", "any")
+            return return_type_rule
         return "any"
 
     def _check_for_recursion(self):

@@ -30,7 +30,7 @@ class ErrorCode(Enum):
     REDEFINE_BUILTIN_FUNCTION = "L{line}: Cannot redefine built-in function '{name}'."
     FUNCTION_NAME_COLLISION = "L{line}: Function '{name}' from '{path}' conflicts with another function of the same name."
     MIXED_TYPES_IN_VECTOR = "L{line}: Vector literals cannot contain mixed types. Found types: {found_types}."
-    ASSIGNMENT_ERROR = "L{line}: Assignment error. The right side of assignment has {left_num} variables while the right side returns {right_num}"
+    ASSIGNMENT_ERROR = "L{line}: Assignment error. The right side of assignment has {lhs_count} variables while the right side returns {rhs_count}"
 
     # --- Function Call & Type Errors ---
     UNKNOWN_FUNCTION = "L{line}: Unknown function '{name}'."

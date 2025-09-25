@@ -26,7 +26,7 @@ class ResourceAllocator:
         return {"variable_registries": self.variable_registries, "variable_map": self.variable_map, "constant_pools": self.constant_pools, "constant_map": self.constant_map}
 
     def _is_constant_node(self, node: Any) -> bool:
-        if isinstance(node, (int, float, bool, _StringLiteral)):
+        if isinstance(node, (bool, int, float, _StringLiteral)):
             return True
         if isinstance(node, str):
             return False  # A raw string is a variable name
@@ -37,10 +37,10 @@ class ResourceAllocator:
         return False
 
     def _get_canonical_key(self, literal: Any) -> str:
-        if isinstance(literal, (int, float)):
-            return f"s_{float(literal)}"
         if isinstance(literal, bool):
             return f"b_{str(literal).lower()}"
+        if isinstance(literal, (int, float)):
+            return f"s_{float(literal)}"
         if isinstance(literal, (_StringLiteral, str)):
             val = literal.value if isinstance(literal, _StringLiteral) else literal
             return f"str_{val}"
@@ -49,13 +49,6 @@ class ResourceAllocator:
         return ""
 
     def _find_literals_in_expression(self, node: Any):
-        if isinstance(node, (int, float)):
-            key = self._get_canonical_key(node)
-            if key not in self.constant_map:
-                pool = self.constant_pools["SCALAR"]
-                self.constant_map[key] = {"type": "SCALAR", "index": len(pool)}
-                pool.append(float(node))
-            return
 
         if isinstance(node, bool):
             key = self._get_canonical_key(node)
@@ -63,6 +56,14 @@ class ResourceAllocator:
                 pool = self.constant_pools["BOOLEAN"]
                 self.constant_map[key] = {"type": "BOOLEAN", "index": len(pool)}
                 pool.append(node)
+            return
+
+        if isinstance(node, (int, float)):
+            key = self._get_canonical_key(node)
+            if key not in self.constant_map:
+                pool = self.constant_pools["SCALAR"]
+                self.constant_map[key] = {"type": "SCALAR", "index": len(pool)}
+                pool.append(float(node))
             return
 
         if isinstance(node, _StringLiteral):

@@ -109,25 +109,4 @@ SIGNATURES = {
         "is_stochastic": False,
         "doc": {"summary": "Calculates the exponential (e^x) of a scalar.", "params": [{"name": "value", "desc": "The input scalar."}], "returns": "The exponential as a scalar."},
     },
-    "sin": {
-        "variadic": False,
-        "arg_types": ["scalar"],
-        "return_type": "scalar",
-        "is_stochastic": False,
-        "doc": {"summary": "Calculates the sine of a scalar.", "params": [{"name": "value", "desc": "The input scalar in radians."}], "returns": "The sine as a scalar."},
-    },
-    "cos": {
-        "variadic": False,
-        "arg_types": ["scalar"],
-        "return_type": "scalar",
-        "is_stochastic": False,
-        "doc": {"summary": "Calculates the cosine of a scalar.", "params": [{"name": "value", "desc": "The input scalar in radians."}], "returns": "The cosine as a scalar."},
-    },
-    "tan": {
-        "variadic": False,
-        "arg_types": ["scalar"],
-        "return_type": "scalar",
-        "is_stochastic": False,
-        "doc": {"summary": "Calculates the tangent of a scalar.", "params": [{"name": "value", "desc": "The input scalar in radians."}], "returns": "The tangent as a scalar."},
-    },
 }

@@ -87,10 +87,10 @@ class CodeEmitter:
         return (op_type.value << 27) | index
 
     def _get_canonical_key(self, literal: Any) -> str:
-        if isinstance(literal, (int, float)):
-            return f"s_{float(literal)}"
         if isinstance(literal, bool):
             return f"b_{str(literal).lower()}"
+        if isinstance(literal, (int, float)):
+            return f"s_{float(literal)}"
         if isinstance(literal, (_StringLiteral, str)):
             val = literal.value if isinstance(literal, _StringLiteral) else literal
             return f"str_{val}"
