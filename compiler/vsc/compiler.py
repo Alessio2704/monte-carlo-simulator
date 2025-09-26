@@ -23,7 +23,7 @@ class CompilationPipeline:
         """Executes the compilation pipeline."""
 
         # --- Stage 1: Parsing ---
-        ast = self._run_stage("ast", parse_valuascript, self.source_content)
+        ast = self._run_stage("ast", parse_valuascript, self.source_content, self.file_path)
         if self.stop_after_stage == "ast":
             return ast
 

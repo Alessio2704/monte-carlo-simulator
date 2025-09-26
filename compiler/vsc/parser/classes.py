@@ -6,7 +6,7 @@ Each node is represented by a dataclass and includes a `Span` object to track it
 location in the source code, enabling precise error reporting in later stages.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Union, Optional
 
 # --- Core Data Structures ---
@@ -20,6 +20,7 @@ class Span:
     s_col: int
     e_line: int
     e_col: int
+    file_path: Optional[str] = None
 
 
 @dataclass
@@ -159,6 +160,7 @@ class FunctionDefinition(ASTNode):
 class Root(ASTNode):
     """The root of the entire AST, representing a single script file."""
 
+    file_path: str
     imports: List[Import]
     directives: List[Directive]
     execution_steps: List[Assignment]

@@ -3,7 +3,7 @@ from lark import Lark, Transformer, Token, LarkError
 from textwrap import dedent
 from ..config.config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP
 from .helpers import pre_parsing_checks, _translate_lark_error
-from .dataclasses import *
+from .classes import *
 
 LARK_PARSER = None
 
@@ -36,6 +36,10 @@ class ValuaScriptTransformer(Transformer):
     returning the first element (i.e. return items[0]).
     The resulting representation is easier to work with in subsequent compilation stages.
     """
+        
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+        super().__init__()
 
     # --- Helper methods for creating spans ---
     def _create_span_from_token(self, token: Token) -> Span:
@@ -249,6 +253,7 @@ class ValuaScriptTransformer(Transformer):
         safe_children = [c for c in children if c]
 
         return Root(
+            file_path=self.file_path,
             imports=[i for i in safe_children if isinstance(i, Import)],
             directives=[i for i in safe_children if isinstance(i, Directive)],
             execution_steps=[i for i in safe_children if isinstance(i, Assignment)],
@@ -257,13 +262,13 @@ class ValuaScriptTransformer(Transformer):
         )
 
 
-def parse_valuascript(script_content: str) -> Root:
+def parse_valuascript(script_content: str, file_path: str = "<stdin>") -> Root:
     """Parses the script content and transforms it into a high-level AST."""
 
     pre_parsing_checks(script_content)
 
     try:
         parse_tree = LARK_PARSER.parse(script_content)
-        return ValuaScriptTransformer().transform(parse_tree)
+        return ValuaScriptTransformer(file_path=file_path).transform(parse_tree)
     except LarkError as e:
         raise _translate_lark_error(e) from e
