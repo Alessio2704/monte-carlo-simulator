@@ -1,18 +1,42 @@
-// A script is a sequence of directives and assignments in any order.
+// "start" is the Lark entry point.
+// It is not mandatory (as Lark has a default implementation)
+// but it is highly recommended.
+
+// We are configuring Lark to expect a valid .vs file to contain a sequence of:
+// directives, assignments or function definitions in any order
+// the ending "*" character indicates that zero or more are allowed
+// this ensures 2 things:
+// 1) empty files are valid
+// 2) a valid file can have multiple directives, assignments and function definitions.
+
 start: (directive | assignment | function_def)*
 
-// A directive can be a setting with a value or a valueless flag.
+// A directive is a "setting.
+// They can have:
+// - values following a "="" character (i.e. @iterations = 1000)
+// - no value (i.e. @module)
+// - value not following a "=" character (i.e. @import "path/to/file") 
+
 directive: directive_setting | valueless_directive | import_directive
 
 directive_setting: "@" CNAME "=" expression
 valueless_directive: "@" CNAME
 import_directive: IMPORT_KEYWORD STRING
 
-assignment: LET (CNAME | multi_assignment_vars) "=" expression
+// An assignment can be either:
+// 1) a simple unique assignment (i.e. let a = 10)
+// 2) a multi assignment (to handle tuple style assignments) (i.e. let a, b = some_tuple_returning_func())
 
+assignment: LET (CNAME | multi_assignment_vars) "=" expression
 multi_assignment_vars: CNAME ("," CNAME)+
 
-// --- FUNCTION DEFINITION ---
+// A function definition follows the following pattern:
+// func my_func(a: scalar) -> scalar {"""Some docs here""" return 1 }
+
+// Parameters are optionals as the square brackets"[]" suggest
+// Return type can be single or a tuple (i.e. -> scalar) (i.e. -> (scalar, vector))
+// Docstring is optional [DOCSTRING]
+
 function_def: "func" CNAME "(" [param ("," param)*] ")" "->" return_type "{" [DOCSTRING] function_body "}"
 ?return_type: CNAME | tuple_type
 tuple_type: "(" CNAME ("," CNAME)* ")"
@@ -22,22 +46,38 @@ param: CNAME ":" CNAME
 return_statement: "return" (expression | tuple_expression)
 tuple_expression: "(" expression ("," expression)* ")"
 
-// --- HIERARCHY FOR ALL EXPRESSIONS (LOGICAL, COMPARISON, MATH) ---
-// The hierarchy defines operator precedence, from lowest (if/else) to highest (atoms).
-?expression: conditional_expression
+// The expression is declared here from the lowest priority to the highest: 
+// from conditional_expression to atom
+// An expression can be several things:
 
+// 1) conditional expression (i.e. if <condition> then ... else ...)
+// these can also be nested (i.e. if <condition> then ... else if <other_condition> else ...)
+?expression: conditional_expression
 conditional_expression: or_expression | IF or_expression THEN or_expression ELSE conditional_expression
 
-?or_expression: and_expression (OR and_expression)*   -> logical_or_expression
+// 2) or/and/not expressions with precedence (not -> and -> or)
+?or_expression: and_expression (OR and_expression)* -> logical_or_expression
 ?and_expression: not_expression (AND not_expression)* -> logical_and_expression
-?not_expression: NOT not_expression                  -> not_expression
-               | comparison_expression
+?not_expression: NOT not_expression -> not_expression | comparison_expression
 
+// 3) comparison expressions (i.e. =, !=, >, <, >=, <=).
+// they share the same precedence among them
+// and they are defined to appear zero or at most one time ("?" character)
 ?comparison_expression: add_expression ((EQ|NEQ|GT|LT|GTE|LTE) add_expression)? -> comparison_expression
 
+// 4) math expressions like add, subtract, multiply, division and power
+// the precedence order is power -> multiplication/division -> addition/subtraction
 ?add_expression: mul_expression ((ADD|SUB) mul_expression)* -> math_expression
-?mul_expression: power ((MUL|DIV) power)*                 -> math_expression
-?power:      atom (POW atom)*                           -> math_expression
+?mul_expression: power ((MUL|DIV) power)* -> math_expression
+?power: atom (POW atom)* -> math_expression
+
+// 4) atom ia the "building block"
+// it can be a signed number, a variable name, a string, a boolean
+// a function call (i.e. my_func()), a vector element access (i.e. my_vec[0])
+// the result from deleting from a vector (i.e. my_vec[-1]),
+// a literal vector (i.e. [1,2,3])
+// a tuple expression (i.e. (1,2))
+// an expression enclosed in round parentheses to change precedence
 ?atom: SIGNED_NUMBER
      | CNAME
      | STRING
@@ -55,6 +95,10 @@ vector: LSQB [arg ("," arg)*] RSQB
 function_call: CNAME "(" [arg ("," arg)*] ")"
 element_access: CNAME "[" expression "]"
 delete_element_vector: CNAME "[" ":" expression "]"
+
+// "arg" here is defined as an inlined ("?") expression 
+// to allow for nested expressions inside function calls
+// and vector subscript operations
 ?arg: expression
 
 // --- Terminal Definitions ---
