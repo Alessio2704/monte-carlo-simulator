@@ -1,9 +1,9 @@
-import re
 import os
 from lark import Lark, Transformer, Token, LarkError
 from textwrap import dedent
 from ..config.config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP
 from .helpers import pre_parsing_checks, _translate_lark_error
+from .dataclasses import *
 
 LARK_PARSER = None
 
@@ -11,7 +11,8 @@ try:
     # Use importlib.resources for robust package data access
     from importlib.resources import files as pkg_files
 
-    valuascript_grammar = (pkg_files("vsc") / "valuascript.lark").read_text()
+    # The path is relative to the 'vsc.parser' subpackage
+    valuascript_grammar = (pkg_files("vsc.parser") / "valuascript.lark").read_text()
 
     # Note here the start="start" parameter must match the
     # "start" directive in the .lark file
@@ -25,28 +26,9 @@ except Exception:
     LARK_PARSER = Lark(valuascript_grammar, start="start", parser="earley")
 
 
-# A simple wrapper class to distinguish parsed strings from variable names
-class _StringLiteral:
-    def __init__(self, value, line=-1):
-        self.value = value
-        self.line = line
-
-    def __repr__(self):
-        return f'StringLiteral("{self.value}")'
-
-    def __eq__(self, other):
-        """
-        Custom equality check. This is critical for optimization passes
-        that use deepcopy and value comparison to detect changes.
-        """
-        if not isinstance(other, _StringLiteral):
-            return NotImplemented
-        return self.value == other.value
-
-
 class ValuaScriptTransformer(Transformer):
     """
-    Transforms the Lark parse tree into a more structured dictionary format (a high-level AST).
+    Transforms the Lark parse tree into a more structured dataclass format (a high-level AST).
     The way this works is straightforward: each function declared inside this class is called
     whenever the Lark Parser encounters a "rule" or an alias with the same name; the transformation
     starts from the bottom (atoms) and works backwards.
@@ -55,36 +37,69 @@ class ValuaScriptTransformer(Transformer):
     The resulting representation is easier to work with in subsequent compilation stages.
     """
 
+    # --- Helper methods for creating spans ---
+    def _create_span_from_token(self, token: Token) -> Span:
+        """Creates a Span object from a single Lark Token."""
+        return Span(token.line, token.column, token.end_line, token.end_column)
+
+    def _get_span_from_items(self, items: list) -> Span:
+        """Calculates a Span that covers a list of tokens and/or ASTNodes."""
+        first = next((item for item in items if hasattr(item, "span") or isinstance(item, Token)), None)
+        last = next((item for item in reversed(items) if hasattr(item, "span") or isinstance(item, Token)), first)
+
+        if not first:  # Handle empty lists
+            return Span(1, 1, 1, 1)
+
+        s_line = first.span.s_line if hasattr(first, "span") else first.line
+        s_col = first.span.s_col if hasattr(first, "span") else first.column
+        e_line = last.span.e_line if hasattr(last, "span") else last.end_line
+        e_col = last.span.e_col if hasattr(last, "span") else last.end_column
+
+        return Span(s_line, s_col, e_line, e_col)
+
     def _build_infix_tree(self, items, operator_map):
         """Helper to build a left-associative tree for any infix expression."""
         if len(items) == 1:
             return items[0]
+
         tree, i = items[0], 1
         while i < len(items):
             op, right = items[i], items[i + 1]
             func_name = operator_map[op.value]
+            span = Span(tree.span.s_line, tree.span.s_col, right.span.e_line, right.span.e_col)
+
             # Special handling for variadic functions (add, multiply, and, or)
-            if isinstance(tree, dict) and tree.get("function") == func_name and func_name in ("add", "multiply", "__and__", "__or__"):
-                tree["args"].append(right)
+            if isinstance(tree, FunctionCall) and tree.function == func_name and func_name in ("add", "multiply", "__and__", "__or__"):
+                tree.args.append(right)
+                tree.span = span  # Extend the span
             else:
-                tree = {"function": func_name, "args": [tree, right]}
+                tree = FunctionCall(function=func_name, args=[tree, right], span=span)
             i += 2
         return tree
 
-    def STRING(self, s):
-        return _StringLiteral(s.value[1:-1], s.line)
+    # --- Terminal Transformations ---
+    def STRING(self, s: Token):
+        return StringLiteral(value=s.value[1:-1], span=self._create_span_from_token(s))
 
-    def DOCSTRING(self, s):
-        # Remove the triple quotes and dedent the string
+    def DOCSTRING(self, s: Token):
         content = s.value[3:-3]
         return dedent(content).strip()
 
-    def TRUE(self, _):
-        return True
+    def TRUE(self, t: Token):
+        return BooleanLiteral(value=True, span=self._create_span_from_token(t))
 
-    def FALSE(self, _):
-        return False
+    def FALSE(self, f: Token):
+        return BooleanLiteral(value=False, span=self._create_span_from_token(f))
 
+    def SIGNED_NUMBER(self, n: Token):
+        val = n.value.replace("_", "")
+        num = float(val) if "." in val or "e" in val.lower() else int(val)
+        return NumberLiteral(value=num, span=self._create_span_from_token(n))
+
+    def CNAME(self, c: Token):
+        return Identifier(name=c.value, span=self._create_span_from_token(c))
+
+    # --- Rule Transformations ---
     def math_expression(self, items):
         return self._build_infix_tree(items, MATH_OPERATOR_MAP)
 
@@ -96,21 +111,20 @@ class ValuaScriptTransformer(Transformer):
 
     def not_expression(self, items):
         if len(items) > 1 and isinstance(items[0], Token) and items[0].type == "NOT":
-            return {"function": "__not__", "args": [items[1]]}
-        else:
-            return items[0]
+            return FunctionCall(function="__not__", args=[items[1]], span=self._get_span_from_items(items))
+        return items[0]
 
     def comparison_expression(self, items):
         if len(items) > 1:
             return self._build_infix_tree(items, COMPARISON_OPERATOR_MAP)
-        else:
-            return items[0]
+        return items[0]
 
     def conditional_expression(self, items):
         if len(items) == 1:
             return items[0]
-        return {"type": "conditional_expression", "condition": items[1], "then_expr": items[3], "else_expr": items[5]}
+        return ConditionalExpression(condition=items[1], then_expr=items[3], else_expr=items[5], span=self._get_span_from_items(items))
 
+    # Pass-through methods for inlined grammar rules
     def expression(self, i):
         return i[0]
 
@@ -141,13 +155,6 @@ class ValuaScriptTransformer(Transformer):
     def boolean(self, i):
         return i[0]
 
-    def SIGNED_NUMBER(self, n):
-        val = n.value.replace("_", "")
-        return float(val) if "." in val or "e" in val.lower() else int(val)
-
-    def CNAME(self, c):
-        return c
-
     def multi_assignment_vars(self, items):
         return items
 
@@ -155,129 +162,102 @@ class ValuaScriptTransformer(Transformer):
         return items
 
     def tuple_expression(self, items):
-        if len(items) == 1:
-            return items[0]
-        return {"_is_tuple_return": True, "values": items}
+        return items
 
     def return_statement(self, items):
-        line_num = items[0].line if hasattr(items[0], "line") else -1
-        return_value = items[-1]  # The expression is always the last item
-        if isinstance(return_value, dict) and return_value.get("_is_tuple_return"):
-            return {"type": "return_statement", "values": return_value["values"], "line": line_num}
-        return {"type": "return_statement", "value": return_value, "line": line_num}
+        span = self._get_span_from_items(items)
+        return_value = items[-1]
+        values = return_value if isinstance(return_value, list) else [return_value]
+        return ReturnStatement(values=values, span=span)
 
     def function_call(self, items):
-        func_name_token = items[0]
+        func_name_ident = items[0]
         args = [item for item in items[1:] if item is not None]
-        return {"function": str(func_name_token), "args": args, "line": func_name_token.line}
+        return FunctionCall(function=func_name_ident.name, args=args, span=self._get_span_from_items(items))
 
     def vector(self, items):
-        # The first item is the LSQB token, which has the line number.
-        lsqb_token = items[0]
-
-        # The actual vector items are everything between the brackets.
-        # We slice from the second item to the second-to-last item.
         vector_items = [item for item in items[1:-1] if item is not None]
-
-        # Return the new structured dictionary including the line number.
-        return {"_is_vector_literal": True, "items": vector_items, "line": lsqb_token.line}
+        return VectorLiteral(items=vector_items, span=self._get_span_from_items(items))
 
     def element_access(self, items):
-        var_token, index_expression = items
-        return {"function": "GetElement", "args": [var_token, index_expression]}
+        var_ident, index_expression = items
+        return ElementAccess(target=var_ident, index=index_expression, span=self._get_span_from_items(items))
 
     def delete_element_vector(self, items):
-        var_token, end_expression = items
-        return {"function": "DeleteElement", "args": [var_token, end_expression]}
+        var_ident, end_expression = items
+        return DeleteElement(target=var_ident, index=end_expression, span=self._get_span_from_items(items))
 
     def directive_setting(self, items):
-        return {"type": "directive", "name": str(items[0]), "value": items[1], "line": items[0].line}
+        name_ident, value = items
+        return Directive(name=name_ident.name, value=value, span=self._get_span_from_items(items))
 
     def valueless_directive(self, items):
-        directive_token = items[0]
-        return {"type": "directive", "name": str(directive_token), "value": True, "line": directive_token.line}
+        name_ident = items[0]
+        return Directive(name=name_ident.name, value=BooleanLiteral(True, name_ident.span), span=name_ident.span)
 
     def import_directive(self, items):
-        import_token, path_literal = items
-        return {"type": "import", "path": path_literal.value, "line": import_token.line}
+        _, path_literal = items
+        return Import(path=path_literal.value, span=self._get_span_from_items(items))
 
     def assignment(self, items):
         _let_token, var_items, expression = items
-        line_source = var_items[0] if isinstance(var_items, list) else var_items
-        line = line_source.line
+        span = self._get_span_from_items(items)
 
-        if isinstance(var_items, list):
-            results_as_strings = [str(v) for v in var_items]
-            base_step = {"results": results_as_strings, "line": line, "type": "multi_assignment"}
-            if isinstance(expression, dict) and "function" in expression:
-                base_step.update(expression)
-                return base_step
-            return {"results": results_as_strings, "line": line, "type": "multi_assignment", "expression": expression}
+        if isinstance(var_items, list):  # Multi-assignment
+            return MultiAssignment(targets=var_items, expression=expression, span=span)
 
-        base_step = {"result": str(var_items), "line": line}
+        target_ident = var_items
+        if isinstance(expression, (NumberLiteral, StringLiteral, BooleanLiteral, VectorLiteral)):
+            return LiteralAssignment(target=target_ident, value=expression, span=span)
+        if isinstance(expression, ConditionalExpression):
+            return ConditionalAssignment(target=target_ident, expression=expression, span=span)
 
-        # Conditional assignment
-        if isinstance(expression, dict) and expression.get("type") == "conditional_expression":
-            base_step.update(expression)
-
-        # Vector literal
-        elif isinstance(expression, dict) and expression.get("_is_vector_literal"):
-            base_step.update({"type": "literal_assignment", "value": expression})
-
-        # If it is a dictionary and contains the key "function" is is a function call
-        elif isinstance(expression, dict) and expression.get("function") is not None:
-            base_step.update({"type": "execution_assignment", **expression})
-
-        # If it is a token it is a reference to an other variable in the .vs code
-        elif isinstance(expression, Token):
-            base_step.update({"type": "execution_assignment", "function": "identity", "args": [expression]})
-        else:
-            base_step.update({"type": "literal_assignment", "value": expression})
-        return base_step
+        # All other cases are execution assignments
+        return ExecutionAssignment(target=target_ident, expression=expression, span=span)
 
     def function_body(self, items):
         return items
 
     def function_def(self, items):
-        func_name_token = items[0]
+        func_name_ident = items[0]
         body_list = items[-1]
-
-        # Even when docstring is not provided Lark will return a null at position [-2]
-        docstring = items[-2]
-
+        docstring = items[-2] if isinstance(items[-2], str) else None
         return_type_token = items[-3]
-        params = items[1:-3]
+        params = [p for p in items[1:-3] if isinstance(p, Parameter)]
+        span = self._get_span_from_items(items)
 
         if isinstance(return_type_token, list):
-            processed_return_type = [str(t) for t in return_type_token]
+            processed_return_type = return_type_token
         else:
-            processed_return_type = str(return_type_token)
+            processed_return_type = return_type_token
 
-        return {
-            "type": "function_definition",
-            "name": str(func_name_token),
-            "params": [p for p in params if isinstance(p, dict)],
-            "return_type": processed_return_type,
-            "body": body_list,
-            "docstring": docstring,
-            "line": func_name_token.line,
-        }
+        return FunctionDefinition(
+            name=func_name_ident,
+            params=params,
+            return_type=processed_return_type,
+            body=body_list,
+            docstring=docstring,
+            span=span,
+        )
 
     def param(self, items):
-        return {"name": str(items[0]), "type": str(items[1])}
+        name_ident, type_ident = items
+        return Parameter(name=name_ident, param_type=type_ident, span=self._get_span_from_items(items))
 
     def start(self, children):
+        span = self._get_span_from_items(children)
         safe_children = [c for c in children if c]
-        assignment_types = ("execution_assignment", "literal_assignment", "conditional_expression", "multi_assignment")
-        return {
-            "imports": [i for i in safe_children if i.get("type") == "import"],
-            "directives": [i for i in safe_children if i.get("type") == "directive"],
-            "execution_steps": [i for i in safe_children if i.get("type") in assignment_types],
-            "function_definitions": [i for i in safe_children if i.get("type") == "function_definition"],
-        }
+
+        return Root(
+            imports=[i for i in safe_children if isinstance(i, Import)],
+            directives=[i for i in safe_children if isinstance(i, Directive)],
+            execution_steps=[i for i in safe_children if isinstance(i, Assignment)],
+            function_definitions=[i for i in safe_children if isinstance(i, FunctionDefinition)],
+            span=span,
+        )
 
 
-def parse_valuascript(script_content: str):
+def parse_valuascript(script_content: str) -> Root:
     """Parses the script content and transforms it into a high-level AST."""
 
     pre_parsing_checks(script_content)

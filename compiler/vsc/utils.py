@@ -1,12 +1,11 @@
 """
 Utility functions for the ValuaScript compiler, including terminal coloring,
-error formatting, executable searching, and artifact serialization.
+and a robust JSON artifact serializer.
 """
 
 import json
-from typing import Dict, Any
+from dataclasses import is_dataclass, asdict
 from lark import Token
-from .parser.parser import _StringLiteral
 
 
 class TerminalColors:
@@ -19,29 +18,26 @@ class TerminalColors:
 
 class CompilerArtifactEncoder(json.JSONEncoder):
     """
-    Custom JSON encoder for compiler artifacts. It handles special types
-    like Tokens, sets, and our custom _StringLiteral class.
+    Custom JSON encoder for compiler artifacts. It correctly serializes:
+    - All dataclass objects (by converting them to dictionaries).
+    - Lark Token objects (by taking their string value).
+    - Sets (by converting them to lists).
     """
 
     def default(self, o):
+        # The primary mechanism: if the object is a dataclass, use the
+        # standard library's asdict() helper to convert it to a dictionary.
+        # This is recursive and handles nested dataclasses perfectly.
+        if is_dataclass(o):
+            return asdict(o)
+
+        # Fallbacks for other common types found during compilation.
         if isinstance(o, Token):
             return o.value
         if isinstance(o, set):
             return list(o)
-        if isinstance(o, _StringLiteral):
-            # Encode _StringLiteral as a dictionary to preserve its type info
-            return {"__type__": "_StringLiteral", "value": o.value}
-        if hasattr(o, "__dict__"):
-            return o.__dict__
-        # Fallback for any other types
-        return str(o)
 
-
-def compiler_artifact_decoder_hook(d: Dict) -> Any:
-    """
-    A custom object_hook for json.load() to "rehydrate" _StringLiteral
-    objects from their special dictionary representation.
-    """
-    if d.get("__type__") == "_StringLiteral":
-        return _StringLiteral(d.get("value"))
-    return d
+        # This will now correctly handle any other object types by calling
+        # the base class's method, which will raise a TypeError if it's
+        # not a standard JSON-serializable type.
+        return super().default(o)

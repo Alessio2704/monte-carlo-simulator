@@ -21,7 +21,7 @@ setup(
     packages=find_packages(),
     install_requires=["lark", "pandas", "matplotlib", "pygls>=1.0.0", "lsprotocol"],
     extras_require={"dev": ["pytest"]},
-    package_data={"vsc": ["*.lark"]},
+    package_data={"vsc.parser": ["*.lark"]},
     entry_points={"console_scripts": ["vsc = vsc.cli:main"]},
     classifiers=[
         "Programming Language :: Python :: 3.9",
