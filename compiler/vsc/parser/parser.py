@@ -166,13 +166,19 @@ class ValuaScriptTransformer(Transformer):
         return items
 
     def tuple_expression(self, items):
-        return items
+        if len(items) == 1:
+            return items[0]
+        return TupleLiteral(items=items, span=self._get_span_from_items(items))
 
     def return_statement(self, items):
         span = self._get_span_from_items(items)
         return_value = items[-1]
-        values = return_value if isinstance(return_value, list) else [return_value]
-        return ReturnStatement(values=values, span=span)
+        
+        if isinstance(return_value, TupleLiteral):
+            return ReturnStatement(values=return_value.items, span=span)
+        
+        # The logic for single return values is unchanged.
+        return ReturnStatement(values=[return_value], span=span)
 
     def function_call(self, items):
         func_name_ident = items[0]

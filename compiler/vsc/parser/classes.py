@@ -60,8 +60,11 @@ class VectorLiteral(ASTNode):
 
 # --- Expressions ---
 # A generic type hint for any expression node
-Expression = Union[NumberLiteral, StringLiteral, BooleanLiteral, Identifier, VectorLiteral, "FunctionCall", "ElementAccess", "DeleteElement", "ConditionalExpression"]
+Expression = Union[NumberLiteral, StringLiteral, BooleanLiteral, Identifier, VectorLiteral, "TupleLiteral", "FunctionCall", "ElementAccess", "DeleteElement", "ConditionalExpression"]
 
+@dataclass
+class TupleLiteral(ASTNode):
+    items: List[Expression]
 
 @dataclass
 class FunctionCall(ASTNode):
