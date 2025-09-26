@@ -15,21 +15,21 @@ def main():
     # This provides a single source of truth for stage names and their order.
     STAGE_MAP = {
         "1": ("ast", "Abstract Syntax Tree"),
-        "2": ("symbol_table", "Symbol Table"),
-        "3": ("type_inference", "Enriched Symbol Table (Types & Tainting)"),
-        "4": ("semantic_validation", "Validated Semantic Model"),
-        "5": ("ir", "Initial Intermediate Representation (IR)"),
-        "6a": ("copy_propagation", "Optimized IR (Copy Propagation)"),
-        "6b": ("tuple_forwarding", "Optimized IR (Tuple Forwarding)"),
-        "6c": ("alias_resolver", "Optimized IR (Alias Resolution)"),
-        "6d": ("constant_folding", "Optimized IR (Constant Folding)"),
-        "6e": ("dead_code_elimination", "Optimized IR (Dead Code Elimination)"),
-        "6": ("optimized_ir", "Final Optimized IR"),
-        "7": ("ir_partitioning", "Partitioned IR (Pre-trial/Per-trial)"),
-        "8a": ("bytecode_ir_lowering", "Bytecode Gen: IR Transformation (Lowering)"),
-        "8b": ("bytecode_resource_allocation", "Bytecode Gen: Resource Allocation"),
-        "8c": ("bytecode_code_emission", "Bytecode Gen: Code Emission"),
-        "8": ("recipe", "Final Simulation Recipe (Bytecode)"),
+        # "2": ("symbol_table", "Symbol Table"),
+        # "3": ("type_inference", "Enriched Symbol Table (Types & Tainting)"),
+        # "4": ("semantic_validation", "Validated Semantic Model"),
+        # "5": ("ir", "Initial Intermediate Representation (IR)"),
+        # "6a": ("copy_propagation", "Optimized IR (Copy Propagation)"),
+        # "6b": ("tuple_forwarding", "Optimized IR (Tuple Forwarding)"),
+        # "6c": ("alias_resolver", "Optimized IR (Alias Resolution)"),
+        # "6d": ("constant_folding", "Optimized IR (Constant Folding)"),
+        # "6e": ("dead_code_elimination", "Optimized IR (Dead Code Elimination)"),
+        # "6": ("optimized_ir", "Final Optimized IR"),
+        # "7": ("ir_partitioning", "Partitioned IR (Pre-trial/Per-trial)"),
+        # "8a": ("bytecode_ir_lowering", "Bytecode Gen: IR Transformation (Lowering)"),
+        # "8b": ("bytecode_resource_allocation", "Bytecode Gen: Resource Allocation"),
+        # "8c": ("bytecode_code_emission", "Bytecode Gen: Code Emission"),
+        # "8": ("recipe", "Final Simulation Recipe (Bytecode)"),
     }
 
     # Dynamically generate help text for the --compile argument
@@ -42,16 +42,8 @@ def main():
     parser.add_argument("input_file", nargs="?", default=None, help="The path to the input .vs file. Omit to read from stdin.")
     parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file. Only used for full compilation.")
     parser.add_argument("-c", "--compile", type=str, choices=STAGE_MAP.keys(), help=stage_help_text)
-    parser.add_argument("--lsp", action="store_true", help="Run the language server.")
 
     args = parser.parse_args()
-
-    # --- LSP Handling ---
-    if args.lsp:
-        from vsc.server import start_server
-
-        start_server()
-        return
 
     # --- Input Validation ---
     if not args.input_file and sys.stdin.isatty():

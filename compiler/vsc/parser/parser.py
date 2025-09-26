@@ -2,7 +2,7 @@ import re
 import os
 from lark import Lark, Transformer, Token, LarkError
 from textwrap import dedent
-from ..config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP
+from ..config.config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP
 from .helpers import pre_parsing_checks, _translate_lark_error
 
 LARK_PARSER = None
