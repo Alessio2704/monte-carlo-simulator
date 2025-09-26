@@ -32,9 +32,17 @@ class ValuaScriptTransformer(Transformer):
     The way this works is straightforward: each function declared inside this class is called
     whenever the Lark Parser encounters a "rule" or an alias with the same name; the transformation
     starts from the bottom (atoms) and works backwards.
+
     There are also "pass-through" functions to handle inlined operators: we simply unbox the value
-    returning the first element (i.e. return items[0]).
-    The resulting representation is easier to work with in subsequent compilation stages.
+    returning the first element (i.e. return items[0]). The reasoning behind "pass-through" ia that 
+    some "components" we declared in Lark were just to "let the language behave well". For example
+    an atom is a grouping of possible things which represents the foundational building blocks of ValuaScript.
+    When the parser parses a valid atom, we actually don't care about "the grouping" but only its value.
+    That's basically why CNAME returns a @dataclass object while atom is just a "pass-through". 
+    The same logic can be applied to other " Lark building blocks".
+
+    The resulting representation from this class is easier to work with in subsequent compilation stages
+    and represents the fist "contract" between the pipeline stages.
     """
         
     def __init__(self, file_path: str):
