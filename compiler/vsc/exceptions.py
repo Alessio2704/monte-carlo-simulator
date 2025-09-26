@@ -58,6 +58,16 @@ class ErrorCode(Enum):
     SYNTAX_RESERVED_KEYWORD_AS_IDENTIFIER = "L{line}: Syntax Error: Cannot use reserved keyword '{ident}' as a variable name."
     SYNTAX_INVALID_IDENTIFIER = "L{line}: Syntax Error: {ident}' is not a valid identifier name."
 
+    # This code is for when the parser finds a token that is valid, but not in the right place.
+    # The 'details' will be dynamically generated (e.g., "Expected a number but found 'xyz'").
+    SYNTAX_UNEXPECTED_TOKEN = "L{line}: Syntax Error: Invalid syntax. {details}"
+
+    # This code is for when the lexer finds a character that doesn't belong to any token.
+    SYNTAX_INVALID_CHARACTER = "L{line}: Syntax Error: Invalid character '{char}' found."
+
+    # This is a fallback for any other, less common parsing errors from Lark.
+    SYNTAX_PARSING_ERROR = "L{line}: Syntax Error: A general parsing error occurred. Details: {details}"
+
     # --- Import Errors ---
     IMPORT_FILE_NOT_FOUND = "L{line}: Imported file not found: '{path}'"
     IMPORT_NOT_A_MODULE = "L{line}: Imported file '{path}' is not a valid module. It must contain the @module directive."
@@ -66,17 +76,15 @@ class ErrorCode(Enum):
 
 
 class ValuaScriptError(Exception):
-    """Custom exception for semantic or validation errors in a ValuaScript file."""
-
-    def __init__(self, code: ErrorCode, line: int = -1, **kwargs):
+    def __init__(self, code: ErrorCode, line: int = -1, message_override: str = None, **kwargs):
         self.code = code
         self.line = line
         self.details = kwargs
-        self.message = code.value.format(line=line, **kwargs)
+        if message_override:
+            self.message = message_override
+        else:
+            self.message = code.value.format(line=line, **kwargs)
         super().__init__(self.message)
-
-    def __str__(self):
-        return self.message
 
 
 class InternalCompilerError(Exception):

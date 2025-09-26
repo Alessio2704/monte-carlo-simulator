@@ -1,4 +1,6 @@
 import re
+from lark import Lark, Transformer, Token
+from lark.exceptions import UnexpectedToken, UnexpectedCharacters, LarkError
 from vsc.exceptions import ValuaScriptError, ErrorCode
 
 # --- Constants for the checks ---
@@ -88,3 +90,50 @@ def pre_parsing_checks(script_content: str):
                 # Check #4: Identifier must follow the language's format (e.g., C-style).
                 if not VALID_IDENTIFIER_REGEX.match(ident):
                     raise ValuaScriptError(ErrorCode.SYNTAX_INVALID_IDENTIFIER, line=line_num, ident=ident)
+
+
+# A mapping from Lark's internal token names to friendly, human-readable names.
+# You should expand this list with all the important tokens in your grammar.
+FRIENDLY_TOKEN_NAMES = {
+    "CNAME": "a variable or function name",
+    "SIGNED_NUMBER": "a number",
+    "STRING": "a string literal",
+    "LET": "the 'let' keyword",
+    "IF": "the 'if' keyword",
+    "RSQB": "a closing bracket ']'",
+    "LSQB": "an opening bracket '['",
+    "RPAR": "a closing parenthesis ')'",
+    "LPAR": "an opening parenthesis '('",
+    "EQ": "an equals sign '='",
+    "COMMA": "a comma ','",
+    "$END": "the end of the file",  # Lark's token for the end of input
+}
+
+
+def _translate_lark_error(err: LarkError) -> ValuaScriptError:
+    """Translates a generic LarkError into a user-friendly ValuaScriptError."""
+
+    if isinstance(err, UnexpectedToken):
+        # Build a helpful message about what was expected.
+        expected_str = ""
+        if err.expected:
+            friendly_expected = [FRIENDLY_TOKEN_NAMES.get(e, e) for e in sorted(err.expected)]
+            if len(friendly_expected) > 1:
+                expected_str = f"Expected one of: {', '.join(friendly_expected[:-1])} or {friendly_expected[-1]}"
+            elif friendly_expected:
+                expected_str = f"Expected {friendly_expected[0]}"
+
+        found_token = err.token
+        found_str = f"but found '{found_token.value}' instead."
+        if found_token.type == "$END":
+            found_str = "but reached the end of the file instead."
+
+        details = f"{expected_str}, {found_str}" if expected_str else f"Found unexpected token '{found_token.value}'."
+
+        return ValuaScriptError(code=ErrorCode.SYNTAX_UNEXPECTED_TOKEN, line=err.line, details=details)
+
+    elif isinstance(err, UnexpectedCharacters):
+        return ValuaScriptError(code=ErrorCode.SYNTAX_INVALID_CHARACTER, line=err.line, char=err.char)
+
+    # Fallback for any other Lark error
+    return ValuaScriptError(code=ErrorCode.SYNTAX_PARSING_ERROR, line=getattr(err, "line", -1), details=str(err))

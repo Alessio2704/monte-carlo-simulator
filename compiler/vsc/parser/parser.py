@@ -1,9 +1,9 @@
 import re
 import os
-from lark import Lark, Transformer, Token
+from lark import Lark, Transformer, Token, LarkError
 from textwrap import dedent
 from ..config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP
-from .pre_parsing_checks import pre_parsing_checks
+from .helpers import pre_parsing_checks, _translate_lark_error
 
 LARK_PARSER = None
 
@@ -282,5 +282,8 @@ def parse_valuascript(script_content: str):
 
     pre_parsing_checks(script_content)
 
-    parse_tree = LARK_PARSER.parse(script_content)
-    return ValuaScriptTransformer().transform(parse_tree)
+    try:
+        parse_tree = LARK_PARSER.parse(script_content)
+        return ValuaScriptTransformer().transform(parse_tree)
+    except LarkError as e:
+        raise _translate_lark_error(e) from e

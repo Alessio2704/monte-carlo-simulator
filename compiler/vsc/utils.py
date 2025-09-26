@@ -13,7 +13,6 @@ from lark.exceptions import UnexpectedInput, UnexpectedCharacters
 
 from .parser.parser import _StringLiteral
 from .data_structures import Scope
-from .config import TOKEN_FRIENDLY_NAMES
 
 
 class TerminalColors:
@@ -55,28 +54,6 @@ def compiler_artifact_decoder_hook(d: Dict) -> Any:
     if d.get("__type__") == "_StringLiteral":
         return _StringLiteral(d.get("value"))
     return d
-
-
-def format_lark_error(e, script_content: str) -> str:
-    if isinstance(e, UnexpectedCharacters):
-        line, column, custom_msg = e.line, e.column, "Invalid character or syntax."
-    elif isinstance(e, UnexpectedInput):
-        line, column = e.line, e.column
-        line_content = script_content.splitlines()[line - 1].strip()
-        if "(" in line_content and ")" not in line_content:
-            custom_msg = "It looks like you have an opening parenthesis '(' without a matching closing one ')'."
-        elif "[" in line_content and "]" not in line_content:
-            custom_msg = "It looks like you have an opening bracket '[' without a matching closing one ']'."
-        else:
-            expected_str = ", ".join(sorted([TOKEN_FRIENDLY_NAMES.get(s, s) for s in e.expected]))
-            custom_msg = f"The syntax is invalid here. I was expecting {expected_str}."
-    else:
-        return f"\n{TerminalColors.RED}--- PARSING ERROR ---\n{e}{TerminalColors.RESET}"
-    error_header = f"\n{TerminalColors.RED}--- SYNTAX ERROR ---{TerminalColors.RESET}"
-    line_indicator = f"L{line} | {script_content.splitlines()[line - 1]}"
-    pointer = f"{' ' * (column + 2 + len(str(line)))}^\n"
-    error_message = f"{TerminalColors.RED}Error at line {line}: {custom_msg}{TerminalColors.RESET}"
-    return f"{error_header}\n{line_indicator}\n{pointer}{error_message}"
 
 
 def find_engine_executable(provided_path):

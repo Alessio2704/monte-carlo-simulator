@@ -54,23 +54,3 @@ COMPARISON_OPERATOR_MAP = {
     "<=": "__lte__",
 }
 LOGICAL_OPERATOR_MAP = {"and": "__and__", "or": "__or__"}
-
-
-TOKEN_FRIENDLY_NAMES = {
-    "SIGNED_NUMBER": "a number",
-    "CNAME": "a variable name",
-    "expression": "a value or formula",
-    "EQUAL": "an equals sign '='",
-    "STRING": "a string in double quotes",
-    "ADD": "a plus sign '+'",
-    "SUB": "a minus sign '-'",
-    "MUL": "a multiplication sign '*'",
-    "DIV": "a division sign '/'",
-    "POW": "a power sign '^'",
-    "LPAR": "an opening parenthesis '('",
-    "RPAR": "a closing parenthesis ')'",
-    "LSQB": "an opening bracket '['",
-    "RSQB": "a closing bracket ']'",
-    "COMMA": "a comma ','",
-    "AT": "an '@' symbol for a directive",
-}

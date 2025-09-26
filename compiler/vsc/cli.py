@@ -6,7 +6,7 @@ import time
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters
 from .compiler import compile_valuascript
 from .exceptions import ValuaScriptError
-from .utils import CompilerArtifactEncoder, TerminalColors, format_lark_error
+from .utils import CompilerArtifactEncoder, TerminalColors
 
 
 def main():
@@ -105,10 +105,6 @@ def main():
             print(f"Recipe written to {output_file_path}")
 
     # --- Error Handling ---
-    except (UnexpectedInput, UnexpectedCharacters) as e:
-        script_content = script_content or ""
-        print(format_lark_error(e, script_content), file=sys.stderr)
-        sys.exit(1)
     except ValuaScriptError as e:
         print(f"\n{TerminalColors.RED}--- COMPILATION ERROR ---\n{e}{TerminalColors.RESET}", file=sys.stderr)
         sys.exit(1)
