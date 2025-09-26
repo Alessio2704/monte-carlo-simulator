@@ -6,7 +6,7 @@ from typing import Dict, Any
 # The modules we are testing
 from vsc.bytecode_generation.resource_allocator import ResourceAllocator
 from vsc.bytecode_generation.ir_lowerer import IRLowerer
-from vsc.parser import _StringLiteral
+from vsc.parser.parser import _StringLiteral
 from vsc.utils import compiler_artifact_decoder_hook
 from vsc.exceptions import ValuaScriptError, InternalCompilerError
 

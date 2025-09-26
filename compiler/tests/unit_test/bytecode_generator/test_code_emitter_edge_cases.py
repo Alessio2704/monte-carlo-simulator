@@ -4,7 +4,7 @@ from typing import Dict, Any
 # The module we are testing
 from vsc.bytecode_generation.code_emitter import CodeEmitter
 from vsc.bytecode_generation.opcodes import OpCode, OperandType
-from vsc.parser import _StringLiteral
+from vsc.parser.parser import _StringLiteral
 
 # --- Test Helpers & Fixtures ---
 

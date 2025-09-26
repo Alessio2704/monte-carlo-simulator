@@ -295,7 +295,7 @@ def test_ir_for_udf_with_string_literal_argument(tmp_path):
     param_passing_step = next((step for step in ir if step["result"] == ["__get_option1_1__type"]), None)
     assert param_passing_step is not None, "Could not find the parameter passing step in the IR"
 
-    from vsc.parser import _StringLiteral
+    from vsc.parser.parser import _StringLiteral
 
     assert isinstance(param_passing_step["args"][0], _StringLiteral), "Argument should be a _StringLiteral"
     assert param_passing_step["args"][0].value == "call", "String literal value is incorrect"

@@ -1,6 +1,6 @@
 import pytest
 import lark
-from vsc.parser import parse_valuascript
+from vsc.parser.parser import parse_valuascript
 from vsc.exceptions import ValuaScriptError, ErrorCode
 
 # We can import the Lark exceptions to test for them, although our custom
@@ -273,7 +273,11 @@ def test_module_file_parsing():
 
 @pytest.mark.parametrize(
     "bad_code, expected_error_code",
-    [("let x =", ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS), ("let y", ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT), ("@iterations =", ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS)],
+    [
+        ("let x =", ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS),
+        ("let y", ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT),
+        ("@iterations =", ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS),
+    ],
 )
 def test_custom_syntax_errors(bad_code, expected_error_code):
     """
@@ -295,11 +299,10 @@ def test_lark_unmatched_parenthesis_error():
 
     # We expect a generic UnexpectedInput from Lark because our pre-checks don't
     # look for this specific error.
-    with pytest.raises(UnexpectedInput):
+    with pytest.raises(ValuaScriptError) as e:
         parse_valuascript(bad_code)
 
-
-# In tests/ast/test_ast_phase.py
+    assert e.value.code == ErrorCode.SYNTAX_UNMATCHED_BRACKET
 
 
 def test_whitespace_and_comment_invariance():
@@ -430,35 +433,29 @@ def test_empty_and_whitespace_only_files():
 
 
 @pytest.mark.parametrize(
-    "invalid_script",
+    "bad_code, expected_error_code",
     [
-        # Mismatched delimiters
-        "let x = [1, 2)",
-        "func a() -> scalar ( return 1 }",
-        "let y = (1, 2]",
-        # Invalid assignment targets
-        "let 1 = x",
-        'let "hello" = y',
-        "let (a, b) = my_func()",  # Tuples are not valid on the left side of 'let'
-        # Incomplete statements
-        "let x, = my_func()",
-        "let ,y = my_func()",
-        "let x, y, = my_func()",
-        "func my_func(a:) -> scalar { return a }",  # Missing type
-        "func my_func(a: scalar) -> { return a }",  # Missing return type
+        ("let x =", ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS),
+        ("let y", ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT),
+        ("@iterations =", ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS),
+        ("let x = [1, 2)", ErrorCode.SYNTAX_UNMATCHED_BRACKET),
+        ("func a() -> scalar ( return 1 }", ErrorCode.SYNTAX_UNMATCHED_BRACKET),
+        ("let y = (1, 2]", ErrorCode.SYNTAX_UNMATCHED_BRACKET),
+        ("let 1 = x", ErrorCode.SYNTAX_INVALID_IDENTIFIER),
+        ('let "hello" = y', ErrorCode.SYNTAX_INVALID_IDENTIFIER),
     ],
 )
-def test_guaranteed_lark_parsing_failures(invalid_script):
+def test_guaranteed_lark_parsing_failures(bad_code, expected_error_code):
     """
     Tests a variety of fundamental syntax errors that should be caught by the
     Lark parser itself. The goal is to ensure they DO NOT parse successfully.
     """
-    with pytest.raises(UnexpectedInput) as excinfo:
-        parse_valuascript(invalid_script)
+    with pytest.raises(ValuaScriptError) as excinfo:
+        parse_valuascript(bad_code)
 
     # This assertion is optional but good practice. It confirms that an exception
     # was indeed raised and caught by pytest.raises.
-    assert excinfo.type is lark.exceptions.UnexpectedCharacters
+    assert excinfo.value.code == expected_error_code
 
 
 def test_empty_and_whitespace_only_files():

@@ -1,7 +1,7 @@
 from typing import Dict, Any, List, Union, Tuple
 import re
 
-from ..parser import _StringLiteral
+from ..parser.parser import _StringLiteral
 from ..exceptions import InternalCompilerError
 
 

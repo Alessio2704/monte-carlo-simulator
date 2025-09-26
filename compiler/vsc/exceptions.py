@@ -53,6 +53,10 @@ class ErrorCode(Enum):
     # --- Syntax Pre-Parsing Errors ---
     SYNTAX_MISSING_VALUE_AFTER_EQUALS = "L{line}: Syntax Error: Missing value after '='."
     SYNTAX_INCOMPLETE_ASSIGNMENT = "L{line}: Syntax Error: Incomplete assignment."
+    SYNTAX_UNMATCHED_BRACKET = "L{line}: Syntax Error: Unmatched closing bracket '{char} was never closed."
+    SYNTAX_UNCLOSED_STRING = "L{line}: Syntax Error: Unclosed string literal"
+    SYNTAX_RESERVED_KEYWORD_AS_IDENTIFIER = "L{line}: Syntax Error: Cannot use reserved keyword '{ident}' as a variable name."
+    SYNTAX_INVALID_IDENTIFIER = "L{line}: Syntax Error: {ident}' is not a valid identifier name."
 
     # --- Import Errors ---
     IMPORT_FILE_NOT_FOUND = "L{line}: Imported file not found: '{path}'"

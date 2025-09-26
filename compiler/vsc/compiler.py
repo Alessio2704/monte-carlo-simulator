@@ -2,7 +2,7 @@ import os
 import json
 from typing import List, Optional, Dict, Any
 from .exceptions import ValuaScriptError
-from .parser import parse_valuascript
+from .parser.parser import parse_valuascript
 from .symbol_discovery import discover_symbols
 from .type_inferrer import infer_types_and_taint
 from .semantic_validator import validate_semantics

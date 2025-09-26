@@ -1,8 +1,9 @@
+import re
 import os
 from lark import Lark, Transformer, Token
 from textwrap import dedent
-from .exceptions import ValuaScriptError, ErrorCode
-from .config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP
+from ..config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP
+from .pre_parsing_checks import pre_parsing_checks
 
 LARK_PARSER = None
 
@@ -10,14 +11,18 @@ try:
     # Use importlib.resources for robust package data access
     from importlib.resources import files as pkg_files
 
-    valuasc_grammar = (pkg_files("vsc") / "valuascript.lark").read_text()
-    LARK_PARSER = Lark(valuasc_grammar, start="start", parser="earley")
+    valuascript_grammar = (pkg_files("vsc") / "valuascript.lark").read_text()
+
+    # Note here the start="start" parameter must match the
+    # "start" directive in the .lark file
+    # as said there it is not mandatory but it is highly recommended
+    LARK_PARSER = Lark(valuascript_grammar, start="start", parser="earley")
 except Exception:
     # Fallback for development environments or older Python versions
     grammar_path = os.path.join(os.path.dirname(__file__), "valuascript.lark")
     with open(grammar_path, "r") as f:
-        valuasc_grammar = f.read()
-    LARK_PARSER = Lark(valuasc_grammar, start="start", parser="earley")
+        valuascript_grammar = f.read()
+    LARK_PARSER = Lark(valuascript_grammar, start="start", parser="earley")
 
 
 # A simple wrapper class to distinguish parsed strings from variable names
@@ -42,7 +47,12 @@ class _StringLiteral:
 class ValuaScriptTransformer(Transformer):
     """
     Transforms the Lark parse tree into a more structured dictionary format (a high-level AST).
-    This representation is easier to work with in subsequent compilation stages.
+    The way this works is straightforward: each function declared inside this class is called
+    whenever the Lark Parser encounters a "rule" or an alias with the same name; the transformation
+    starts from the bottom (atoms) and works backwards.
+    There are also "pass-through" functions to handle inlined operators: we simply unbox the value
+    returning the first element (i.e. return items[0]).
+    The resulting representation is easier to work with in subsequent compilation stages.
     """
 
     def _build_infix_tree(self, items, operator_map):
@@ -162,7 +172,7 @@ class ValuaScriptTransformer(Transformer):
         return {"function": str(func_name_token), "args": args, "line": func_name_token.line}
 
     def vector(self, items):
-        # The first item is now the LSQB token, which has the line number.
+        # The first item is the LSQB token, which has the line number.
         lsqb_token = items[0]
 
         # The actual vector items are everything between the brackets.
@@ -206,12 +216,19 @@ class ValuaScriptTransformer(Transformer):
 
         base_step = {"result": str(var_items), "line": line}
 
+        # Conditional assignment
         if isinstance(expression, dict) and expression.get("type") == "conditional_expression":
             base_step.update(expression)
+
+        # Vector literal
         elif isinstance(expression, dict) and expression.get("_is_vector_literal"):
             base_step.update({"type": "literal_assignment", "value": expression})
-        elif isinstance(expression, dict):
+
+        # If it is a dictionary and contains the key "function" is is a function call
+        elif isinstance(expression, dict) and expression.get("function") is not None:
             base_step.update({"type": "execution_assignment", **expression})
+
+        # If it is a token it is a reference to an other variable in the .vs code
         elif isinstance(expression, Token):
             base_step.update({"type": "execution_assignment", "function": "identity", "args": [expression]})
         else:
@@ -224,7 +241,10 @@ class ValuaScriptTransformer(Transformer):
     def function_def(self, items):
         func_name_token = items[0]
         body_list = items[-1]
+
+        # Even when docstring is not provided Lark will return a null at position [-2]
         docstring = items[-2]
+
         return_type_token = items[-3]
         params = items[1:-3]
 
@@ -259,15 +279,8 @@ class ValuaScriptTransformer(Transformer):
 
 def parse_valuascript(script_content: str):
     """Parses the script content and transforms it into a high-level AST."""
-    for i, line in enumerate(script_content.splitlines()):
-        clean_line = line.split("#", 1)[0].strip()
-        if not clean_line:
-            continue
-        if (clean_line.startswith("let") or clean_line.startswith("@")) and clean_line.endswith("="):
-            raise ValuaScriptError(ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS, line=i + 1)
-        if clean_line.startswith("let") and "=" not in clean_line:
-            if len(clean_line.split()) > 0 and clean_line.split()[0] == "let":
-                raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=i + 1)
+
+    pre_parsing_checks(script_content)
 
     parse_tree = LARK_PARSER.parse(script_content)
     return ValuaScriptTransformer().transform(parse_tree)

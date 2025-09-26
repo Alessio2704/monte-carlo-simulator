@@ -30,7 +30,7 @@ from pygls.workspace import Document
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vsc.compiler import compile_valuascript, resolve_imports_and_functions
-from vsc.parser import parse_valuascript
+from vsc.parser.parser import parse_valuascript
 from vsc.validator import SemanticAnalyzer
 from vsc.optimizer import _build_dependency_graph, _find_stochastic_variables
 from vsc.functions import FUNCTION_SIGNATURES

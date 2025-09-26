@@ -3,7 +3,7 @@ from collections import deque
 import os
 
 from .exceptions import ValuaScriptError, ErrorCode
-from .parser import _StringLiteral
+from .parser.parser import _StringLiteral
 from .config import DIRECTIVE_CONFIG
 from .functions import FUNCTION_SIGNATURES
 

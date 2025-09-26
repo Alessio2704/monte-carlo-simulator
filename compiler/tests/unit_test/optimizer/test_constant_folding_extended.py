@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 from textwrap import dedent
 from vsc.optimizer.constant_folding import run_constant_folding
-from vsc.parser import _StringLiteral
+from vsc.parser.parser import _StringLiteral
 from vsc.optimizer.ir_validator import IRValidator, IRValidationError
 
 # Import the full pipeline helper from the other test file

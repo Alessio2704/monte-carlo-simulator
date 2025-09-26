@@ -2,7 +2,7 @@ import pytest
 import os
 from pathlib import Path
 
-from vsc.parser import parse_valuascript
+from vsc.parser.parser import parse_valuascript
 from vsc.symbol_discovery import discover_symbols
 from vsc.exceptions import ValuaScriptError, ErrorCode
 from textwrap import dedent

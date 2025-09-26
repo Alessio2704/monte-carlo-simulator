@@ -11,7 +11,7 @@ from typing import Dict, Any
 from lark import Token
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters
 
-from .parser import _StringLiteral
+from .parser.parser import _StringLiteral
 from .data_structures import Scope
 from .config import TOKEN_FRIENDLY_NAMES
 

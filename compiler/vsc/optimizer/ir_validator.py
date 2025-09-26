@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Set
-from ..parser import _StringLiteral
+from ..parser.parser import _StringLiteral
 
 
 class IRValidationError(Exception):

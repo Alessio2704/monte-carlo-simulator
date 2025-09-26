@@ -1,6 +1,6 @@
 import re
 from typing import Dict, Any, List, Set
-from ..parser import _StringLiteral
+from ..parser.parser import _StringLiteral
 
 
 class ResourceAllocator:

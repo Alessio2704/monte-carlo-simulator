@@ -1,6 +1,6 @@
 import os
 from typing import Dict, Any, Optional, Set
-from .parser import parse_valuascript
+from .parser.parser import parse_valuascript
 from .exceptions import ValuaScriptError, ErrorCode
 from .functions import FUNCTION_SIGNATURES
 

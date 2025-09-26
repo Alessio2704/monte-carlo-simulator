@@ -1,5 +1,5 @@
 from typing import Dict, Any, List
-from ..parser import _StringLiteral
+from ..parser.parser import _StringLiteral
 from .opcodes import OpCode, OperandType
 from ..exceptions import InternalCompilerError
 

@@ -4,7 +4,7 @@ from textwrap import dedent
 from typing import List, Dict, Any, Optional
 
 # --- Test Dependencies ---
-from vsc.parser import parse_valuascript
+from vsc.parser.parser import parse_valuascript
 from vsc.symbol_discovery import discover_symbols
 from vsc.type_inferrer import infer_types_and_taint
 from vsc.semantic_validator import validate_semantics

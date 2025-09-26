@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
 from lark import Token
 
-from .parser import _StringLiteral
+from .parser.parser import _StringLiteral
 
 
 class IRGenerator:

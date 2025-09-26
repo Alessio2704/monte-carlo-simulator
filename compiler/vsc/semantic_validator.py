@@ -2,7 +2,7 @@ import os
 from typing import Dict, Any, List, Union
 from lark import Token
 
-from .parser import _StringLiteral
+from .parser.parser import _StringLiteral
 from .exceptions import ValuaScriptError, ErrorCode
 from .config import DIRECTIVE_CONFIG
 

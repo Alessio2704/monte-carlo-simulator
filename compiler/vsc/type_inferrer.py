@@ -1,7 +1,7 @@
 from typing import Dict, Any, List, Tuple, Union, Set
 from lark import Token
 
-from .parser import _StringLiteral
+from .parser.parser import _StringLiteral
 from .exceptions import ValuaScriptError, ErrorCode
 from .functions import FUNCTION_SIGNATURES
 
