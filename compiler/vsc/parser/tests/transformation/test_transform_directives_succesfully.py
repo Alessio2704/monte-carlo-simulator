@@ -3,7 +3,6 @@ import pytest
 from vsc.parser.parser import parse_valuascript
 from vsc.parser.classes import *
 from ..utils.factory_helpers import *
-from ..utils.assertion_helper import assert_asts_equal
 
 @pytest.mark.parametrize(
     "code, name, value",
