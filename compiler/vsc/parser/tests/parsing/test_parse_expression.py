@@ -67,6 +67,7 @@ def test_expression_parsed_correctly(code):
     pytest.param("let a = if then 10 else 11", ErrorCode.SYNTAX_INVALID_CHARACTER, id="ce_missing_condition"),
     pytest.param("let a = if true then else 11", ErrorCode.SYNTAX_INVALID_CHARACTER, id="ce_missing_then_value"),
     pytest.param("let a = if true then 10 else", ErrorCode.SYNTAX_PARSING_ERROR, id="ce_missing_else_value"),
+    pytest.param("let a = if x then if y then 1 else 2", ErrorCode.SYNTAX_INVALID_CHARACTER, id="ce_dangling_else_binds_to_inner_if"),
 
     pytest.param("let a = x an y", ErrorCode.SYNTAX_INVALID_CHARACTER, id="be_wrong_identifier_1"),
     pytest.param("let a = x o y", ErrorCode.SYNTAX_INVALID_CHARACTER, id="be_wrong_identifier_2"),
@@ -85,9 +86,10 @@ def test_expression_parsed_correctly(code):
     pytest.param("let a = // true", ErrorCode.SYNTAX_INVALID_CHARACTER, id="me_wrong_identifier_4"),
     pytest.param("let a = ^^ true", ErrorCode.SYNTAX_INVALID_CHARACTER, id="me_wrong_identifier_5"),
 
-    pytest.param("let a = 1.", ErrorCode.SYNTAX_INVALID_CHARACTER, id="me_wrong_identifier_1"),
-    pytest.param("let a = .5", ErrorCode.SYNTAX_INVALID_CHARACTER, id="me_wrong_identifier_2"),
-    pytest.param("let a = 1_", ErrorCode.SYNTAX_INVALID_CHARACTER, id="me_wrong_identifier_3"),
+    pytest.param("let a = 1.", ErrorCode.SYNTAX_INVALID_CHARACTER, id="at_wrong_identifier_1"),
+    pytest.param("let a = .5", ErrorCode.SYNTAX_INVALID_CHARACTER, id="at_wrong_identifier_2"),
+    pytest.param("let a = 1_", ErrorCode.SYNTAX_INVALID_CHARACTER, id="at_wrong_identifier_3"),
+    pytest.param("let a = 1__000", ErrorCode.SYNTAX_INVALID_CHARACTER, id="at_double_underscore_invalid"),
     ]
 )
 def test_expression_parsed_error(code, error):

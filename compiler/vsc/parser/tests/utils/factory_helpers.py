@@ -31,11 +31,23 @@ def get_literal_assignment(target: str, value: NumberLiteral | StringLiteral | B
 def get_function_call(function: str, args: List[Expression]):
     return FunctionCall(span=get_span(), function=function, args=args)
 
+def get_element_access(target: str, index: Expression):
+    return ElementAccess(span=get_span(), target=get_identifier(target), index=index)
+
+def get_delete_element(target: str, index: Expression):
+    return DeleteElement(span=get_span(), target=get_identifier(target), index=index)
+
 def get_execution_assignment(target: str, expression: FunctionCall | Identifier | ElementAccess | DeleteElement):
     return ExecutionAssignment(span=get_span(), target=get_identifier(target), expression=expression)
 
 def get_multi_assignment(targets: List[Identifier], expression: FunctionCall):
     return MultiAssignment(span=get_span(), targets=targets, expression=expression)
+
+def get_conditional_expression(condition: Expression, then_expr: Expression, else_expr: Expression):
+    return ConditionalExpression(span=get_span(), condition=condition, then_expr=then_expr, else_expr=else_expr)
+
+def get_conditional_assignment(target: str, condition: Expression, then_expr: Expression, else_expr: Expression):
+    return ConditionalAssignment(span=get_span(), target=get_identifier(target), expression=get_conditional_expression(condition=condition, then_expr=then_expr, else_expr=else_expr))
 
 def get_return_statement(returns: Expression):
     return ReturnStatement(get_span(), returns=returns)
@@ -86,3 +98,9 @@ def get_function_def(
         docstring=docstring,
         span=get_span()
     )
+
+def get_directive(name: str, value: Expression | bool):
+    return Directive(span=get_span(), name=name, value=value)
+
+def get_import(path: str):
+    return Import(span=get_span(), path=path)

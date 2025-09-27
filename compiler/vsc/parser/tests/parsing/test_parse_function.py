@@ -16,6 +16,8 @@ from vsc.exceptions import ValuaScriptError, ErrorCode
     pytest.param("func test() -> (scalar) { return (Normal(1, 2) * Pert(1,2))^2 }", id="basic_returns_complex_inline"),
     pytest.param("func test() -> (scalar) { \"\"\"Docstring here\"\"\" \n return 1 }", id="basic_docstring"),
     pytest.param("func test() -> (scalar) { let a = 10 \n let b = some_func() \n let c = a + b \n return c }", id="assignment_body"),
+    pytest.param("func weird_comment(a: # comment here\nscalar) -> scalar { return a }", id="comment_inside_parameters"),
+    pytest.param("let x = 1 # comment\n + 2", id="comment_breaking_expression_across_lines"),  
     ]
 )
 def test_function_definition_parsed_correctly(code):
@@ -51,6 +53,7 @@ def test_function_definition_parsed_correctly(code):
     pytest.param("func test() -> scalar, scalar { return 1 }", ErrorCode.SYNTAX_INVALID_CHARACTER, id="missing_tuple_parenthesis"),
     pytest.param("func test() -> scalar, scalar) { return 1 }", ErrorCode.SYNTAX_UNMATCHED_BRACKET, id="missing_parenthesis_in_return_type_1"),
     pytest.param("func test() -> (scalar, scalar", ErrorCode.SYNTAX_UNMATCHED_BRACKET, id="missing_parenthesis_in_return_type_2"),
+    pytest.param("func empty() -> scalar {}", ErrorCode.SYNTAX_INVALID_CHARACTER, id="empty_function_body"),
     ]
 )
 def test_function_definition_parsed_error(code, error):

@@ -171,6 +171,31 @@ nested_return_expected = get_function_def(
     ]
 )
 
+# Test return conditional expression
+
+conditional_return_code = "func a() -> scalar { return if x then 1 else 2 }" 
+conditional_return_expected = get_function_def(name="a",
+                                                body=[
+                                                    get_return_statement(returns=
+                                                                         get_conditional_expression(
+                                                                             condition=get_identifier("x"),
+                                                                             then_expr=get_number_literal(1),
+                                                                             else_expr=get_number_literal(2)))
+                                                ])
+
+return_nested_math_code = "func a() -> scalar { return (x + y) / z }"
+return_nested_math_expected = get_function_def(name="a",
+                                               body=[
+                                                   get_return_statement(returns=get_function_call(
+                                                       function="divide",
+                                                       args=[
+                                                           get_function_call(function="add", args=[
+                                                               get_identifier("x"), get_identifier("y")
+                                                           ]),
+                                                           get_identifier("z")
+                                                       ]))
+                                               ])
+
 @pytest.mark.parametrize(
     "code, expected_function_def",
     [
@@ -189,6 +214,8 @@ nested_return_expected = get_function_def(
     pytest.param(body_complex_code_1, body_complex_expected_1, id="body_complex_1"),
     pytest.param(body_complex_code_2, body_complex_expected_2, id="body_complex_2"),
     pytest.param(nested_return_code, nested_return_expected, id="nested_only_return_statement"),
+    pytest.param(conditional_return_code, conditional_return_expected, id="conditional_return"),
+    pytest.param(return_nested_math_code, return_nested_math_expected, id="return_nested_math"),
     ]
 )
 def test_function_definition_parsed_correctly(code, expected_function_def):
