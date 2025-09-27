@@ -50,7 +50,7 @@ class BooleanLiteral(ASTNode):
 
 @dataclass
 class Identifier(ASTNode):
-    name: str
+    value: str
 
 
 @dataclass
@@ -127,8 +127,7 @@ class MultiAssignment(Assignment):
 
 @dataclass
 class ReturnStatement(ASTNode):
-    values: List[Expression]
-
+    returns: Expression
 
 # --- Top-level Structures ---
 

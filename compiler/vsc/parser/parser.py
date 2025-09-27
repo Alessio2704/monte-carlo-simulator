@@ -109,7 +109,7 @@ class ValuaScriptTransformer(Transformer):
         return NumberLiteral(value=num, span=self._create_span_from_token(n))
 
     def CNAME(self, c: Token):
-        return Identifier(name=c.value, span=self._create_span_from_token(c))
+        return Identifier(value=c.value, span=self._create_span_from_token(c))
 
     # --- Rule Transformations ---
     def math_expression(self, items):
@@ -181,17 +181,12 @@ class ValuaScriptTransformer(Transformer):
     def return_statement(self, items):
         span = self._get_span_from_items(items)
         return_value = items[-1]
-        
-        if isinstance(return_value, TupleLiteral):
-            return ReturnStatement(values=return_value.items, span=span)
-        
-        # The logic for single return values is unchanged.
-        return ReturnStatement(values=[return_value], span=span)
+        return ReturnStatement(returns=return_value, span=span)
 
     def function_call(self, items):
         func_name_ident = items[0]
         args = [item for item in items[1:] if item is not None]
-        return FunctionCall(function=func_name_ident.name, args=args, span=self._get_span_from_items(items))
+        return FunctionCall(function=func_name_ident.value, args=args, span=self._get_span_from_items(items))
 
     def vector(self, items):
         vector_items = [item for item in items[1:-1] if item is not None]
@@ -207,11 +202,12 @@ class ValuaScriptTransformer(Transformer):
 
     def directive_setting(self, items):
         name_ident, value = items
-        return Directive(name=name_ident.name, value=value, span=self._get_span_from_items(items))
+        return Directive(name=name_ident.value, value=value, span=self._get_span_from_items(items))
 
     def valueless_directive(self, items):
         name_ident = items[0]
-        return Directive(name=name_ident.name, value=BooleanLiteral(True, name_ident.span), span=name_ident.span)
+        dir = Directive(name=name_ident.value, value=BooleanLiteral(value=True,span=name_ident.span), span=name_ident.span)
+        return dir
 
     def import_directive(self, items):
         _, path_literal = items
