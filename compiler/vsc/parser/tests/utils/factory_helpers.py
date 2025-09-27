@@ -26,7 +26,7 @@ def get_param(name: str, param_type: str):
     return Parameter(span=get_span(), name=get_identifier(name), param_type=get_identifier(param_type))
 
 def get_literal_assignment(target: str, value: NumberLiteral | StringLiteral | BooleanLiteral | VectorLiteral):
-    return LiteralAssignment(span=get_span, target=get_identifier(value=target), value=value)
+    return LiteralAssignment(span=get_span(), target=get_identifier(value=target), value=value)
 
 def get_function_call(function: str, args: List[Expression]):
     return FunctionCall(span=get_span(), function=function, args=args)
