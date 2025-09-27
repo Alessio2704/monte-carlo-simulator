@@ -119,8 +119,8 @@ body_multi_assignment_expected = get_function_def(
     ]
 )
 
-body_complex_code = "func my_func() -> scalar { let a = 10 \n let b = [1,2,3,4] \n let c = true \n let d = some_func() \n return a + b + c + d  }"
-body_complex_expected =  get_function_def(
+body_complex_code_1 = "func my_func() -> scalar { let a = 10 \n let b = [1,2,3,4] \n let c = true \n let d = some_func() \n return a + b + c + d  }"
+body_complex_expected_1 =  get_function_def(
     name="my_func",
     return_type="scalar",
     body=[
@@ -131,6 +131,27 @@ body_complex_expected =  get_function_def(
         get_return_statement(returns=get_function_call(
             function="add", 
             args=[get_identifier("a"), get_identifier("b"), get_identifier("c"), get_identifier("d")]))
+    ]
+)
+
+body_complex_code_2 = "func my_func() -> (scalar, vector) { let a = 10 \n let b = [1,2,3,4] \n let c = true \n let d = some_func() \n return (a + b + c + d, b)  }"
+body_complex_expected_2 =  get_function_def(
+    name="my_func",
+    return_type=["scalar", "vector"],
+    body=[
+        get_literal_assignment(target="a", value=get_number_literal(10)),
+        get_literal_assignment(target="b", value=get_vector_literal([get_number_literal(1), get_number_literal(2), get_number_literal(3), get_number_literal(4)])),
+        get_literal_assignment(target="c", value=get_boolean_literal(True)),
+        get_execution_assignment(target="d", expression=get_function_call(function="some_func", args=[])),
+        get_return_statement(returns=get_tuple_literal(
+            items=[
+                get_function_call(
+                                function="add", 
+                                args=[get_identifier("a"), get_identifier("b"), get_identifier("c"), get_identifier("d")]
+                ),
+                get_identifier("b")
+            ])
+        )
     ]
 )
 
@@ -165,7 +186,8 @@ nested_return_expected = get_function_def(
     pytest.param(body_assignment_code, body_assignment_expected, id="body_simple_assignment"),
     pytest.param(body_assignment_and_return_code, body_assignment_and_return_expected, id="body_simple_assignment_and_return"),
     pytest.param(body_multi_assignment_code, body_multi_assignment_expected, id="body_multi_assignment"),
-    pytest.param(body_complex_code, body_complex_expected, id="body_complex"),
+    pytest.param(body_complex_code_1, body_complex_expected_1, id="body_complex_1"),
+    pytest.param(body_complex_code_2, body_complex_expected_2, id="body_complex_2"),
     pytest.param(nested_return_code, nested_return_expected, id="nested_only_return_statement"),
     ]
 )
