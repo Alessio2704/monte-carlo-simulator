@@ -39,6 +39,10 @@ def get_literal_assignment(target: str, value: NumberLiteral | StringLiteral | B
     return LiteralAssignment(span=get_span(), target=get_identifier(value=target), value=value)
 
 
+def get_copy_assignment(target: str, source: str):
+    return CopyAssignment(span=get_span(), target=get_identifier(target), source=get_identifier(source))
+
+
 def get_function_call(function: str, args: List[Expression]):
     return FunctionCall(span=get_span(), function=function, args=args)
 
@@ -55,22 +59,16 @@ def get_execution_assignment(target: str, expression: FunctionCall | Identifier 
     return ExecutionAssignment(span=get_span(), target=get_identifier(target), expression=expression)
 
 
-def get_multi_assignment(targets: List[Identifier], expression: FunctionCall):
-    return MultiAssignment(span=get_span(), targets=targets, expression=expression)
+def get_multi_assignment(input_targets: List[str], expression: Expression):
+    return MultiAssignment(span=get_span(), targets=[get_identifier(t) for t in input_targets], expression=expression)
 
 
-def get_copy_assignment(target: str, source: str):
-    return CopyAssignment(span=get_span(), target=get_identifier(target), source=get_identifier(source))
+def get_multi_copy_assignment(input_targets: List[str], source: Expression):
+    return MultiCopyAssignment(span=get_span(), targets=[get_identifier(t) for t in input_targets], source=source)
 
 
-def get_multi_copy_assignment(targets: List[str], source: str):
-    target_identifiers: List[Identifier] = [get_identifier(t) for t in targets]
-    return MultiCopyAssignment(span=get_span(), targets=target_identifiers, source=get_identifier(source))
-
-
-def get_multi_copy_assignment_tuple(targets: List[str], source: List[Expression]):
-    target_identifiers: List[Identifier] = [get_identifier(t) for t in targets]
-    return MultiCopyAssignment(span=get_span(), targets=target_identifiers, source=get_tuple_literal(items=source))
+def get_multi_copy_assignment_tuple(input_targets: List[str], source: List[Expression]):
+    return MultiCopyAssignment(span=get_span(), targets=[get_identifier(t) for t in input_targets], source=get_tuple_literal(items=source))
 
 
 def get_conditional_expression(condition: Expression, then_expr: Expression, else_expr: Expression):
@@ -82,7 +80,7 @@ def get_conditional_assignment(target: str, condition: Expression, then_expr: Ex
 
 
 def get_return_statement(returns: Expression):
-    return ReturnStatement(get_span(), returns=returns)
+    return ReturnStatement(span=get_span(), returns=returns)
 
 
 def get_function_def(

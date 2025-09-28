@@ -6,14 +6,14 @@ Each node is represented by a dataclass and includes a `Span` object to track it
 location in the source code, enabling precise error reporting in later stages.
 """
 
-from dataclasses import dataclass
 from typing import List, Optional, Union
+
+from pydantic import BaseModel, Field
 
 # --- Core Data Structures ---
 
 
-@dataclass
-class Span:
+class Span(BaseModel):
     """Represents a location in the source code for precise error reporting."""
 
     s_line: int
@@ -23,8 +23,7 @@ class Span:
     file_path: Optional[str] = None
 
 
-@dataclass
-class ASTNode:
+class ASTNode(BaseModel):
     """A base class for all AST nodes, ensuring they have a span."""
 
     span: Span
@@ -33,27 +32,22 @@ class ASTNode:
 # --- Literals and Identifiers ---
 
 
-@dataclass
 class NumberLiteral(ASTNode):
     value: Union[int, float]
 
 
-@dataclass
 class StringLiteral(ASTNode):
     value: str
 
 
-@dataclass
 class BooleanLiteral(ASTNode):
     value: bool
 
 
-@dataclass
 class Identifier(ASTNode):
     value: str
 
 
-@dataclass
 class VectorLiteral(ASTNode):
     items: List["Node"]  # Using 'Node' for flexible typing
 
@@ -63,30 +57,25 @@ class VectorLiteral(ASTNode):
 Expression = Union[NumberLiteral, StringLiteral, BooleanLiteral, Identifier, VectorLiteral, "TupleLiteral", "FunctionCall", "ElementAccess", "DeleteElement", "ConditionalExpression"]
 
 
-@dataclass
 class TupleLiteral(ASTNode):
     items: List[Expression]
 
 
-@dataclass
 class FunctionCall(ASTNode):
     function: str
     args: List[Expression]
 
 
-@dataclass
 class ElementAccess(ASTNode):
     target: Identifier
     index: Expression
 
 
-@dataclass
 class DeleteElement(ASTNode):
     target: Identifier
     index: Expression
 
 
-@dataclass
 class ConditionalExpression(ASTNode):
     condition: Expression
     then_expr: Expression
@@ -96,49 +85,41 @@ class ConditionalExpression(ASTNode):
 # --- Statements ---
 
 
-@dataclass
 class Assignment(ASTNode):
     """Base class for different types of assignments."""
 
     pass
 
 
-@dataclass
 class LiteralAssignment(Assignment):
     target: Identifier
     value: Union[NumberLiteral, StringLiteral, BooleanLiteral, VectorLiteral]
 
 
-@dataclass
 class ExecutionAssignment(Assignment):
     target: Identifier
     expression: Union[FunctionCall, ElementAccess, DeleteElement]
 
 
-@dataclass
 class ConditionalAssignment(Assignment):
     target: Identifier
     expression: ConditionalExpression
 
 
-@dataclass
 class MultiAssignment(Assignment):
     targets: List[Identifier]
     expression: FunctionCall
 
 
-@dataclass
 class ReturnStatement(ASTNode):
     returns: Expression
 
 
-@dataclass
 class CopyAssignment(Assignment):
     target: Identifier
     source: Identifier
 
 
-@dataclass
 class MultiCopyAssignment(Assignment):
     targets: List[Identifier]
     source: Union[Identifier, TupleLiteral]
@@ -147,24 +128,20 @@ class MultiCopyAssignment(Assignment):
 # --- Top-level Structures ---
 
 
-@dataclass
 class Directive(ASTNode):
     name: str
     value: Union[bool, Expression]
 
 
-@dataclass
 class Import(ASTNode):
     path: str
 
 
-@dataclass
 class Parameter(ASTNode):
     name: Identifier
     param_type: Identifier
 
 
-@dataclass
 class FunctionDefinition(ASTNode):
     name: Identifier
     params: List[Parameter]
@@ -173,7 +150,6 @@ class FunctionDefinition(ASTNode):
     docstring: Optional[str] = None
 
 
-@dataclass
 class Root(ASTNode):
     """The root of the entire AST, representing a single script file."""
 

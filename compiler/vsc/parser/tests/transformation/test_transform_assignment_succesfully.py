@@ -145,17 +145,17 @@ conditional_as_func_arg_exp = get_execution_assignment(
 
 # Test multi-assignment -> ma
 multi_assignment_basic_code = "let a, b = some_func()"
-multi_assignment_basic_exp = get_multi_assignment(targets=[get_identifier("a"), get_identifier("b")], expression=get_function_call(function="some_func", args=[]))
+multi_assignment_basic_exp = get_multi_assignment(input_targets=["a", "b"], expression=get_function_call(function="some_func", args=[]))
 
 multi_assignment_3_vars_code = "let a, b, c = some_func()"
-multi_assignment_3_vars_exp = get_multi_assignment(targets=[get_identifier("a"), get_identifier("b"), get_identifier("c")], expression=get_function_call(function="some_func", args=[]))
+multi_assignment_3_vars_exp = get_multi_assignment(input_targets=["a", "b", "c"], expression=get_function_call(function="some_func", args=[]))
 
 multi_copy_assignment_var_code = "let a, b = my_tuple"
-multi_copy_assignment_var_exp = get_multi_copy_assignment(targets=["a", "b"], source="my_tuple")
+multi_copy_assignment_var_exp = get_multi_copy_assignment(input_targets=["a", "b"], source=get_identifier("my_tuple"))
 
 multi_copy_assignment_tuple_literal_code = "let a, b = (1, Normal(1,2))"
 multi_copy_assignment_tuple_literal_exp = get_multi_copy_assignment_tuple(
-    targets=["a", "b"], source=[get_number_literal(1), get_function_call(function="Normal", args=[get_number_literal(1), get_number_literal(2)])]
+    input_targets=["a", "b"], source=[get_number_literal(1), get_function_call(function="Normal", args=[get_number_literal(1), get_number_literal(2)])]
 )
 
 

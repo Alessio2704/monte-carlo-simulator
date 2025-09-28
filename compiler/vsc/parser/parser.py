@@ -3,12 +3,11 @@ from textwrap import dedent
 
 from lark import Lark, LarkError, Token, Transformer
 
-from ..config.config import COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP, MATH_OPERATOR_MAP
+from ..config.config import *
 from .classes import *
-from .tests.helpers import _translate_lark_error, pre_parsing_checks
+from .helpers import _translate_lark_error, pre_parsing_checks
 
 LARK_PARSER = None
-
 try:
     # Use importlib.resources for robust package data access
     from importlib.resources import files as pkg_files
@@ -54,38 +53,32 @@ class ValuaScriptTransformer(Transformer):
     # --- Helper methods for creating spans ---
     def _create_span_from_token(self, token: Token) -> Span:
         """Creates a Span object from a single Lark Token."""
-        return Span(token.line, token.column, token.end_line, token.end_column)
+        return Span(s_line=token.line, s_col=token.column, e_line=token.end_line, e_col=token.end_column)
 
     def _get_span_from_items(self, items: list) -> Span:
         """Calculates a Span that covers a list of tokens and/or ASTNodes."""
         first = next((item for item in items if hasattr(item, "span") or isinstance(item, Token)), None)
         last = next((item for item in reversed(items) if hasattr(item, "span") or isinstance(item, Token)), first)
-
-        if not first:  # Handle empty lists
-            return Span(1, 1, 1, 1)
-
+        if not first:
+            return Span(s_line=1, s_col=1, e_line=1, e_col=1)
         s_line = first.span.s_line if hasattr(first, "span") else first.line
         s_col = first.span.s_col if hasattr(first, "span") else first.column
         e_line = last.span.e_line if hasattr(last, "span") else last.end_line
         e_col = last.span.e_col if hasattr(last, "span") else last.end_column
-
-        return Span(s_line, s_col, e_line, e_col)
+        return Span(s_line=s_line, s_col=s_col, e_line=e_line, e_col=e_col)
 
     def _build_infix_tree(self, items, operator_map):
         """Helper to build a left-associative tree for any infix expression."""
         if len(items) == 1:
             return items[0]
-
         tree, i = items[0], 1
         while i < len(items):
             op, right = items[i], items[i + 1]
             func_name = operator_map[op.value]
-            span = Span(tree.span.s_line, tree.span.s_col, right.span.e_line, right.span.e_col)
-
-            # Special handling for variadic functions (add, multiply, and, or)
+            span = Span(s_line=tree.span.s_line, s_col=tree.span.s_col, e_line=right.span.e_line, e_col=right.span.e_col)
             if isinstance(tree, FunctionCall) and tree.function == func_name and func_name in ("add", "multiply", "__and__", "__or__"):
                 tree.args.append(right)
-                tree.span = span  # Extend the span
+                tree.span = span
             else:
                 tree = FunctionCall(function=func_name, args=[tree, right], span=span)
             i += 2
@@ -96,8 +89,7 @@ class ValuaScriptTransformer(Transformer):
         return StringLiteral(value=s.value[1:-1], span=self._create_span_from_token(s))
 
     def DOCSTRING(self, s: Token):
-        content = s.value[3:-3]
-        return dedent(content).strip()
+        return dedent(s.value[3:-3]).strip()
 
     def TRUE(self, t: Token):
         return BooleanLiteral(value=True, span=self._create_span_from_token(t))
@@ -181,9 +173,7 @@ class ValuaScriptTransformer(Transformer):
         return TupleLiteral(items=items, span=self._get_span_from_items(items))
 
     def return_statement(self, items):
-        span = self._get_span_from_items(items)
-        return_value = items[-1]
-        return ReturnStatement(returns=return_value, span=span)
+        return ReturnStatement(returns=items[-1], span=self._get_span_from_items(items))
 
     def function_call(self, items):
         func_name_ident = items[0]
@@ -208,8 +198,7 @@ class ValuaScriptTransformer(Transformer):
 
     def valueless_directive(self, items):
         name_ident = items[0]
-        dir = Directive(name=name_ident.value, value=BooleanLiteral(value=True, span=name_ident.span), span=name_ident.span)
-        return dir
+        return Directive(name=name_ident.value, value=BooleanLiteral(value=True, span=name_ident.span), span=name_ident.span)
 
     def import_directive(self, items):
         _, path_literal = items
@@ -218,23 +207,18 @@ class ValuaScriptTransformer(Transformer):
     def assignment(self, items):
         _let_token, var_items, expression = items
         span = self._get_span_from_items(items)
-
-        if isinstance(var_items, list):  # This is a multi-target assignment
+        if isinstance(var_items, list):
             if isinstance(expression, (Identifier, TupleLiteral)):
                 return MultiCopyAssignment(targets=var_items, source=expression, span=span)
-            else:  # It must be a function call
+            else:
                 return MultiAssignment(targets=var_items, expression=expression, span=span)
-
-        # This is a single-target assignment
         target_ident = var_items
-        if isinstance(expression, (NumberLiteral, StringLiteral, BooleanLiteral, VectorLiteral)):
+        if isinstance(expression, (NumberLiteral, StringLiteral, BooleanLiteral, VectorLiteral, TupleLiteral)):
             return LiteralAssignment(target=target_ident, value=expression, span=span)
         if isinstance(expression, ConditionalExpression):
             return ConditionalAssignment(target=target_ident, expression=expression, span=span)
         if isinstance(expression, Identifier):
             return CopyAssignment(target=target_ident, source=expression, span=span)
-
-        # All other cases are execution assignments
         return ExecutionAssignment(target=target_ident, expression=expression, span=span)
 
     def function_body(self, items):
@@ -242,19 +226,14 @@ class ValuaScriptTransformer(Transformer):
 
     def function_def(self, items):
         func_name_ident = items[0]
-        body_list = items[-1]
         docstring = items[-2] if isinstance(items[-2], str) else None
-        return_type_token = items[-3]
-        params = [p for p in items[1:-3] if isinstance(p, Parameter)]
-        span = self._get_span_from_items(items)
-
         return FunctionDefinition(
             name=func_name_ident,
-            params=params,
-            return_type=return_type_token,
-            body=body_list,
+            params=[p for p in items[1:-3] if isinstance(p, Parameter)],
+            return_type=items[-3],
+            body=items[-1],
             docstring=docstring,
-            span=span,
+            span=self._get_span_from_items(items),
         )
 
     def param(self, items):
@@ -262,24 +241,19 @@ class ValuaScriptTransformer(Transformer):
         return Parameter(name=name_ident, param_type=type_ident, span=self._get_span_from_items(items))
 
     def start(self, children):
-        span = self._get_span_from_items(children)
-        safe_children = [c for c in children if c]
-
         return Root(
             file_path=self.file_path,
-            imports=[i for i in safe_children if isinstance(i, Import)],
-            directives=[i for i in safe_children if isinstance(i, Directive)],
-            execution_steps=[i for i in safe_children if isinstance(i, Assignment)],
-            function_definitions=[i for i in safe_children if isinstance(i, FunctionDefinition)],
-            span=span,
+            imports=[i for i in children if isinstance(i, Import)],
+            directives=[i for i in children if isinstance(i, Directive)],
+            execution_steps=[i for i in children if isinstance(i, Assignment)],
+            function_definitions=[i for i in children if isinstance(i, FunctionDefinition)],
+            span=self._get_span_from_items(children),
         )
 
 
 def parse_valuascript(script_content: str, file_path: str = "<stdin>") -> Root:
     """Parses the script content and transforms it into a high-level AST."""
-
     pre_parsing_checks(script_content)
-
     try:
         parse_tree = LARK_PARSER.parse(script_content)
         return ValuaScriptTransformer(file_path=file_path).transform(parse_tree)

@@ -110,7 +110,7 @@ body_multi_assignment_expected = get_function_def(
     return_type="scalar",
     body=[
         get_multi_assignment(
-            targets=[get_identifier("a"), get_identifier("b")],
+            input_targets=["a", "b"],
             expression=get_function_call(function="some_func", args=[]),
         ),
         get_return_statement(get_identifier("a")),
