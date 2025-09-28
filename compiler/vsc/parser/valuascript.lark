@@ -79,9 +79,9 @@ conditional_expression: or_expression | IF or_expression THEN or_expression ELSE
 // a tuple expression (i.e. (1,2))
 // an expression enclosed in round parentheses to change precedence
 ?atom: SIGNED_NUMBER
-     | CNAME
      | STRING
      | boolean
+     | CNAME
      | function_call
      | element_access
      | delete_element_vector
