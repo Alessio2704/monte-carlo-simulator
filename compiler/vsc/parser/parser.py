@@ -219,14 +219,20 @@ class ValuaScriptTransformer(Transformer):
         _let_token, var_items, expression = items
         span = self._get_span_from_items(items)
 
-        if isinstance(var_items, list):  # Multi-assignment
-            return MultiAssignment(targets=var_items, expression=expression, span=span)
+        if isinstance(var_items, list):  # This is a multi-target assignment
+            if isinstance(expression, (Identifier, TupleLiteral)):
+                return MultiCopyAssignment(targets=var_items, source=expression, span=span)
+            else:  # It must be a function call
+                return MultiAssignment(targets=var_items, expression=expression, span=span)
 
+        # This is a single-target assignment
         target_ident = var_items
         if isinstance(expression, (NumberLiteral, StringLiteral, BooleanLiteral, VectorLiteral)):
             return LiteralAssignment(target=target_ident, value=expression, span=span)
         if isinstance(expression, ConditionalExpression):
             return ConditionalAssignment(target=target_ident, expression=expression, span=span)
+        if isinstance(expression, Identifier):
+            return CopyAssignment(target=target_ident, source=expression, span=span)
 
         # All other cases are execution assignments
         return ExecutionAssignment(target=target_ident, expression=expression, span=span)
@@ -242,15 +248,10 @@ class ValuaScriptTransformer(Transformer):
         params = [p for p in items[1:-3] if isinstance(p, Parameter)]
         span = self._get_span_from_items(items)
 
-        if isinstance(return_type_token, list):
-            processed_return_type = return_type_token
-        else:
-            processed_return_type = return_type_token
-
         return FunctionDefinition(
             name=func_name_ident,
             params=params,
-            return_type=processed_return_type,
+            return_type=return_type_token,
             body=body_list,
             docstring=docstring,
             span=span,

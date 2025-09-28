@@ -59,6 +59,20 @@ def get_multi_assignment(targets: List[Identifier], expression: FunctionCall):
     return MultiAssignment(span=get_span(), targets=targets, expression=expression)
 
 
+def get_copy_assignment(target: str, source: str):
+    return CopyAssignment(span=get_span(), target=get_identifier(target), source=get_identifier(source))
+
+
+def get_multi_copy_assignment(targets: List[str], source: str):
+    target_identifiers: List[Identifier] = [get_identifier(t) for t in targets]
+    return MultiCopyAssignment(span=get_span(), targets=target_identifiers, source=get_identifier(source))
+
+
+def get_multi_copy_assignment_tuple(targets: List[str], source: List[Expression]):
+    target_identifiers: List[Identifier] = [get_identifier(t) for t in targets]
+    return MultiCopyAssignment(span=get_span(), targets=target_identifiers, source=get_tuple_literal(items=source))
+
+
 def get_conditional_expression(condition: Expression, then_expr: Expression, else_expr: Expression):
     return ConditionalExpression(span=get_span(), condition=condition, then_expr=then_expr, else_expr=else_expr)
 

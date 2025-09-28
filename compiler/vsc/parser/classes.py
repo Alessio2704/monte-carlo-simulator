@@ -112,7 +112,7 @@ class LiteralAssignment(Assignment):
 @dataclass
 class ExecutionAssignment(Assignment):
     target: Identifier
-    expression: Union[FunctionCall, Identifier, ElementAccess, DeleteElement]
+    expression: Union[FunctionCall, ElementAccess, DeleteElement]
 
 
 @dataclass
@@ -130,6 +130,18 @@ class MultiAssignment(Assignment):
 @dataclass
 class ReturnStatement(ASTNode):
     returns: Expression
+
+
+@dataclass
+class CopyAssignment(Assignment):
+    target: Identifier
+    source: Identifier
+
+
+@dataclass
+class MultiCopyAssignment(Assignment):
+    targets: List[Identifier]
+    source: Union[Identifier, TupleLiteral]
 
 
 # --- Top-level Structures ---

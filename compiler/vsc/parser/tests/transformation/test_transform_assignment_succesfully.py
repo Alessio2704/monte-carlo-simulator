@@ -24,10 +24,10 @@ literal_vector_exp_1 = get_literal_assignment(target="a", value=get_vector_liter
 literal_vector_code_2 = "let a = []"
 literal_vector_exp_2 = get_literal_assignment(target="a", value=get_vector_literal([]))
 
-# Test execution assignment -> ea
-execution_other_var_code = "let a = b"
-execution_other_var_exp = get_execution_assignment(target="a", expression=get_identifier("b"))
+copy_assignment_code = "let a = b"
+copy_assignment_exp = get_copy_assignment(target="a", source="b")
 
+# Test execution assignment -> ea
 execution_func_call_code = "let a = Normal(1, 2)"
 execution_func_call_exp = get_execution_assignment(target="a", expression=get_function_call("Normal", args=[get_number_literal(1), get_number_literal(2)]))
 
@@ -150,8 +150,13 @@ multi_assignment_basic_exp = get_multi_assignment(targets=[get_identifier("a"), 
 multi_assignment_3_vars_code = "let a, b, c = some_func()"
 multi_assignment_3_vars_exp = get_multi_assignment(targets=[get_identifier("a"), get_identifier("b"), get_identifier("c")], expression=get_function_call(function="some_func", args=[]))
 
-multi_assignment_var_code = "let a, b = my_tuple"
-multi_assignment_var_exp = get_multi_assignment(targets=[get_identifier("a"), get_identifier("b")], expression=get_identifier("my_tuple"))
+multi_copy_assignment_var_code = "let a, b = my_tuple"
+multi_copy_assignment_var_exp = get_multi_copy_assignment(targets=["a", "b"], source="my_tuple")
+
+multi_copy_assignment_tuple_literal_code = "let a, b = (1, Normal(1,2))"
+multi_copy_assignment_tuple_literal_exp = get_multi_copy_assignment_tuple(
+    targets=["a", "b"], source=[get_number_literal(1), get_function_call(function="Normal", args=[get_number_literal(1), get_number_literal(2)])]
+)
 
 
 @pytest.mark.parametrize(
@@ -163,7 +168,7 @@ multi_assignment_var_exp = get_multi_assignment(targets=[get_identifier("a"), ge
         pytest.param(literal_bool_code_2, literal_bool_exp_2, id="la_bool_2"),
         pytest.param(literal_vector_code_1, literal_vector_exp_1, id="la_vector_1"),
         pytest.param(literal_vector_code_2, literal_vector_exp_2, id="la_vector_2"),
-        pytest.param(execution_other_var_code, execution_other_var_exp, id="ea_assignment_from_other_var"),
+        pytest.param(copy_assignment_code, copy_assignment_exp, id="copy_assignment"),
         pytest.param(execution_func_call_code, execution_func_call_exp, id="ea_func_call"),
         pytest.param(execution_func_call_nested_code, execution_func_call_nested_exp, id="ea_func_call_nested"),
         pytest.param(execution_vec_elem_access_code, execution_vec_elem_access_exp, id="ea_element_access"),
@@ -182,7 +187,8 @@ multi_assignment_var_exp = get_multi_assignment(targets=[get_identifier("a"), ge
         pytest.param(conditional_cond_is_func_code, conditional_cond_is_func_exp, id="cd_condition_is_func"),
         pytest.param(multi_assignment_basic_code, multi_assignment_basic_exp, id="ma_basic"),
         pytest.param(multi_assignment_3_vars_code, multi_assignment_3_vars_exp, id="ma_3_vars"),
-        pytest.param(multi_assignment_var_code, multi_assignment_var_exp, id="ma_from_var"),
+        pytest.param(multi_copy_assignment_var_code, multi_copy_assignment_var_exp, id="multi_copy_assignment_var"),
+        pytest.param(multi_copy_assignment_tuple_literal_code, multi_copy_assignment_tuple_literal_exp, id="multi_copy_assignment_tuple_literal_"),
     ],
 )
 def test_assignment_parsed_correctly(code, expected_assignment):
