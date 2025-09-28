@@ -14,25 +14,20 @@ OPENING_BRACKETS = set(BRACKET_PAIRS.keys())
 CLOSING_BRACKETS = set(BRACKET_PAIRS.values())
 
 
-def pre_parsing_checks(script_content: str):
+def pre_parsing_checks(script_content: str, file_path: str):
     """
     Performs several simple pre-parsing checks for common errors to provide better error messages.
-    This function checks for:
-    1. Mismatched or unclosed brackets across the entire file.
-    2. Use of reserved keywords as variable names.
-    3. Invalid identifier formats.
-    4. Incomplete assignments or directives (e.g., lines ending in '=').
+    Constructs Span objects for standardized error reporting.
     """
 
     # --- Check #1: Mismatched or Unclosed Brackets ---
-    # This check scans the entire file, ignoring comments and content within strings
-    # to accurately track the nesting of brackets, parentheses, and braces.
-    bracket_stack = []  # A stack of (char, line_num)
+    bracket_stack = []  # A stack of (char, line_num, col_num)
     for i, line in enumerate(script_content.splitlines()):
         line_num = i + 1
         line_no_comment = line.split("#", 1)[0]
         in_string = False
-        for char in line_no_comment:
+        for col_idx, char in enumerate(line_no_comment):
+            col_num = col_idx + 1
             if char == '"':
                 in_string = not in_string
 
@@ -40,21 +35,21 @@ def pre_parsing_checks(script_content: str):
                 continue
 
             if char in OPENING_BRACKETS:
-                bracket_stack.append((char, line_num))
+                bracket_stack.append((char, line_num, col_num))
             elif char in CLOSING_BRACKETS:
                 if not bracket_stack:
-                    raise ValuaScriptError(ErrorCode.SYNTAX_UNMATCHED_BRACKET, line=line_num, char=char)
+                    span = Span(s_line=line_num, s_col=col_num, e_line=line_num, e_col=col_num + 1, file_path=file_path)
+                    raise ValuaScriptError(code=ErrorCode.SYNTAX_UNMATCHED_BRACKET, span=span, char=char)
 
-                opening_char, _ = bracket_stack.pop()
+                opening_char, _, _ = bracket_stack.pop()
                 if BRACKET_PAIRS[opening_char] != char:
-                    # This error indicates a mismatch like `( ]`. The error code is generic,
-                    # but it correctly identifies the location and offending character.
-                    raise ValuaScriptError(ErrorCode.SYNTAX_UNMATCHED_BRACKET, line=line_num, char=char)
+                    span = Span(s_line=line_num, s_col=col_num, e_line=line_num, e_col=col_num + 1, file_path=file_path)
+                    raise ValuaScriptError(code=ErrorCode.SYNTAX_UNMATCHED_BRACKET, span=span, char=char)
 
     if bracket_stack:
-        # If the stack is not empty after checking the whole file, there's an unclosed bracket.
-        opening_char, line_num = bracket_stack[-1]
-        raise ValuaScriptError(ErrorCode.SYNTAX_UNMATCHED_BRACKET, line=line_num, char=opening_char)
+        opening_char, line_num, col_num = bracket_stack[-1]
+        span = Span(s_line=line_num, s_col=col_num, e_line=line_num, e_col=col_num + 1, file_path=file_path)
+        raise ValuaScriptError(code=ErrorCode.SYNTAX_UNMATCHED_BRACKET, span=span, char=opening_char)
 
     # --- Line-by-line checks ---
     for i, line in enumerate(script_content.splitlines()):
@@ -64,35 +59,35 @@ def pre_parsing_checks(script_content: str):
         if not clean_line:
             continue
 
-        # --- Existing Checks: Missing value or incomplete assignment ---
-        if (clean_line.startswith("let") or clean_line.startswith("@")) and clean_line.endswith("="):
-            raise ValuaScriptError(ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS, line=line_num)
+        # For line-level errors, creating a span pointing to the start of the line is sufficient.
+        line_start_span = Span(s_line=line_num, s_col=1, e_line=line_num, e_col=len(clean_line) or 1, file_path=file_path)
 
-        # --- Check #3 (Reserved Keywords) & #4 (Invalid Identifiers) ---
-        if clean_line.startswith("let "):
-            # This also handles the original "incomplete assignment" check in a more robust way.
+        if (clean_line.startswith("let") or clean_line.startswith("@")) and clean_line.endswith("="):
+            raise ValuaScriptError(code=ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS, span=line_start_span)
+
+        if clean_line.startswith("let"):
             if "=" not in clean_line:
                 if len(clean_line.split()) > 0 and clean_line.split()[0] == "let":
-                    raise ValuaScriptError(ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, line=line_num)
+                    raise ValuaScriptError(code=ErrorCode.SYNTAX_INCOMPLETE_ASSIGNMENT, span=line_start_span)
                 continue
 
-            # Extract the part between 'let' and '=', which contains the variable names.
             vars_part = clean_line.split("=", 1)[0][3:].strip()
-
-            # Handle multi-assignment by splitting by comma.
             identifiers_to_check = [v.strip() for v in vars_part.split(",")]
 
             for ident in identifiers_to_check:
-                if not ident:  # Handles cases like `let a, = ...` or empty parts.
+                if not ident:
                     continue
 
-                # Check #3: Cannot use a reserved keyword as a variable name.
                 if ident in RESERVED_KEYWORDS:
-                    raise ValuaScriptError(ErrorCode.SYNTAX_RESERVED_KEYWORD_AS_IDENTIFIER, line=line_num, ident=ident)
+                    # We can even create a more precise span for the specific keyword
+                    col = clean_line.find(ident) + 1
+                    ident_span = Span(s_line=line_num, s_col=col, e_line=line_num, e_col=col + len(ident), file_path=file_path)
+                    raise ValuaScriptError(code=ErrorCode.SYNTAX_RESERVED_KEYWORD_AS_IDENTIFIER, span=ident_span, ident=ident)
 
-                # Check #4: Identifier must follow the language's format (e.g., C-style).
                 if not VALID_IDENTIFIER_REGEX.match(ident):
-                    raise ValuaScriptError(ErrorCode.SYNTAX_INVALID_IDENTIFIER, line=line_num, ident=ident)
+                    col = clean_line.find(ident) + 1
+                    ident_span = Span(s_line=line_num, s_col=col, e_line=line_num, e_col=col + len(ident), file_path=file_path)
+                    raise ValuaScriptError(code=ErrorCode.SYNTAX_INVALID_IDENTIFIER, span=ident_span, ident=ident)
 
 
 # A mapping from Lark's internal token names to friendly, human-readable names.

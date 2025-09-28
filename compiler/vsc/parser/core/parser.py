@@ -254,7 +254,7 @@ class ValuaScriptTransformer(Transformer):
 
 def parse_valuascript(script_content: str, file_path: str = "<stdin>") -> Root:
     """Parses the script content and transforms it into a high-level AST."""
-    pre_parsing_checks(script_content)
+    pre_parsing_checks(script_content=script_content, file_path=file_path)
     try:
         parse_tree = LARK_PARSER.parse(script_content)
         return ValuaScriptTransformer(file_path=file_path).transform(parse_tree)

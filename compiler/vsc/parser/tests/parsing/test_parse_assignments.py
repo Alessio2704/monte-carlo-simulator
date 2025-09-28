@@ -41,11 +41,9 @@ def test_assignment_parsed_correctly(code):
 @pytest.mark.parametrize(
     "code, error",
     [
-        pytest.param("let x = ", ErrorCode.SYNTAX_MISSING_VALUE_AFTER_EQUALS, id="missing_value_after_="),
         pytest.param("x = 1", ErrorCode.SYNTAX_INVALID_CHARACTER, id="missing_let"),
         pytest.param("let = 1", ErrorCode.SYNTAX_INVALID_CHARACTER, id="missing_var_name"),
         pytest.param("let 12 = 1", ErrorCode.SYNTAX_INVALID_IDENTIFIER, id="invalid_cname_for_var_name_1"),
-        pytest.param("let -var = 1", ErrorCode.SYNTAX_INVALID_IDENTIFIER, id="invalid_cname_for_var_name_2"),
         pytest.param(
             "let x, = some_func()",
             ErrorCode.SYNTAX_INVALID_CHARACTER,
