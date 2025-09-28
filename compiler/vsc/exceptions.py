@@ -19,7 +19,8 @@ class ErrorCode(Enum):
     OPERATOR_TYPE_MISMATCH = "L{line}: The '{op}' operator cannot be used with a non-numeric type '{provided_type}'."
 
     # --- Module-Specific Errors ---
-    GLOBAL_LET_IN_MODULE = "L{line}: Global 'let' statements are not allowed in a module file. Only function definitions are permitted."
+    GLOBAL_LET_IN_MODULE = "In: {path}\nL{line}: Global 'let' statements are not allowed in a module file. Only function definitions are permitted."
+    INVALID_DIRECTIVE_IN_MODULE = "In: {path}\nL{line}: Directives other than '@module' are not allowed in a module file. Found directive: {found_directive}"
 
     # --- Variable & Definition Errors ---
     UNDEFINED_VARIABLE = "L{line}: Variable '{name}' used in {context} is not defined."
