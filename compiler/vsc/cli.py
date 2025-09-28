@@ -1,9 +1,11 @@
-import json
 import argparse
-import sys
+import json
 import os
+import sys
 import time
-from lark.exceptions import UnexpectedInput, UnexpectedCharacters
+
+from lark.exceptions import UnexpectedCharacters, UnexpectedInput
+
 from .compiler import compile_valuascript
 from .exceptions import ValuaScriptError
 from .utils import CompilerArtifactEncoder, TerminalColors
@@ -39,8 +41,18 @@ def main():
     stage_help_text += "Omitting this flag runs the full pipeline to generate the final .json recipe."
 
     parser = argparse.ArgumentParser(description="Compile a .vs file into a .json recipe.")
-    parser.add_argument("input_file", nargs="?", default=None, help="The path to the input .vs file. Omit to read from stdin.")
-    parser.add_argument("-o", "--output", dest="output_file", help="The path to the output .json file. Only used for full compilation.")
+    parser.add_argument(
+        "input_file",
+        nargs="?",
+        default=None,
+        help="The path to the input .vs file. Omit to read from stdin.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        dest="output_file",
+        help="The path to the output .json file. Only used for full compilation.",
+    )
     parser.add_argument("-c", "--compile", type=str, choices=STAGE_MAP.keys(), help=stage_help_text)
 
     args = parser.parse_args()
@@ -71,7 +83,12 @@ def main():
         dump_stages = [stop_after_stage] if stop_after_stage else []
 
         # --- Run Compilation ---
-        final_product = compile_valuascript(script_content, file_path=input_file_path_abs, dump_stages=dump_stages, stop_after_stage=stop_after_stage)
+        final_product = compile_valuascript(
+            script_content,
+            file_path=input_file_path_abs,
+            dump_stages=dump_stages,
+            stop_after_stage=stop_after_stage,
+        )
 
         # --- Handle Output ---
         if stop_after_stage:
@@ -98,13 +115,22 @@ def main():
 
     # --- Error Handling ---
     except ValuaScriptError as e:
-        print(f"\n{TerminalColors.RED}--- COMPILATION ERROR ---\n{e}{TerminalColors.RESET}", file=sys.stderr)
+        print(
+            f"\n{TerminalColors.RED}--- COMPILATION ERROR ---\n{e}{TerminalColors.RESET}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     except FileNotFoundError:
-        print(f"{TerminalColors.RED}ERROR: Script file '{script_path_for_display}' not found.{TerminalColors.RESET}", file=sys.stderr)
+        print(
+            f"{TerminalColors.RED}ERROR: Script file '{script_path_for_display}' not found.{TerminalColors.RESET}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     except Exception as e:
-        print(f"\n{TerminalColors.RED}--- UNEXPECTED COMPILER ERROR ---{TerminalColors.RESET}", file=sys.stderr)
+        print(
+            f"\n{TerminalColors.RED}--- UNEXPECTED COMPILER ERROR ---{TerminalColors.RESET}",
+            file=sys.stderr,
+        )
         print(f"This may be a bug in the compiler. Please report it.", file=sys.stderr)
         print(f"{type(e).__name__}: {e}", file=sys.stderr)
         sys.exit(1)

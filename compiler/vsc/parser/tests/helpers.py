@@ -1,7 +1,9 @@
 import re
-from lark import Lark, Transformer, Token
-from lark.exceptions import UnexpectedToken, UnexpectedCharacters, LarkError
-from vsc.exceptions import ValuaScriptError, ErrorCode
+
+from lark import Lark, Token, Transformer
+from lark.exceptions import LarkError, UnexpectedCharacters, UnexpectedToken
+
+from vsc.exceptions import ErrorCode, ValuaScriptError
 
 # --- Constants for the checks ---
 RESERVED_KEYWORDS = {"let", "if", "then", "else", "true", "false", "and", "or", "not", "func", "return"}

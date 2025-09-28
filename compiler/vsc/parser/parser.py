@@ -1,9 +1,11 @@
 import os
-from lark import Lark, Transformer, Token, LarkError
 from textwrap import dedent
-from ..config.config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP
-from .tests.helpers import pre_parsing_checks, _translate_lark_error
+
+from lark import Lark, LarkError, Token, Transformer
+
+from ..config.config import COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR_MAP, MATH_OPERATOR_MAP
 from .classes import *
+from .tests.helpers import _translate_lark_error, pre_parsing_checks
 
 LARK_PARSER = None
 
@@ -34,17 +36,17 @@ class ValuaScriptTransformer(Transformer):
     starts from the bottom (atoms) and works backwards.
 
     There are also "pass-through" functions to handle inlined operators: we simply unbox the value
-    returning the first element (i.e. return items[0]). The reasoning behind "pass-through" ia that 
+    returning the first element (i.e. return items[0]). The reasoning behind "pass-through" ia that
     some "components" we declared in Lark were just to "let the language behave well". For example
     an atom is a grouping of possible things which represents the foundational building blocks of ValuaScript.
     When the parser parses a valid atom, we actually don't care about "the grouping" but only its value.
-    That's basically why CNAME returns a @dataclass object while atom is just a "pass-through". 
+    That's basically why CNAME returns a @dataclass object while atom is just a "pass-through".
     The same logic can be applied to other " Lark building blocks".
 
     The resulting representation from this class is easier to work with in subsequent compilation stages
     and represents the fist "contract" between the pipeline stages.
     """
-        
+
     def __init__(self, file_path: str):
         self.file_path = file_path
         super().__init__()
@@ -206,7 +208,7 @@ class ValuaScriptTransformer(Transformer):
 
     def valueless_directive(self, items):
         name_ident = items[0]
-        dir = Directive(name=name_ident.value, value=BooleanLiteral(value=True,span=name_ident.span), span=name_ident.span)
+        dir = Directive(name=name_ident.value, value=BooleanLiteral(value=True, span=name_ident.span), span=name_ident.span)
         return dir
 
     def import_directive(self, items):

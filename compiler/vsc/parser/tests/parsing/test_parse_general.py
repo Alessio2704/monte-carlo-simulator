@@ -1,23 +1,25 @@
 import pytest
 
-from vsc.parser.parser import parse_valuascript
+from vsc.exceptions import ErrorCode, ValuaScriptError
 from vsc.parser.classes import *
-from ..utils.factory_helpers import *
-from vsc.exceptions import ValuaScriptError, ErrorCode
+from vsc.parser.parser import parse_valuascript
+
 from ..utils.assertion_helper import assert_asts_equal
+from ..utils.factory_helpers import *
 
 
 @pytest.mark.parametrize(
     "code",
     [
-    pytest.param("", id="empty_file"),
-    pytest.param("# comment", id="only_comment"),
-    pytest.param("\t\t   ", id="tabs_and_spaces"),
-    ]
+        pytest.param("", id="empty_file"),
+        pytest.param("# comment", id="only_comment"),
+        pytest.param("\t\t   ", id="tabs_and_spaces"),
+    ],
 )
 def test_parsed_file_successfully(code):
     ast = parse_valuascript(code)
     assert ast is not None
+
 
 def test_strange_order_declarations():
     code = "let a = 1 \n func b() -> scalar { return 2 } \n@directive = 3 \nlet c = 4"
@@ -36,5 +38,3 @@ def test_strange_order_declarations():
     assert_asts_equal(ast.function_definitions[0], b)
     assert_asts_equal(ast.directives[0], directive)
     assert_asts_equal(ast.execution_steps[1], c)
-
-    

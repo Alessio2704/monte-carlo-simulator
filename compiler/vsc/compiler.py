@@ -1,6 +1,7 @@
-import os
 import json
-from typing import List, Optional, Dict, Any
+import os
+from typing import Any, Dict, List, Optional
+
 from .exceptions import ValuaScriptError
 from .parser.parser import parse_valuascript
 from .utils import CompilerArtifactEncoder

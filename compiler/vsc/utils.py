@@ -4,7 +4,8 @@ and a robust JSON artifact serializer.
 """
 
 import json
-from dataclasses import is_dataclass, asdict
+from dataclasses import asdict, is_dataclass
+
 from lark import Token
 
 

@@ -7,7 +7,7 @@ location in the source code, enabling precise error reporting in later stages.
 """
 
 from dataclasses import dataclass
-from typing import List, Union, Optional
+from typing import List, Optional, Union
 
 # --- Core Data Structures ---
 
@@ -62,9 +62,11 @@ class VectorLiteral(ASTNode):
 # A generic type hint for any expression node
 Expression = Union[NumberLiteral, StringLiteral, BooleanLiteral, Identifier, VectorLiteral, "TupleLiteral", "FunctionCall", "ElementAccess", "DeleteElement", "ConditionalExpression"]
 
+
 @dataclass
 class TupleLiteral(ASTNode):
     items: List[Expression]
+
 
 @dataclass
 class FunctionCall(ASTNode):
@@ -128,6 +130,7 @@ class MultiAssignment(Assignment):
 @dataclass
 class ReturnStatement(ASTNode):
     returns: Expression
+
 
 # --- Top-level Structures ---
 
