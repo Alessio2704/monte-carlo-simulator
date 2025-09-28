@@ -1,10 +1,10 @@
 import pytest
 
-from vsc.parser.classes import *
-from vsc.parser.parser import parse_valuascript
+from vsc.parser.core.classes import *
+from vsc.parser.core.parser import parse_valuascript
 
-from ..utils.assertion_helper import assert_asts_equal
-from ..utils.factory_helpers import *
+from vsc.parser.utils.assertion_helper import *
+from vsc.parser.utils.factory_helpers import *
 
 
 @pytest.mark.parametrize(

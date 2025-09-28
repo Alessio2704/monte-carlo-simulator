@@ -1,10 +1,8 @@
 import pytest
 
 from vsc.exceptions import ErrorCode, ValuaScriptError
-from vsc.parser.classes import *
-from vsc.parser.parser import parse_valuascript
-
-from ..utils.factory_helpers import *
+from vsc.parser.core.classes import *
+from vsc.parser.core.parser import parse_valuascript
 
 # This file aims at testing explicitly the right side of an assignment
 # in the test_parse_assignments.py file tests where minimal and focused on the left side

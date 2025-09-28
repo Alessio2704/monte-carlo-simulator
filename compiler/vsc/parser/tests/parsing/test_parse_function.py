@@ -1,10 +1,8 @@
 import pytest
 
 from vsc.exceptions import ErrorCode, ValuaScriptError
-from vsc.parser.classes import *
-from vsc.parser.parser import parse_valuascript
-
-from ..utils.factory_helpers import *
+from vsc.parser.core.classes import *
+from vsc.parser.core.parser import parse_valuascript
 
 
 @pytest.mark.parametrize(

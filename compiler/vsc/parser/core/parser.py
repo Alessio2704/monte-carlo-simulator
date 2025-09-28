@@ -1,11 +1,11 @@
 import os
 from textwrap import dedent
-
 from lark import Lark, LarkError, Token, Transformer
 
-from ..config.config import *
+from vsc.config.config import *
+from vsc.parser.utils.helpers import _translate_lark_error, pre_parsing_checks
+
 from .classes import *
-from .helpers import _translate_lark_error, pre_parsing_checks
 
 LARK_PARSER = None
 try:

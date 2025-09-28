@@ -2,8 +2,9 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
+from vsc.parser.core.parser import parse_valuascript
+
 from .exceptions import ValuaScriptError
-from .parser.parser import parse_valuascript
 from .utils import CompilerArtifactEncoder
 
 

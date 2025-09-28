@@ -1,6 +1,6 @@
 from typing import List, Optional, Union
 
-from vsc.parser.classes import *
+from vsc.parser.core.classes import *
 
 
 def get_span(s_line: int = 1, s_col: int = 1, e_line: int = 1, e_col: int = 1, file_path: str | None = None):
