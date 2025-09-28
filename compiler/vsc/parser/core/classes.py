@@ -6,7 +6,7 @@ Each node is represented by a dataclass and includes a `Span` object to track it
 location in the source code, enabling precise error reporting in later stages.
 """
 
-from typing import List, Optional, Union
+from typing import Annotated, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -92,38 +92,46 @@ class Assignment(ASTNode):
 
 
 class LiteralAssignment(Assignment):
+    assignment_type: Literal["literal_assignment"] = "literal_assignment"
     target: Identifier
     value: Union[NumberLiteral, StringLiteral, BooleanLiteral, VectorLiteral]
 
 
 class ExecutionAssignment(Assignment):
+    assignment_type: Literal["execution_assignment"] = "execution_assignment"
     target: Identifier
     expression: Union[FunctionCall, ElementAccess, DeleteElement]
 
 
 class ConditionalAssignment(Assignment):
+    assignment_type: Literal["conditional_assignment"] = "conditional_assignment"
     target: Identifier
     expression: ConditionalExpression
 
-
-class MultiAssignment(Assignment):
-    targets: List[Identifier]
-    expression: FunctionCall
-
-
-class ReturnStatement(ASTNode):
-    returns: Expression
-
-
 class CopyAssignment(Assignment):
+    assignment_type: Literal["copy_assignment"] = "copy_assignment"
     target: Identifier
     source: Identifier
 
 
+class MultiAssignment(Assignment):
+    assignment_type: Literal["multi_assignment"] = "multi_assignment"
+    targets: List[Identifier]
+    expression: FunctionCall
+
+
 class MultiCopyAssignment(Assignment):
+    assignment_type: Literal["multi_copy_assignment"] = "multi_copy_assignment"
     targets: List[Identifier]
     source: Union[Identifier, TupleLiteral]
 
+
+AnyAssignment = Union[LiteralAssignment, ExecutionAssignment, ConditionalAssignment, CopyAssignment, MultiAssignment, MultiCopyAssignment]
+DiscriminatedAssignment = Annotated[AnyAssignment, Field(discriminator="assignment_type")]
+
+
+class ReturnStatement(ASTNode):
+    returns: Expression
 
 # --- Top-level Structures ---
 
@@ -156,7 +164,7 @@ class Root(ASTNode):
     file_path: str
     imports: List[Import]
     directives: List[Directive]
-    execution_steps: List[Assignment]
+    execution_steps: List[DiscriminatedAssignment]
     function_definitions: List[FunctionDefinition]
 
 

@@ -40,7 +40,7 @@ def get_literal_assignment(target: str, value: NumberLiteral | StringLiteral | B
 
 
 def get_copy_assignment(target: str, source: str):
-    return CopyAssignment(span=get_span(), target=get_identifier(target), source=get_identifier(source))
+    return CopyAssignment(span=get_span(), target=get_identifier(value=target), source=get_identifier(value=source))
 
 
 def get_function_call(function: str, args: List[Expression]):
@@ -64,11 +64,11 @@ def get_multi_assignment(input_targets: List[str], expression: Expression):
 
 
 def get_multi_copy_assignment(input_targets: List[str], source: Expression):
-    return MultiCopyAssignment(span=get_span(), targets=[get_identifier(t) for t in input_targets], source=source)
+    return MultiCopyAssignment(span=get_span(), targets=[get_identifier(value=t) for t in input_targets], source=source)
 
 
 def get_multi_copy_assignment_tuple(input_targets: List[str], source: List[Expression]):
-    return MultiCopyAssignment(span=get_span(), targets=[get_identifier(t) for t in input_targets], source=get_tuple_literal(items=source))
+    return MultiCopyAssignment(span=get_span(), targets=[get_identifier(value=t) for t in input_targets], source=get_tuple_literal(items=source))
 
 
 def get_conditional_expression(condition: Expression, then_expr: Expression, else_expr: Expression):

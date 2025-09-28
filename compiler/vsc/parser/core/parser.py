@@ -1,5 +1,6 @@
 import os
 from textwrap import dedent
+
 from lark import Lark, LarkError, Token, Transformer
 
 from vsc.config.config import *
@@ -53,19 +54,19 @@ class ValuaScriptTransformer(Transformer):
     # --- Helper methods for creating spans ---
     def _create_span_from_token(self, token: Token) -> Span:
         """Creates a Span object from a single Lark Token."""
-        return Span(s_line=token.line, s_col=token.column, e_line=token.end_line, e_col=token.end_column)
+        return Span(s_line=token.line, s_col=token.column, e_line=token.end_line, e_col=token.end_column, file_path=self.file_path)
 
     def _get_span_from_items(self, items: list) -> Span:
         """Calculates a Span that covers a list of tokens and/or ASTNodes."""
         first = next((item for item in items if hasattr(item, "span") or isinstance(item, Token)), None)
         last = next((item for item in reversed(items) if hasattr(item, "span") or isinstance(item, Token)), first)
         if not first:
-            return Span(s_line=1, s_col=1, e_line=1, e_col=1)
+            return Span(s_line=1, s_col=1, e_line=1, e_col=1, file_path=self.file_path)
         s_line = first.span.s_line if hasattr(first, "span") else first.line
         s_col = first.span.s_col if hasattr(first, "span") else first.column
         e_line = last.span.e_line if hasattr(last, "span") else last.end_line
         e_col = last.span.e_col if hasattr(last, "span") else last.end_column
-        return Span(s_line=s_line, s_col=s_col, e_line=e_line, e_col=e_col)
+        return Span(s_line=s_line, s_col=s_col, e_line=e_line, e_col=e_col, file_path=self.file_path)
 
     def _build_infix_tree(self, items, operator_map):
         """Helper to build a left-associative tree for any infix expression."""
