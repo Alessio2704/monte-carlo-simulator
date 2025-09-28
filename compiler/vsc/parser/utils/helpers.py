@@ -4,6 +4,7 @@ from lark import Lark, Token, Transformer
 from lark.exceptions import LarkError, UnexpectedCharacters, UnexpectedToken
 
 from vsc.exceptions import ErrorCode, ValuaScriptError
+from vsc.parser.core.classes import Span
 
 # --- Constants for the checks ---
 RESERVED_KEYWORDS = {"let", "if", "then", "else", "true", "false", "and", "or", "not", "func", "return"}
@@ -112,7 +113,7 @@ FRIENDLY_TOKEN_NAMES = {
 }
 
 
-def _translate_lark_error(err: LarkError) -> ValuaScriptError:
+def _translate_lark_error(err: LarkError, file_path: str) -> ValuaScriptError:
     """Translates a generic LarkError into a user-friendly ValuaScriptError."""
 
     if isinstance(err, UnexpectedToken):
@@ -126,16 +127,18 @@ def _translate_lark_error(err: LarkError) -> ValuaScriptError:
                 expected_str = f"Expected {friendly_expected[0]}"
 
         found_token = err.token
+        span = Span(s_line=found_token.line, s_col=found_token.column, e_line=found_token.end_line, e_col=found_token.end_column, file_path=file_path)
         found_str = f"but found '{found_token.value}' instead."
         if found_token.type == "$END":
             found_str = "but reached the end of the file instead."
 
         details = f"{expected_str}, {found_str}" if expected_str else f"Found unexpected token '{found_token.value}'."
 
-        return ValuaScriptError(code=ErrorCode.SYNTAX_UNEXPECTED_TOKEN, line=err.line, details=details)
+        return ValuaScriptError(code=ErrorCode.SYNTAX_UNEXPECTED_TOKEN, span=span, details=details)
 
     elif isinstance(err, UnexpectedCharacters):
-        return ValuaScriptError(code=ErrorCode.SYNTAX_INVALID_CHARACTER, line=err.line, char=err.char)
+        span = Span(s_line=err.line, s_col=err.column, e_line=err.line, e_col=err.column)
+        return ValuaScriptError(code=ErrorCode.SYNTAX_INVALID_CHARACTER, span=span, char=err.char)
 
     # Fallback for any other Lark error
     return ValuaScriptError(code=ErrorCode.SYNTAX_PARSING_ERROR, line=getattr(err, "line", -1), details=str(err))

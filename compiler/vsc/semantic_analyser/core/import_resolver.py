@@ -13,7 +13,7 @@ def _resolve_recursive(current_ast: Root, ast_map: Dict[str, Root], import_stack
         # If there are imports while in stdin mode, we must fail.
         if current_ast.imports:
             first_import_span = current_ast.imports[0].span
-            raise ValuaScriptError(code=ErrorCode.CANNOT_IMPORT_FROM_STDIN, line=first_import_span.s_line)
+            raise ValuaScriptError(code=ErrorCode.CANNOT_IMPORT_FROM_STDIN, span=first_import_span)
         return
 
     # Add the current path to the stack for cycle detection.
@@ -27,11 +27,7 @@ def _resolve_recursive(current_ast: Root, ast_map: Dict[str, Root], import_stack
 
         # --- Circular Import Check ---
         if abs_import_path in import_stack:
-            raise ValuaScriptError(
-                code=ErrorCode.CIRCULAR_IMPORT,
-                line=imp.span.s_line,
-                path=imp.path,
-            )
+            raise ValuaScriptError(code=ErrorCode.CIRCULAR_IMPORT, span=imp.span, path=imp.path)
 
         # If we have already parsed this file, skip it.
         if abs_import_path in ast_map:
@@ -47,11 +43,7 @@ def _resolve_recursive(current_ast: Root, ast_map: Dict[str, Root], import_stack
             # Check if the imported file is a module
             is_module = any(d.name == "module" for d in imported_ast.directives)
             if not is_module:
-                raise ValuaScriptError(
-                    code=ErrorCode.IMPORT_NOT_A_MODULE,
-                    line=imp.span.s_line,
-                    path=imp.path,
-                )
+                raise ValuaScriptError(code=ErrorCode.IMPORT_NOT_A_MODULE, span=imp.span, path=imp.path)
 
             if len(imported_ast.directives) > 1:
                 first_directive = imported_ast.directives[1]
@@ -60,8 +52,7 @@ def _resolve_recursive(current_ast: Root, ast_map: Dict[str, Root], import_stack
                 if first_directive:
                     raise ValuaScriptError(
                         code=ErrorCode.INVALID_DIRECTIVE_IN_MODULE,
-                        line=first_directive.span.s_line,
-                        path=first_directive.span.file_path,
+                        span=first_directive.span,
                         found_directive=found_directive_name,
                     )
 
@@ -69,22 +60,14 @@ def _resolve_recursive(current_ast: Root, ast_map: Dict[str, Root], import_stack
             if len(imported_ast.execution_steps) > 0:
                 first_step = imported_ast.execution_steps[0]
                 if first_step:
-                    raise ValuaScriptError(
-                        code=ErrorCode.GLOBAL_LET_IN_MODULE,
-                        line=first_step.span.s_line,
-                        path=first_step.span.file_path,
-                    )
+                    raise ValuaScriptError(code=ErrorCode.GLOBAL_LET_IN_MODULE, span=first_step.span)
 
             ast_map[abs_import_path] = imported_ast
             # Recursively resolve imports for the newly parsed AST.
             _resolve_recursive(imported_ast, ast_map, import_stack)
 
         except FileNotFoundError:
-            raise ValuaScriptError(
-                code=ErrorCode.IMPORT_FILE_NOT_FOUND,
-                line=imp.span.s_line,
-                path=imp.path,
-            )
+            raise ValuaScriptError(code=ErrorCode.IMPORT_FILE_NOT_FOUND, span=imp.span)
 
     # We are done processing this file's imports, so remove it from the stack.
     import_stack.remove(current_path)

@@ -259,4 +259,4 @@ def parse_valuascript(script_content: str, file_path: str = "<stdin>") -> Root:
         parse_tree = LARK_PARSER.parse(script_content)
         return ValuaScriptTransformer(file_path=file_path).transform(parse_tree)
     except LarkError as e:
-        raise _translate_lark_error(e) from e
+        raise _translate_lark_error(err=e, file_path=file_path) from e
