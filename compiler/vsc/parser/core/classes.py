@@ -49,7 +49,7 @@ class Identifier(ASTNode):
 
 
 class VectorLiteral(ASTNode):
-    items: List["Node"]  # Using 'Node' for flexible typing
+    items: List["Expression"]  # Using 'Node' for flexible typing
 
 
 # --- Expressions ---
