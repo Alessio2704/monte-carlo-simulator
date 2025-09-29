@@ -37,10 +37,6 @@ def test_import_not_module_raises_error():
 
 
 def test_circular_import_raises_error():
-    """
-    Tests that the resolver's logic detects a cycle.
-    This test uses NO file I/O.
-    """
     # --- ARRANGE ---
     # Define our virtual files as pure AST objects
     main_ast = get_root_with_import(main_file_path="/project/main.vs", imports=["/project/module_a.vs"])
@@ -151,3 +147,59 @@ def test_module_directive_more_than_once_raises_error():
         resolver.resolve(main_ast)
 
     assert exc_info.value.code == ErrorCode.MODULE_DIRECTIVE_DECLARED_MORE_THAN_ONCE
+
+
+def test_resolve_with_no_imports():
+    # ARRANGE
+    main_ast = get_root_with_import(main_file_path="/project/main.vs", imports=[])
+    mock_loader = MockModuleLoader({})  # The loader will never be called
+    resolver = ImportResolver(loader=mock_loader)
+
+    # ACT
+    ast_map = resolver.resolve(main_ast)
+
+    # ASSERT
+    assert len(ast_map) == 1
+    assert main_ast.file_path in ast_map
+
+
+def test_resolve_with_stdin_and_no_imports_is_ok():
+    # ARRANGE
+    main_ast = get_root_with_import(main_file_path="<stdin>", imports=[])
+    resolver = ImportResolver(loader=MockModuleLoader({}))
+
+    # ACT
+    ast_map = resolver.resolve(main_ast)
+
+    # ASSERT
+    assert len(ast_map) == 1
+    assert "<stdin>" in ast_map
+
+
+def test_diamond_import_is_ok():
+    # --- ARRANGE ---
+    main_ast = get_root_with_import(main_file_path="/project/main.vs", imports=["/project/module_a.vs", "/project/module_b.vs"])
+    module_a_ast = get_root_with_import(main_file_path="/project/module_a.vs", imports=["/project/shared.vs"], is_module=True)
+    module_b_ast = get_root_with_import(main_file_path="/project/module_b.vs", imports=["/project/shared.vs"], is_module=True)
+    module_shared_ast = get_root_with_import(main_file_path="/project/shared.vs", imports=[], is_module=True)
+
+    mock_loader = MockModuleLoader(
+        {
+            "/project/main.vs": main_ast,
+            "/project/module_a.vs": module_a_ast,
+            "/project/module_b.vs": module_b_ast,
+            "/project/shared.vs": module_shared_ast,
+        }
+    )
+
+    resolver = ImportResolver(loader=mock_loader)
+
+    # --- ACT & ASSERT ---
+    result = resolver.resolve(main_ast)
+
+    assert "/project/main.vs" in result
+    assert "/project/module_a.vs" in result
+    assert "/project/module_b.vs" in result
+    assert "/project/shared.vs" in result
+
+    assert len(result) == 4
