@@ -132,8 +132,8 @@ def _translate_lark_error(err: LarkError, file_path: str) -> ValuaScriptError:
         return ValuaScriptError(code=ErrorCode.SYNTAX_UNEXPECTED_TOKEN, span=span, details=details)
 
     elif isinstance(err, UnexpectedCharacters):
-        span = Span(s_line=err.line, s_col=err.column, e_line=err.line, e_col=err.column)
+        span = Span(s_line=err.line, s_col=err.column, e_line=err.line, e_col=err.column, file_path=file_path)
         return ValuaScriptError(code=ErrorCode.SYNTAX_INVALID_CHARACTER, span=span, char=err.char)
 
     # Fallback for any other Lark error
-    return ValuaScriptError(code=ErrorCode.SYNTAX_PARSING_ERROR, line=getattr(err, "line", -1), details=str(err))
+    return ValuaScriptError(code=ErrorCode.SYNTAX_PARSING_ERROR, line=getattr(err, "line", -1), details=str(err), file_path=file_path)

@@ -2,7 +2,8 @@ from typing import Any, Dict, List, Optional
 
 from vsc.parser.core.classes import Root
 
-from .import_resolver import resolve_imports
+from .import_resolver import ImportResolver
+from .module_loader import ModuleLoader
 
 
 class SemanticAnalyser:
@@ -26,8 +27,10 @@ class SemanticAnalyser:
         """Executes the semantic analysis pipeline."""
 
         # --- Stage 2a: Import Resolution ---
-        # The input is the main AST passed to the constructor.
-        self._run_stage("semantic_analyser_imports", resolve_imports, self.main_ast)
+        loader = ModuleLoader()
+        resolver = ImportResolver(loader=loader)
+        self._run_stage("semantic_analyser_imports", resolver.resolve, self.main_ast)
+
         if self.stop_after_stage == "semantic_analyser_imports":
             return self.results[-1]
 

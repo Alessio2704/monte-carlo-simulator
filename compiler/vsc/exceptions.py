@@ -19,12 +19,12 @@ class ErrorCode(Enum):
     DUPLICATE_DIRECTIVE = "The directive '@{name}' is defined more than once."
     INVALID_DIRECTIVE_VALUE = "{error_msg}"
     DIRECTIVE_NOT_ALLOWED_IN_MODULE = "The @{name} directive is not allowed when @module is declared."
-    MODULE_WITH_VALUE = "The @module directive does not accept a value. It should be used as '@module'."
+    MODULE_DIRECTIVE_WITH_VALUE = "The @module directive does not accept a value. It should be used as '@module'."
+    MODULE_DIRECTIVE_DECLARED_MORE_THAN_ONCE = "The @module directive must appear exactly once per file."
     OPERATOR_TYPE_MISMATCH = "The '{op}' operator cannot be used with a non-numeric type '{provided_type}'."
 
     # --- Module-Specific Errors ---
     GLOBAL_LET_IN_MODULE = "Global 'let' statements are not allowed in a module file. Only function definitions are permitted."
-    INVALID_DIRECTIVE_IN_MODULE = "Directives other than '@module' are not allowed in a module file. Found directive: {found_directive}"
 
     # --- Variable & Definition Errors ---
     UNDEFINED_VARIABLE = "Variable '{name}' used in {context} is not defined."
