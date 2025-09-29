@@ -161,6 +161,7 @@ def test_resolve_with_no_imports():
     # ASSERT
     assert len(ast_map) == 1
     assert main_ast.file_path in ast_map
+    assert ast_map["/project/main.vs"] is main_ast
 
 
 def test_resolve_with_stdin_and_no_imports_is_ok():
@@ -174,6 +175,7 @@ def test_resolve_with_stdin_and_no_imports_is_ok():
     # ASSERT
     assert len(ast_map) == 1
     assert "<stdin>" in ast_map
+    assert ast_map["<stdin>"] is main_ast
 
 
 def test_diamond_import_is_ok():
@@ -198,11 +200,17 @@ def test_diamond_import_is_ok():
     result = resolver.resolve(main_ast)
 
     assert "/project/main.vs" in result
+    assert result["/project/main.vs"] is main_ast
     assert "/project/module_a.vs" in result
+    assert result["/project/module_a.vs"] is module_a_ast
     assert "/project/module_b.vs" in result
+    assert result["/project/module_b.vs"] is module_b_ast
     assert "/project/shared.vs" in result
+    assert result["/project/shared.vs"] is module_shared_ast
 
     assert len(result) == 4
+
+
 
 
 def test_resolve_with_stdin_and_imports_raises_error():
