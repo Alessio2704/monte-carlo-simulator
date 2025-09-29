@@ -154,7 +154,7 @@ class FunctionDefinition(ASTNode):
     name: Identifier
     params: List[Parameter]
     return_type: Union[Identifier, List[Identifier]]
-    body: List[Union[Assignment, ReturnStatement]]
+    body: List[Union[DiscriminatedAssignment, ReturnStatement]]
     docstring: Optional[str] = None
 
 
