@@ -203,3 +203,38 @@ def test_diamond_import_is_ok():
     assert "/project/shared.vs" in result
 
     assert len(result) == 4
+
+
+def test_resolve_with_stdin_and_imports_raises_error():
+    # ARRANGE
+    main_ast = get_root_with_import(main_file_path="<stdin>", imports=["/project/module_a.vs"])
+    resolver = ImportResolver(loader=MockModuleLoader({}))
+
+    # ACT & ASSERT
+    with pytest.raises(ValuaScriptError) as exc_info:
+        resolver.resolve(main_ast)
+
+    assert exc_info.value.code == ErrorCode.CANNOT_IMPORT_FROM_STDIN
+
+
+def test_longer_circular_dependency_raises_error():
+    # ARRANGE: A -> B -> C -> A
+    main_ast = get_root_with_import("/project/main.vs", ["/project/module_b.vs"])
+    module_b_ast = get_root_with_import("/project/module_b.vs", ["/project/module_c.vs"], True)
+    module_c_ast = get_root_with_import("/project/module_c.vs", ["/project/main.vs"], True)
+
+    mock_loader = MockModuleLoader(
+        {
+            "/project/main.vs": main_ast,
+            "/project/module_b.vs": module_b_ast,
+            "/project/module_c.vs": module_c_ast,
+        }
+    )
+    resolver = ImportResolver(loader=mock_loader)
+
+    # ACT & ASSERT
+    with pytest.raises(ValuaScriptError) as exc_info:
+        resolver.resolve(main_ast)
+
+    assert exc_info.value.code == ErrorCode.CIRCULAR_IMPORT
+
