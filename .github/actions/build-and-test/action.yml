@@ -21,6 +21,7 @@ runs:
       # --- Consolidated Build and Test for Linux ---
       - name: Build and Test C++ Engine (Linux via Docker)
         if: runner.os == 'Linux'
+        shell: bash
         run: |
           docker run --rm -v ${{ github.workspace }}:/workspace \
             ubuntu:22.04 \
@@ -48,22 +49,27 @@ runs:
       # --- Non-Linux Build Steps ---
       - name: Install C++ Build Tools (macOS)
         if: runner.os == 'macOS'
+        shell: bash
         run: brew install cmake
 
       - name: Configure CMake (macOS)
         if: runner.os == 'macOS'
+        shell: bash
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Configure CMake (Windows x64)
         if: matrix.asset_name_suffix == 'windows-x64'
+        shell: bash
         run: cmake -B build -G "Visual Studio 17 2022" -A x64
 
       - name: Configure CMake (Windows ARM64)
         if: matrix.asset_name_suffix == 'windows-arm64'
+        shell: bash
         run: cmake -B build -G "Visual Studio 17 2022" -A ARM64
 
       - name: Build CMake Project (non-Linux)
         if: runner.os != 'Linux'
+        shell: bash
         run: cmake --build build --config Release -j
 
       # --- Non-Linux Test Step ---
