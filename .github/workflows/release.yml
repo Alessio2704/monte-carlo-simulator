@@ -152,6 +152,7 @@ jobs:
   publish:
     name: Publish to PyPI and GitHub Releases
     needs: build-test-and-release-assets
+    if: github.event_name == 'push' && !contains(github.ref, '-test')
     runs-on: ubuntu-latest
     steps:
       - name: Get version from Git tag
