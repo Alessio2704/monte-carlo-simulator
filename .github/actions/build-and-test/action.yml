@@ -14,10 +14,6 @@ runs:
         with:
           python-version: ${{ inputs.python-version }}
 
-      - name: Get version from Git tag
-        shell: bash
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
-
       # --- Consolidated Build and Test for Linux ---
       - name: Build and Test C++ Engine (Linux via Docker)
         if: runner.os == 'Linux'

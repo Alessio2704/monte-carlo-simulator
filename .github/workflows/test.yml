@@ -37,13 +37,17 @@ jobs:
           - os: windows-11-arm
             asset_name_suffix: windows-arm64
             vse_name: vse.exe
-            python-version: "3.13" # Using a newer version as 3.9 is not available for Win ARM64
+            python-version: "3.13"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Get version from Git tag
+        shell: bash
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
       - name: Build and Test Project
         uses: ./.github/actions/build-and-test
