@@ -58,73 +58,12 @@ jobs:
         with:
           node-version: "20.x"
 
-      - name: Get version from Git tag
-        shell: bash
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+      - name: Build and Test Project
+        uses: ./.github/actions/build-and-test
+        with:
+          python-version: ${{ matrix.python-version }}
 
-      # --- Consolidated Build and Test for Linux ---
-      - name: Build and Test C++ Engine (Linux via Docker)
-        if: runner.os == 'Linux'
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace \
-            ubuntu:22.04 \
-            bash -c "
-              set -e
-              # --- Install Prerequisites & Latest CMake from Kitware ---
-              apt-get update
-              apt-get install -y build-essential git wget gpg
-              wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-              echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main' | tee /etc/apt/sources.list.d/kitware.list >/dev/null
-              apt-get update
-              apt-get install -y cmake
-              
-              # --- Configure, Build, and Test ---
-              cd /workspace
-              echo '--- Configuring CMake inside container ---'
-              cmake -B build -DCMAKE_BUILD_TYPE=Release
-              echo '--- Building project inside container ---'
-              cmake --build build -j --config Release
-              echo '--- Running C++ tests inside container ---'
-              cd build
-              ctest --verbose --output-on-failure
-            "
-
-      # --- Non-Linux Build Steps ---
-      - name: Install C++ Build Tools (macOS)
-        if: runner.os == 'macOS'
-        run: brew install cmake
-
-      - name: Configure CMake (macOS)
-        if: runner.os == 'macOS'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-
-      - name: Configure CMake (Windows x64)
-        if: matrix.asset_name_suffix == 'windows-x64'
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64
-
-      - name: Configure CMake (Windows ARM64)
-        if: matrix.asset_name_suffix == 'windows-arm64'
-        run: cmake -B build -G "Visual Studio 17 2022" -A ARM64
-
-      - name: Build CMake Project (non-Linux)
-        if: runner.os != 'Linux'
-        run: cmake --build build -j --config Release
-
-      # --- Non-Linux Test Step ---
-      - name: Run C++ Engine Tests (macOS & Windows)
-        if: runner.os != 'Linux'
-        shell: bash
-        run: |
-          cd build
-          ctest --verbose --output-on-failure
-
-      # --- Install Python dependencies and Run Compiler Tests ---
-      - name: Install Python Dependencies & Run Tests
-        shell: bash
-        run: |
-          pip install -r compiler/requirements-dev.txt
-          pip install -e ./compiler
-          pytest compiler/tests/ -v
+      # Package Assets
 
       - name: Create Engine Release Directory
         run: mkdir release_assets
