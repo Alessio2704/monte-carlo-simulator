@@ -59,7 +59,7 @@ jobs:
           node-version: "20.x"
 
       - name: Build and Test Project
-        uses: ./.github/actions/build-and-test
+        uses: ./.github/actions/build-and-test.yml
         with:
           python-version: ${{ matrix.python-version }}
 
