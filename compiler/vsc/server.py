@@ -8,7 +8,7 @@ from collections import deque
 from urllib.parse import urlparse, unquote
 from pathlib import Path
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
-from pygls.server import LanguageServer
+from pygls.lsp.server import LanguageServer
 from lsprotocol.types import (
     Diagnostic,
     Position,
@@ -26,7 +26,7 @@ from lsprotocol.types import (
     CompletionItemKind,
     InsertTextFormat,
 )
-from pygls.workspace import Document
+from pygls.workspace import TextDocument
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vsc.compiler import compile_valuascript, resolve_imports_and_functions
@@ -105,7 +105,7 @@ def did_change(ls, params):
     _validate(ls, params)
 
 
-def _get_word_at_position(document: Document, position: Position) -> str:
+def _get_word_at_position(document: TextDocument, position: Position) -> str:
     line = document.lines[position.line]
     start, end = position.character, position.character
     while start > 0 and (line[start - 1].isalnum() or line[start - 1] == "_"):

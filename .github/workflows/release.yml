@@ -122,7 +122,8 @@ jobs:
       - name: Install Python Dependencies & Run Tests
         shell: bash
         run: |
-          pip install -e "./compiler[dev]"
+          pip install -r compiler/requirements-dev.txt
+          pip install -e ./compiler
           pytest compiler/tests/ -v
 
       - name: Create Engine Release Directory

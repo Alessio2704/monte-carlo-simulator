@@ -100,7 +100,7 @@ jobs:
 
       - name: Build CMake Project (non-Linux)
         if: runner.os != 'Linux'
-        run: cmake --build build --config Release
+        run: cmake --build build --config Release -j
 
       # --- Non-Linux Test Step ---
       - name: Run C++ Engine Tests (macOS & Windows)
@@ -114,5 +114,6 @@ jobs:
       - name: Install Python Dependencies & Run Tests
         shell: bash
         run: |
-          pip install -e "./compiler[dev]"
+          pip install -r compiler/requirements-dev.txt
+          pip install -e ./compiler
           pytest compiler/tests/ -v

@@ -38,10 +38,10 @@ conditional_expression: or_expression | IF or_expression THEN or_expression ELSE
 ?add_expression: mul_expression ((ADD|SUB) mul_expression)* -> math_expression
 ?mul_expression: power ((MUL|DIV) power)*                 -> math_expression
 ?power:      atom (POW atom)*                           -> math_expression
-?atom: SIGNED_NUMBER
+?atom: boolean
+     | SIGNED_NUMBER
      | CNAME
      | STRING
-     | boolean
      | function_call
      | element_access
      | delete_element_vector
