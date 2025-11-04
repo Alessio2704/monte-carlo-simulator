@@ -3,7 +3,7 @@
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/Alessio2704/monte-carlo-simulator/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++ Version](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
-[![Python Version](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 
 ValuaScript combines a simple, declarative scripting language with a high-performance, multi-threaded C++ engine to create, run, and analyze complex quantitative models. It is purpose-built to deliver both **clarity and speed**, making sophisticated Monte Carlo simulations accessible and maintainable.
 
@@ -137,7 +137,7 @@ Get started in minutes with our automated installation scripts.
 
 #### Prerequisites
 
-1.  **Python 3.9+** must be installed and available in your PATH.
+1.  **Python 3.13+** must be installed and available in your PATH.
 2.  **Administrator/sudo privileges** are required to add the tools to your system's PATH.
 
 #### macOS & Linux
