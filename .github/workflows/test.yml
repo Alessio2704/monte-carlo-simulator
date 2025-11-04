@@ -46,6 +46,6 @@ jobs:
           fetch-depth: 0
 
       - name: Build and Test Project
-        uses: ./.github/actions/build-and-test.yml
+        uses: ./.github/actions/build-and-test/action.yml
         with:
           python-version: ${{ matrix.python-version }}
