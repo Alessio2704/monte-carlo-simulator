@@ -1,15 +1,10 @@
 name: Create ValuaScript Release
 
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
 
   workflow_dispatch:
-    inputs:
-      version:
-        description: "The test version number (e.g., 0.0.0-test)"
-        required: true
-        default: "0.0.0-test"
 
 permissions:
   id-token: write
@@ -52,6 +47,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Setup Python
@@ -65,17 +61,17 @@ jobs:
         with:
           node-version: "20.x"
 
-      - name: Get version
+      - name: Get Version
         shell: bash
         run: |
-          # If triggered by a tag push (like 'v1.2.3'), use the tag.
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
-            echo "Using version from Git tag: ${GITHUB_REF#refs/tags/v}"
-          # If triggered manually, use the version provided in the input.
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "Using version from official release tag: ${{ github.event.release.tag_name }}"
+            echo "RELEASE_VERSION=${{ github.event.release.tag_name }}" | sed 's/^v//' >> $GITHUB_ENV
           else
-            echo "RELEASE_VERSION=${{ inputs.version }}" >> $GITHUB_ENV
-            echo "Using manual version for test run: ${{ inputs.version }}"
+            # For any other trigger (i.e., workflow_dispatch), use a fixed, non-publishable version.
+            # PEP 440 allows for "+localversion". PyPI ignores the local version part.
+            echo "Using hardcoded version for test run: 0.0.0+test"
+            echo "RELEASE_VERSION=0.0.0+test" >> $GITHUB_ENV
           fi
 
       - name: Build and Test Project
@@ -152,7 +148,7 @@ jobs:
   publish:
     name: Publish to PyPI and GitHub Releases
     needs: build-test-and-release-assets
-    if: github.event_name == 'push' && !contains(github.ref, '-test')
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - name: Get version from Git tag
@@ -170,11 +166,9 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages_dir: artifacts/python-package
 
-      - name: Create GitHub Release and Upload Assets
+      - name: Upload Assets to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.RELEASE_VERSION }}
-          name: ValuaScript v${{ env.RELEASE_VERSION }}
           files: |
             artifacts/release-asset-linux-x64/*.zip
             artifacts/release-asset-macos-arm64/*.zip
@@ -183,6 +177,3 @@ jobs:
             artifacts/release-asset-linux-arm64/*.zip
             artifacts/release-asset-windows-arm64/*.zip
             artifacts/vsix-package/*.vsix
-          body: |
-            Official release of the ValuaScript toolchain.
-            See the README for installation instructions.
