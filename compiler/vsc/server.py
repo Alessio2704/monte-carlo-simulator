@@ -63,7 +63,7 @@ def _format_number_with_separators(n):
 
 
 def _validate(ls, params):
-    text_doc = ls.workspace.get_document(params.text_document.uri)
+    text_doc = ls.workspace.get_text_document(params.text_document.uri)
     source = text_doc.source
     diagnostics = []
     ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
@@ -150,7 +150,6 @@ def _get_script_analysis(source: str, file_path: str):
     Performs a hybrid analysis. It provides "best-effort" results for completions
     even on broken code, while providing full, deep analysis for hovers on valid code.
     """
-    # Defaults
     defined_vars, stochastic_vars, user_functions_with_meta = {}, set(), {}
     try:
         high_level_ast = parse_valuascript(source)
@@ -190,14 +189,13 @@ def _get_script_analysis(source: str, file_path: str):
 
 @server.feature(TEXT_DOCUMENT_HOVER)
 def hover(params):
-    document = server.workspace.get_document(params.text_document.uri)
+    document = server.workspace.get_text_document(params.text_document.uri)
     word = _get_word_at_position(document, params.position)
     source = document.source
     file_path = _uri_to_path(params.text_document.uri)
     defined_vars, stochastic_vars, user_functions_with_meta = _get_script_analysis(source, file_path)
     user_functions = {k: v["definition"] for k, v in user_functions_with_meta.items()}
 
-    # --- Hover for Built-in Function ---
     if word in FUNCTION_SIGNATURES:
         sig = FUNCTION_SIGNATURES[word]
         doc = sig.get("doc")
@@ -212,7 +210,6 @@ def hover(params):
                 param_docs.append(f"- `{p.get('name', '')}`: {p.get('desc', '')}")
             contents.append("\n".join(param_docs))
 
-        # FIX: Correctly format return type
         return_type_val = sig.get("return_type", "any")
         if isinstance(return_type_val, list):
             return_type_str = f"({', '.join(return_type_val)})"
@@ -222,14 +219,12 @@ def hover(params):
 
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
 
-    # --- Hover for User-Defined Function ---
     if word in user_functions:
         func_def = user_functions[word]
         is_sto = _is_udf_stochastic(func_def, user_functions)
         stochastic_tag = " (stochastic)" if is_sto else ""
         params_str = ", ".join([f"{p['name']}: {p['type']}" for p in func_def["params"]])
 
-        # FIX: Correctly format return type
         return_type = func_def["return_type"]
         if isinstance(return_type, list):
             return_str = f"({', '.join(return_type)})"
@@ -243,7 +238,6 @@ def hover(params):
             contents.append(func_def["docstring"])
         return Hover(contents=MarkupContent(kind=MarkupKind.Markdown, value="\n".join(contents)))
 
-    # --- Hover for Variable ---
     if word in defined_vars:
         var_info = defined_vars[word]
         var_type = var_info.get("type", "unknown")
@@ -301,7 +295,7 @@ def hover(params):
 
 @server.feature(TEXT_DOCUMENT_DEFINITION)
 def definition(params):
-    document = server.workspace.get_document(params.text_document.uri)
+    document = server.workspace.get_text_document(params.text_document.uri)
     word = _get_word_at_position(document, params.position)
     if not word:
         return None
@@ -324,14 +318,13 @@ def _create_function_snippet(name: str, params: list) -> str:
     if not params:
         return f"{name}()"
 
-    # Create placeholders like ${1:param_name}, ${2:another_param}
     placeholders = [f"${{{i+1}:{p['name']}}}" for i, p in enumerate(params)]
     return f"{name}({', '.join(placeholders)})"
 
 
 @server.feature(TEXT_DOCUMENT_COMPLETION)
 def completions(params):
-    document = server.workspace.get_document(params.text_document.uri)
+    document = server.workspace.get_text_document(params.text_document.uri)
     source = document.source
     file_path = _uri_to_path(params.text_document.uri)
 
