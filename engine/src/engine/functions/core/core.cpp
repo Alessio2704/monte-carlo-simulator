@@ -4,11 +4,9 @@
 #include <numeric>
 #include <cmath>
 
-// --- Registration Function ---
-
 void register_core_functions(FunctionRegistry &registry)
 {
-    // Math
+
     registry.register_function("add", []
                                { return std::make_unique<AddOperation>(); });
     registry.register_function("subtract", []
@@ -34,7 +32,6 @@ void register_core_functions(FunctionRegistry &registry)
     registry.register_function("identity", []
                                { return std::make_unique<IdentityOperation>(); });
 
-    // Comparison & Logical
     registry.register_function("__eq__", []
                                { return std::make_unique<EqualsOperation>(); });
     registry.register_function("__neq__", []
@@ -55,15 +52,6 @@ void register_core_functions(FunctionRegistry &registry)
                                { return std::make_unique<NotOperation>(); });
 }
 
-// --- Math Operations Implementations ---
-
-// =====================================================================================
-// == SIMD-FRIENDLY "FAST PATH" HELPERS
-// =====================================================================================
-// These simple, standalone functions contain loops that modern C++ compilers
-// can easily auto-vectorize into high-performance SIMD instructions (e.g., AVX, SSE).
-
-// --- Vector-Vector Operations ---
 inline std::vector<double> add_vectors_simd(const std::vector<double> &left, const std::vector<double> &right)
 {
     std::vector<double> result(left.size());
@@ -112,7 +100,6 @@ inline std::vector<double> power_vectors_simd(const std::vector<double> &left, c
     return result;
 }
 
-// --- Vector-Scalar Operations ---
 inline std::vector<double> add_vector_scalar_simd(const std::vector<double> &vec, double scalar)
 {
     std::vector<double> result(vec.size());
@@ -161,7 +148,6 @@ inline std::vector<double> power_vector_scalar_simd(const std::vector<double> &v
     return result;
 }
 
-// --- Scalar-Vector Operations ---
 inline std::vector<double> add_scalar_vector_simd(double scalar, const std::vector<double> &vec)
 {
     std::vector<double> result(vec.size());
@@ -210,10 +196,6 @@ inline std::vector<double> power_scalar_vector_simd(double scalar, const std::ve
     return result;
 }
 
-// =====================================================================================
-// == GENERIC "SLOW PATH" HELPERS
-// =====================================================================================
-
 inline double perform_variadic_op(OpCode code, const std::vector<double> &values)
 {
     if (values.empty())
@@ -251,7 +233,6 @@ struct ElementWiseVisitor
 {
     OpCode code;
 
-    // --- Valid Numeric Operations ---
     TrialValue operator()(double left, double right) const { return perform_variadic_op(code, {left, right}); }
 
     TrialValue operator()(const std::vector<double> &vec, double scalar) const
@@ -289,9 +270,6 @@ struct ElementWiseVisitor
         return result;
     }
 
-    // --- Catch-all for Invalid Type Combinations ---
-    // This template handles any combination not explicitly defined above (e.g., string+double, bool+vector, etc.).
-    // It makes the visitor exhaustive, satisfying the requirement of std::visit.
     template <typename T1, typename T2>
     TrialValue operator()(const T1 &, const T2 &) const
     {
@@ -299,20 +277,13 @@ struct ElementWiseVisitor
     }
 };
 
-// =====================================================================================
-// == IExecutable Implementations with Fast Path Dispatcher
-// =====================================================================================
-
 VariadicBaseOperation::VariadicBaseOperation(OpCode code) : m_code(code) {}
 
-// --- HELPER FOR IN-PLACE VECTOR OPERATIONS ---
-// This visitor will modify the `accumulator` directly, avoiding new allocations.
 struct InPlaceVisitor
 {
     OpCode code;
     TrialValue &accumulator;
 
-    // Vector-Vector
     void operator()(const std::vector<double> &right) const
     {
         auto &acc_vec = std::get<std::vector<double>>(accumulator);
@@ -345,7 +316,6 @@ struct InPlaceVisitor
         }
     }
 
-    // Vector-Scalar
     void operator()(double right) const
     {
         auto &acc_vec = std::get<std::vector<double>>(accumulator);
@@ -376,7 +346,6 @@ struct InPlaceVisitor
         }
     }
 
-    // Catch-all for unsupported types (string, bool, etc.)
     template <typename T>
     void operator()(const T &) const
     {
@@ -389,17 +358,14 @@ std::vector<TrialValue> VariadicBaseOperation::execute(const std::vector<TrialVa
     if (args.empty())
         throw EngineException(EngineErrc::IncorrectArgumentCount, "Operation requires at least one argument.");
 
-    // Start with the first argument as the initial result.
     TrialValue accumulator = args[0];
 
-    // Determine if any argument is a vector, which dictates the overall strategy.
     bool has_vector = std::any_of(args.begin(), args.end(), [](const TrialValue &v)
                                   { return std::holds_alternative<std::vector<double>>(v); });
 
     if (!has_vector)
     {
-        // --- SCALAR-ONLY FAST PATH ---
-        // All arguments are doubles, no vectors involved.
+
         double result = std::get<double>(accumulator);
         for (size_t i = 1; i < args.size(); ++i)
         {
@@ -430,13 +396,10 @@ std::vector<TrialValue> VariadicBaseOperation::execute(const std::vector<TrialVa
         return {result};
     }
 
-    // --- VECTOR/MIXED-TYPE OPTIMIZED PATH ---
-    // At least one argument is a vector. The result must be a vector.
-    // If the initial accumulator is a scalar, we must "promote" it to a vector.
     if (std::holds_alternative<double>(accumulator))
     {
         double scalar_val = std::get<double>(accumulator);
-        // Find the first vector in the args to determine the required size.
+
         size_t vector_size = 0;
         for (const auto &arg : args)
         {
@@ -446,14 +409,13 @@ std::vector<TrialValue> VariadicBaseOperation::execute(const std::vector<TrialVa
                 break;
             }
         }
-        // Promote the scalar to a vector of the correct size.
+
         accumulator = std::vector<double>(vector_size, scalar_val);
     }
 
-    // Loop through the rest of the arguments, applying the operation in-place.
     for (size_t i = 1; i < args.size(); ++i)
     {
-        // We visit the current argument and apply the operation to our accumulator.
+
         std::visit(InPlaceVisitor{m_code, accumulator}, args[i]);
     }
 
@@ -509,8 +471,6 @@ std::vector<TrialValue> IdentityOperation::execute(const std::vector<TrialValue>
     return {args[0]};
 }
 
-// --- Comparison and Logical Operations Implementations ---
-
 ComparisonBaseOperation::ComparisonBaseOperation(OpCode code) : m_code(code) {}
 
 std::vector<TrialValue> ComparisonBaseOperation::execute(const std::vector<TrialValue> &args) const
@@ -539,7 +499,7 @@ std::vector<TrialValue> ComparisonBaseOperation::execute(const std::vector<Trial
                 default: throw EngineException(EngineErrc::MismatchedArgumentType, "Only equality operators (==, !=) are supported for booleans.");
             }
         } else {
-            // Fallback for non-matching types: only allow equality checks
+
             switch(m_code) {
                 case OpCode::EQ: return false;
                 case OpCode::NEQ: return true;

@@ -2,10 +2,8 @@ $ErrorActionPreference = 'Stop'
 
 Write-Host "Welcome to the ValuaScript Uninstaller for Windows!"
 
-# --- Configuration ---
 $InstallDir = [System.Environment]::GetFolderPath('MyDocuments') + "\ValuaScript-Tools"
 
-# --- Remove vse from PATH ---
 Write-Host "Removing ValuaScript engine from your PATH..."
 $UserPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
 $PathParts = $UserPath -split ';' | Where-Object { $_ -ne $InstallDir -and $_ }
@@ -18,7 +16,6 @@ if ($NewPath -ne $UserPath) {
 }
 
 
-# --- Uninstall vsc from pipx ---
 try {
     Get-Command pipx -ErrorAction SilentlyContinue | Out-Null
     Write-Host "Uninstalling the vsc compiler..."
@@ -27,7 +24,6 @@ try {
     Write-Host "pipx or valuascript-compiler not found, skipping compiler uninstallation."
 }
 
-# --- Remove Installation Directory ---
 if (Test-Path $InstallDir) {
     Write-Host "Removing installation directory: $InstallDir"
     Remove-Item -Recurse -Force $InstallDir
@@ -35,7 +31,6 @@ if (Test-Path $InstallDir) {
     Write-Host "Installation directory not found, skipping."
 }
 
-# --- Uninstall VS Code Extension ---
 $ExtensionId = "AlessioMarcuzzi.valuascript-language"
 $CodeCmd = Get-Command code -ErrorAction SilentlyContinue
 if ($CodeCmd) {

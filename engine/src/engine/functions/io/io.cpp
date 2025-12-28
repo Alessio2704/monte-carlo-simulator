@@ -15,8 +15,6 @@
 #pragma warning(pop)
 #endif
 
-// --- Registration Function ---
-
 void register_io_functions(FunctionRegistry &registry)
 {
     registry.register_function("read_csv_scalar", []
@@ -25,7 +23,6 @@ void register_io_functions(FunctionRegistry &registry)
                                { return std::make_unique<ReadCsvVectorOperation>(); });
 }
 
-// --- CSV Reading ---
 struct CachedCsv
 {
     std::vector<std::string> header;

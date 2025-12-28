@@ -2,10 +2,8 @@
 #include "include/engine/core/IExecutable.h"
 #include "include/engine/functions/FunctionRegistry.h"
 
-// --- Registration ---
 void register_statistics_functions(FunctionRegistry &registry);
 
-// --- Concrete Sampler Classes ---
 class NormalSampler : public IExecutable
 {
 public:

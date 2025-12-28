@@ -41,7 +41,6 @@ TEST_P(SeriesOpsEngineTest, ExecutesCorrectly)
     }
 }
 
-// --- Vector and Time-Series Operation Tests ---
 INSTANTIATE_TEST_SUITE_P(
     VectorOperationTests,
     SeriesOpsEngineTest,
@@ -57,7 +56,6 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable_index":4,"variable_registry":["current_rd","past_rd","period","C", "D"],"per_trial_steps":[{"type":"literal_assignment","result":0,"value":100.0},{"type":"literal_assignment","result":1,"value":[90.0,80.0,70.0]},{"type":"literal_assignment","result":2,"value":3.0},{"type":"execution_assignment","result":[3, 4],"function":"capitalize_expense","args":[{"type":"variable_index","value":0},{"type":"variable_index","value":1},{"type":"variable_index","value":2}]}]})", TrialValue(80.0), false),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable_index":1,"variable_registry":["my_vec", "A"],"per_trial_steps":[{"type":"literal_assignment","result":0,"value":[1.0,2.0,3.0]},{"type":"execution_assignment","result":[1],"function":"delete_element","args":[{"type":"variable_index","value":0}, {"type":"scalar_literal","value":1.0}]}]})", TrialValue(std::vector<double>{1.0, 3.0}), true)));
 
-// --- NEW: Fixture and Tests for Arity and Other Errors ---
 class SeriesErrorTest : public FileCleanupTest
 {
 };

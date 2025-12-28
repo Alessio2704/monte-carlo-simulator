@@ -11,7 +11,7 @@ export function activate(context: ExtensionContext) {
   console.log("--- ValuaScript Extension Activation ---");
 
   const command = "vsc";
-  const serverArgs = ["--lsp"]; // The argument to run in Language Server mode.
+  const serverArgs = ["--lsp"];
 
   const serverOptions: ServerOptions = {
     command: command,

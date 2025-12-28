@@ -13,7 +13,6 @@
 
 void print_statistics(const std::vector<TrialValue> &results);
 
-// A visitor to help convert TrialValue to nlohmann::json
 struct TrialValueToJsonVisitor
 {
     nlohmann::json operator()(double d) const { return d; }

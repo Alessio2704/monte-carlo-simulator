@@ -16,7 +16,6 @@
 #include "include/engine/io/io.h"
 #include "include/engine/core/EngineException.h"
 
-// Helper function to create a test recipe file.
 inline void create_test_recipe(const std::string &filename, const std::string &content)
 {
     std::ofstream test_file(filename);
@@ -24,7 +23,6 @@ inline void create_test_recipe(const std::string &filename, const std::string &c
     test_file.close();
 }
 
-// Helper to read a file's content into a string
 inline std::string read_file_content(const std::string &path)
 {
     std::ifstream file(path);
@@ -37,17 +35,14 @@ inline std::string read_file_content(const std::string &path)
     return buffer.str();
 }
 
-// Executes a command and captures its standard output.
 inline std::string exec_command(const char *cmd)
 {
     std::array<char, 128> buffer;
     std::string result;
 
 #ifdef _WIN32
-    // Use the Windows-specific _popen and _pclose functions
     std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd, "r"), _pclose);
 #else
-    // Use the standard POSIX popen and pclose on other systems
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
 #endif
 
@@ -62,7 +57,6 @@ inline std::string exec_command(const char *cmd)
     return result;
 }
 
-// Base fixture for automatic file cleanup, used by all other test fixtures.
 class FileCleanupTest : public ::testing::Test
 {
 protected:

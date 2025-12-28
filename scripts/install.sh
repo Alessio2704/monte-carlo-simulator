@@ -3,12 +3,10 @@ set -e
 
 echo "Welcome to the ValuaScript Installer for macOS & Linux!"
 
-# --- Configuration ---
 APP_INSTALL_DIR="$HOME/.valuascript-tools"
 BIN_INSTALL_DIR="/usr/local/bin"
 REPO="Alessio2704/monte-carlo-simulator"
 
-# --- Detect OS and Architecture ---
 OS_TYPE="$(uname -s)"
 CPU_ARCH="$(uname -m)"
 
@@ -52,7 +50,6 @@ esac
 
 echo "Using release asset suffix: $ENGINE_ASSET_SUFFIX"
 
-# --- Fetch Latest Release URLs ---
 echo "Fetching latest release information from GitHub..."
 LATEST_RELEASE_API_URL="https://api.github.com/repos/$REPO/releases/latest"
 ASSETS_JSON=$(curl -sL "$LATEST_RELEASE_API_URL")
@@ -66,7 +63,6 @@ if [ -z "$DOWNLOAD_URL_ENGINE" ]; then
     exit 1
 fi
 
-# --- Download and Install Engine ---
 echo "Creating installation directory at $APP_INSTALL_DIR..."
 mkdir -p "$APP_INSTALL_DIR"
 
@@ -84,7 +80,6 @@ fi
 
 chmod +x "$APP_INSTALL_DIR/vse"
 
-# --- Create Symbolic Links ---
 echo "Ensuring command-line shortcut directory exists..."
 if [ ! -d "$BIN_INSTALL_DIR" ]; then
     echo "Directory $BIN_INSTALL_DIR not found. Creating it now (requires sudo)..."
@@ -94,7 +89,6 @@ echo "Creating command-line shortcut in $BIN_INSTALL_DIR (requires sudo)..."
 sudo ln -sf "$APP_INSTALL_DIR/vse" "$BIN_INSTALL_DIR/vse"
 
 
-# --- Install vsc from PyPI ---
 echo "Installing the vsc compiler from PyPI..."
 
 if ! command -v python3 &> /dev/null; then
@@ -129,9 +123,6 @@ elif [ "$OS_TYPE" = "Linux" ]; then
     fi
 fi
 
-# If pipx was installed via pip to the user's local directory, that directory
-# might not be in the PATH yet for this script session.
-# We add it manually to the script's PATH to ensure the next commands work.
 if ! command -v pipx &> /dev/null; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
@@ -140,18 +131,17 @@ pipx ensurepath
 echo "Installing ValuaScript Compiler with pipx..."
 pipx install valuascript-compiler --force
 
-# --- Install VS Code Extension ---
 if [ -z "$DOWNLOAD_URL_VSIX" ]; then
     echo "Warning: Could not find a .vsix extension file in the release assets. Skipping."
 else
     echo "Attempting to install the ValuaScript VS Code extension..."
     CODE_CMD=""
-    # Search for the 'code' command in common locations
+
     if command -v code &> /dev/null; then
         CODE_CMD="code"
     elif [ -f "/usr/local/bin/code" ]; then
         CODE_CMD="/usr/local/bin/code"
-    elif [ -f "/snap/bin/code" ]; then # For Linux with Snap
+    elif [ -f "/snap/bin/code" ]; then
         CODE_CMD="/snap/bin/code"
     elif [ "$OS_TYPE" = "Darwin" ] && [ -f "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" ]; then
         CODE_CMD="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
@@ -165,14 +155,13 @@ else
         echo "Found VS Code. Downloading and installing extension..."
         curl -L "$DOWNLOAD_URL_VSIX" -o "$APP_INSTALL_DIR/$VSIX_NAME"
         
-        # Install the extension
+    
         "$CODE_CMD" --install-extension "$APP_INSTALL_DIR/$VSIX_NAME" || echo "Failed to install extension. VS Code might not be running."
 
         echo "✅ VS Code extension installed."
     fi
 fi
 
-# --- Cleanup ---
 rm "$TMP_FILE"
 
 echo ""

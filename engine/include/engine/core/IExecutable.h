@@ -2,13 +2,9 @@
 #include "DataStructures.h"
 #include <vector>
 
-// Unified interface for any logic that takes arguments and returns a value.
-// Both operations (like Add) and samplers (like Normal) will implement this.
 class IExecutable
 {
 public:
     virtual ~IExecutable() = default;
-    // The execute method returns a vector of TrialValue to support multi-return.
-    // Functions returning a single value should return a vector with one element.
     virtual std::vector<TrialValue> execute(const std::vector<TrialValue> &args) const = 0;
 };

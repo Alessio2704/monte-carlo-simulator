@@ -6,16 +6,12 @@
 #include <algorithm>
 #include <cctype>
 
-// Local function to register just this operation
 void register_black_scholes_operation(FunctionRegistry &registry)
 {
     registry.register_function("BlackScholes", []
                                { return std::make_unique<BlackScholesOperation>(); });
 }
 
-// --- BlackScholesOperation Implementation ---
-
-// Helper for the Cumulative Normal Distribution Function (CNDF)
 double cndf(double x)
 {
     return 0.5 * std::erfc(-x / std::sqrt(2.0));
@@ -35,13 +31,11 @@ std::vector<TrialValue> BlackScholesOperation::execute(const std::vector<TrialVa
     const double v = std::get<double>(args[4]);                   // Volatility
     std::string option_type_str = std::get<std::string>(args[5]); // Option type
 
-    // Input validation for model correctness
     if (S <= 0 || K <= 0 || T <= 0 || v <= 0)
     {
         throw EngineException(EngineErrc::InvalidSamplerParameters, "Black-Scholes inputs (spot, strike, time, volatility) must be positive.");
     }
 
-    // Convert option_type to lowercase for case-insensitive comparison
     std::transform(option_type_str.begin(), option_type_str.end(), option_type_str.begin(),
                    [](unsigned char c)
                    { return static_cast<char>(std::tolower(c)); });

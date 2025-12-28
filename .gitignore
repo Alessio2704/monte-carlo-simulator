@@ -1,24 +1,16 @@
-# =============================================================================
-# >> C++ ENGINE & CMAKE ARTIFACTS
-# =============================================================================
-# Ignore the primary build directory where all compiled C++ output resides.
-# The leading slash anchors this to the project root.
+
 **/build/
 
-# Ignore Gemini-generated files
 /gemini/
 examples/*.json
 examples/*.csv
 
-# Safety net for in-source builds (in case CMake is run from the wrong directory).
 CMakeCache.txt
 CMakeFiles/
 Makefile
 cmake_install.cmake
 compile_commands.json
 
-# Ignore all compiled libraries, objects, and executables, regardless of location.
-# This is a robust catch-all.
 *.o
 *.a
 *.so
@@ -30,47 +22,29 @@ compile_commands.json
 *.ilk
 
 
-# =============================================================================
-# >> PYTHON COMPILER ARTIFACTS
-# =============================================================================
-# Python virtual environments (e.g., venv, .venv, env).
-# No leading slash, so they are ignored whether at the root or in /compiler/.
 venv/
 .venv/
 env/
 
-# Python cache files and compiled bytecode.
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Distribution / Installation artifacts.
-# Scoped to the compiler directory to avoid conflict with the C++ build directory.
 /compiler/dist/
 /compiler/build/
 /compiler/*.egg-info/
 .eggs/
 *.egg
 
-# Pytest and coverage reports.
 .pytest_cache/
 .coverage
 coverage.xml
 htmlcov/
 
 
-# =============================================================================
-# >> GENERATED WORKFLOW & DATA FILES
-# =============================================================================
-# Ignore intermediate JSON recipes and simulation output files.
-# These are generated artifacts and should not be tracked in version control.
 
 node_modules
 
-# =============================================================================
-# >> IDE & EDITOR CONFIGURATION
-# =============================================================================
-# Visual Studio Code
 .vscode/
 *.vsix
 .vscode-test/
@@ -78,24 +52,17 @@ extension/.vscode/
 extension/node_modules/
 extension/dist/
 
-# CLion
 .idea/
 cmake-build-*/
 
-# Xcode
 *.xcodeproj/
 *.xcworkspace/
 xcuserdata/
 
 
-# =============================================================================
-# >> OPERATING SYSTEM SPECIFIC FILES
-# =============================================================================
-# macOS
 .DS_Store
 .AppleDouble
 .LSOverride
 
-# Windows
 Thumbs.db
 ehthumbs.db

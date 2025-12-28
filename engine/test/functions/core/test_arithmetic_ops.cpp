@@ -41,7 +41,6 @@ TEST_P(ArithmeticEngineTest, ExecutesCorrectly)
     }
 }
 
-// --- Binary Math Operation Tests ---
 INSTANTIATE_TEST_SUITE_P(
     ArithmeticOperationTests,
     ArithmeticEngineTest,
@@ -52,7 +51,6 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable_index":2,"variable_registry":["A","B","C"],"per_trial_steps":[{"type":"literal_assignment","result":0,"value":20},{"type":"literal_assignment","result":1,"value":10},{"type":"execution_assignment","result":[2],"function":"divide","args":[{"type":"variable_index","value":0},{"type":"variable_index","value":1}]}]})", TrialValue(2.0), false),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable_index":2,"variable_registry":["A","B","C"],"per_trial_steps":[{"type":"literal_assignment","result":0,"value":2},{"type":"literal_assignment","result":1,"value":8},{"type":"execution_assignment","result":[2],"function":"power","args":[{"type":"variable_index","value":0},{"type":"variable_index","value":1}]}]})", TrialValue(256.0), false)));
 
-// --- Vector and Mixed-Type Math Tests ---
 INSTANTIATE_TEST_SUITE_P(
     VectorArithmeticTests,
     ArithmeticEngineTest,
@@ -69,7 +67,6 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable_index":1,"variable_registry":["A","C"],"per_trial_steps":[{"type":"literal_assignment","result":0,"value":[2,3,4]},{"type":"execution_assignment","result":[1],"function":"power","args":[{"type":"variable_index","value":0},{"type":"scalar_literal","value":2.0}]}]})", TrialValue(std::vector<double>{4.0, 9.0, 16.0}), true),
         std::make_tuple(R"({"simulation_config":{"num_trials":1},"output_variable_index":1,"variable_registry":["A","C"],"per_trial_steps":[{"type":"literal_assignment","result":0,"value":[1,2,3]},{"type":"execution_assignment","result":[1],"function":"power","args":[{"type":"scalar_literal","value":2.0},{"type":"variable_index","value":0}]}]})", TrialValue(std::vector<double>{2.0, 4.0, 8.0}), true)));
 
-// --- Nested Expression Test ---
 INSTANTIATE_TEST_SUITE_P(
     NestedArithmeticTest,
     ArithmeticEngineTest,

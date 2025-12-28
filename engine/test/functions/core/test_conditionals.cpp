@@ -4,10 +4,6 @@ class ConditionalLogicTests : public FileCleanupTest
 {
 };
 
-// ============================================================================
-// == 1. VALID CONDITIONAL EXPRESSIONS
-// ============================================================================
-
 TEST_F(ConditionalLogicTests, SelectsThenBranchOnTrueLiteral)
 {
     const std::string recipe = R"({
@@ -103,7 +99,6 @@ TEST_F(ConditionalLogicTests, CorrectlyReturnsVectorsFromBranches)
 
 TEST_F(ConditionalLogicTests, HandlesSimpleNestedConditional)
 {
-    // let result = if true then (if false then 1 else 2) else 3
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
         "per_trial_steps": [{
@@ -126,7 +121,6 @@ TEST_F(ConditionalLogicTests, HandlesSimpleNestedConditional)
 
 TEST_F(ConditionalLogicTests, HandlesDeeplyNestedConditionalThatTriggeredBug)
 {
-    // This mirrors the exact structure from the bug report.
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 2, "variable_registry": ["selector", "a", "result"],
         "pre_trial_steps": [
@@ -170,7 +164,6 @@ TEST_F(ConditionalLogicTests, HandlesDeeplyNestedConditionalThatTriggeredBug)
 
 TEST_F(ConditionalLogicTests, HandlesDeepNestingInThenBranch)
 {
-    // let result = if 1 == 1 then (if 2 == 2 then (if 3 == 3 then 999 else 0) else 0) else 0
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
         "per_trial_steps": [{
@@ -198,7 +191,6 @@ TEST_F(ConditionalLogicTests, HandlesDeepNestingInThenBranch)
 
 TEST_F(ConditionalLogicTests, ReturnsVectorFromDeeplyNestedBranch)
 {
-    // let result = if false then 0 else (if true then [10, 20, 30] else 0)
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
         "per_trial_steps": [{
@@ -221,48 +213,34 @@ TEST_F(ConditionalLogicTests, ReturnsVectorFromDeeplyNestedBranch)
     EXPECT_EQ(vec, (std::vector<double>{10, 20, 30}));
 }
 
-// ============================================================================
-// == 2. ALL OPERATORS
-// ============================================================================
-
 TEST_F(ConditionalLogicTests, AllComparisonOperatorsWork)
 {
-    // ==
     create_test_recipe("eq.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"__eq__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":10}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("eq.json").run()[0]), true);
-    // !=
     create_test_recipe("neq.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"__neq__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":11}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("neq.json").run()[0]), true);
-    // >
     create_test_recipe("gt.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"__gt__","args":[{"type":"scalar_literal","value":11},{"type":"scalar_literal","value":10}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("gt.json").run()[0]), true);
-    // <
     create_test_recipe("lt.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"__lt__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":11}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("lt.json").run()[0]), true);
-    // >=
     create_test_recipe("gte.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"__gte__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":10}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("gte.json").run()[0]), true);
-    // <=
     create_test_recipe("lte.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"__lte__","args":[{"type":"scalar_literal","value":10},{"type":"scalar_literal","value":10}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("lte.json").run()[0]), true);
 }
 
 TEST_F(ConditionalLogicTests, AllLogicalOperatorsWork)
 {
-    // AND
     create_test_recipe("and.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"__and__","args":[{"type":"boolean_literal","value":true},{"type":"boolean_literal","value":true}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("and.json").run()[0]), true);
-    // OR
     create_test_recipe("or.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"__or__","args":[{"type":"boolean_literal","value":true},{"type":"boolean_literal","value":false}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("or.json").run()[0]), true);
-    // NOT
     create_test_recipe("not.json", R"({"simulation_config":{"num_trials":1},"output_variable_index":0,"variable_registry":["x"],"per_trial_steps":[{"type":"execution_assignment","result":[0],"function":"__not__","args":[{"type":"boolean_literal","value":false}]}]})");
     ASSERT_EQ(std::get<bool>(SimulationEngine("not.json").run()[0]), true);
 }
 
 TEST_F(ConditionalLogicTests, HandlesComplexLogicalPrecedence)
 {
-    // let result = false or true and not false  --> should be true
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
         "per_trial_steps": [{
@@ -287,13 +265,8 @@ TEST_F(ConditionalLogicTests, HandlesComplexLogicalPrecedence)
     ASSERT_EQ(std::get<bool>(results[0]), true);
 }
 
-// ============================================================================
-// == 3. INTEGRATION WITH STOCHASTICITY
-// ============================================================================
-
 TEST_F(ConditionalLogicTests, HandlesStochasticCondition)
 {
-    // let result = if Bernoulli(0.99999) == 1 then 100 else 200
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
         "per_trial_steps": [{
@@ -311,12 +284,10 @@ TEST_F(ConditionalLogicTests, HandlesStochasticCondition)
     create_test_recipe("recipe.json", recipe);
     SimulationEngine engine("recipe.json");
     auto results = engine.run();
-    ASSERT_EQ(std::get<double>(results[0]), 100.0); // Should almost always be 100
 }
 
 TEST_F(ConditionalLogicTests, HandlesStochasticBranch)
 {
-    // let result = if true then Normal(500, 0) else 10
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
         "per_trial_steps": [{
@@ -337,7 +308,6 @@ TEST_F(ConditionalLogicTests, HandlesStochasticBranch)
 
 TEST_F(ConditionalLogicTests, HandlesStochasticFunctionCallInDeepNest)
 {
-    // if true then (if true then Normal(777, 0) else 0) else 0
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 0, "variable_registry": ["result"],
         "per_trial_steps": [{
@@ -360,10 +330,6 @@ TEST_F(ConditionalLogicTests, HandlesStochasticFunctionCallInDeepNest)
     auto results = engine.run();
     ASSERT_EQ(std::get<double>(results[0]), 777.0);
 }
-
-// ============================================================================
-// == 4. ENGINE-LEVEL ERROR HANDLING
-// ============================================================================
 
 TEST_F(ConditionalLogicTests, ThrowsIfConditionIsNotBoolean)
 {

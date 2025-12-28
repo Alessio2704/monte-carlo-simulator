@@ -60,7 +60,6 @@ TEST_F(SirModelTest, ThrowsOnZeroPopulation)
 
 TEST_F(SirModelTest, CorrectlyCalculatesDeterministicModel)
 {
-    // A simple, deterministic run to check the core logic.
     const std::string recipe = R"({
         "simulation_config": {"num_trials": 1}, "output_variable_index": 1,
         "variable_registry": ["susceptible", "infected", "recovered"],

@@ -2,11 +2,9 @@ $ErrorActionPreference = 'Stop'
 
 Write-Host "Welcome to the ValuaScript Installer for Windows!"
 
-# --- Configuration ---
 $Repo = "Alessio2704/monte-carlo-simulator"
 $InstallDir = [System.Environment]::GetFolderPath('MyDocuments') + "\ValuaScript-Tools"
 
-# --- Detect Architecture ---
 $AssetSuffix = ""
 Write-Host "Detecting system architecture..."
 switch ($env:PROCESSOR_ARCHITECTURE) {
@@ -24,7 +22,6 @@ switch ($env:PROCESSOR_ARCHITECTURE) {
 Write-Host "Detected architecture: $($env:PROCESSOR_ARCHITECTURE). Using asset suffix: $AssetSuffix"
 
 
-# --- Fetch Latest Release ---
 Write-Host "Fetching latest release..."
 $LatestReleaseApiUrl = "https://api.github.com/repos/$Repo/releases/latest"
 $Assets = (Invoke-RestMethod -Uri $LatestReleaseApiUrl).assets
@@ -34,7 +31,6 @@ $VsixName = ($Assets | Where-Object { $_.name -like "*.vsix" }).name
 
 if (-not $DownloadUrlEngine) { Write-Error "Error: Could not find engine release for your system ($AssetSuffix)."; exit 1 }
 
-# --- Download and Install vse ---
 Write-Host "Downloading ValuaScript engine from: $DownloadUrlEngine"
 if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir }
 New-Item -ItemType Directory -Path $InstallDir | Out-Null
@@ -43,7 +39,6 @@ Invoke-WebRequest -Uri $DownloadUrlEngine -OutFile $TempZip
 Expand-Archive -Path $TempZip -DestinationPath $InstallDir
 Get-ChildItem -Path $InstallDir -Recurse | Unblock-File
 
-# --- Add vse to PATH ---
 Write-Host "Adding ValuaScript engine (vse) to your PATH..."
 $CurrentUserPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
 if (($CurrentUserPath -split ';') -notcontains $InstallDir) {
@@ -53,17 +48,13 @@ if (($CurrentUserPath -split ';') -notcontains $InstallDir) {
 }
 
 
-# --- Install vsc from PyPI ---
 Write-Host "Installing Python dependencies and vsc compiler..."
 try {
-    # Ensure Python is available
     Get-Command python | Out-Null
     
     Write-Host "Installing/upgrading pipx..."
     python -m pip install --user -q --upgrade pipx
     
-    # Find the Python user 'Scripts' directory and add it to this script's PATH.
-    # This makes the 'pipx' command available immediately for the next steps.
     Write-Host "Making pipx available to the current session..."
     $PythonUserScripts = Join-Path -Path ([System.Environment]::GetFolderPath('ApplicationData')) -ChildPath 'Python'
     if (Test-Path $PythonUserScripts) {
@@ -78,11 +69,9 @@ try {
     }
     
     Write-Host "Ensuring pipx is in the PATH for future sessions..."
-    # We still run ensurepath to make the change permanent for the user.
     python -m pipx ensurepath
     
     Write-Host "Installing valuascript-compiler with pipx..."
-    # Now this command will work because pipx.exe is found in the session's PATH.
     pipx install valuascript-compiler --force
 
 } catch {
@@ -92,7 +81,6 @@ try {
 }
 
 
-# --- Install VS Code Extension ---
 if (-not $DownloadUrlVsix) {
     Write-Host "Warning: Could not find a .vsix extension file in the release. Skipping."
 } else {
@@ -116,7 +104,6 @@ if (-not $DownloadUrlVsix) {
 }
 
 
-# --- Cleanup ---
 Remove-Item -Force $TempZip
 
 Write-Host ""

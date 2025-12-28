@@ -5,10 +5,6 @@
 
 using json = nlohmann::json;
 
-// ============================================================================
-// == LiteralAssignmentStep
-// ============================================================================
-
 LiteralAssignmentStep::LiteralAssignmentStep(size_t result_index, TrialValue value)
     : m_result_index(result_index), m_value(std::move(value)) {}
 
@@ -17,11 +13,6 @@ void LiteralAssignmentStep::execute(TrialContext &context) const
     context[m_result_index] = m_value;
 }
 
-// ============================================================================
-// == ArgumentPlanner
-// ============================================================================
-
-// This function runs AT RUNTIME to execute the plan.
 TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, const TrialContext &context)
 {
     return std::visit(
@@ -30,11 +21,11 @@ TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, c
             using T = std::decay_t<decltype(plan)>;
             if constexpr (std::is_same_v<T, TrialValue>)
             {
-                return plan; // It's a literal value.
+                return plan;
             }
             else if constexpr (std::is_same_v<T, size_t>)
             {
-                return context.at(plan); // It's a variable index.
+                return context.at(plan);
             }
             else if constexpr (std::is_same_v<T, std::unique_ptr<NestedFunctionCall>>)
             {
@@ -56,7 +47,6 @@ TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, c
                 }
                 catch (const EngineException &e)
                 {
-                    // Re-throw exception, adding our contextual information.
                     throw EngineException(e.code(), std::string("In nested function '") + nested_call.function_name + "': " + e.what(), nested_call.line_num);
                 }
                 catch (const std::exception &e)
@@ -96,7 +86,6 @@ TrialValue ArgumentPlanner::resolve_runtime_value(const ResolvedArgument &arg, c
         arg);
 }
 
-// This function runs ONCE AT CONSTRUCTION to build the execution plan.
 ArgumentPlanner::ResolvedArgument ArgumentPlanner::build_argument_plan(
     const json &arg,
     const ExecutableFactory &factory)
@@ -159,10 +148,6 @@ ArgumentPlanner::ResolvedArgument ArgumentPlanner::build_argument_plan(
     throw EngineException(EngineErrc::RecipeParseError, "Invalid argument type in bytecode: '" + type + "'.");
 }
 
-// ============================================================================
-// == ExecutionAssignmentStep
-// ============================================================================
-
 ExecutionAssignmentStep::ExecutionAssignmentStep(
     std::vector<size_t> result_indices,
     std::string function_name,
@@ -221,10 +206,6 @@ void ExecutionAssignmentStep::execute(TrialContext &context) const
         throw EngineException(EngineErrc::UnknownError, std::string("In function '") + m_function_name + "': " + e.what(), m_line_num);
     }
 }
-
-// ============================================================================
-// == ConditionalAssignmentStep
-// ============================================================================
 
 ConditionalAssignmentStep::ConditionalAssignmentStep(
     size_t result_index,

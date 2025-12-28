@@ -2,13 +2,8 @@
 #include "include/engine/core/IExecutable.h"
 #include "include/engine/functions/FunctionRegistry.h"
 
-// --- Registration ---
-// Each domain will have a single function to register all its operations.
 void register_core_functions(FunctionRegistry &registry);
 
-// --- Concrete Operation Classes ---
-
-// Base class for variadic operations like add, subtract, multiply, etc.
 class VariadicBaseOperation : public IExecutable
 {
 public:
@@ -19,7 +14,6 @@ private:
     OpCode m_code;
 };
 
-// Base class for comparison operations like ==, >, <=, etc.
 class ComparisonBaseOperation : public IExecutable
 {
 public:

@@ -53,6 +53,5 @@ std::vector<TrialValue> SirModelOperation::execute(const std::vector<TrialValue>
         r[t + 1] = std::max(0.0, r[t] + dR);
     }
 
-    // Return the three vectors as a tuple of TrialValues
     return {TrialValue(s), TrialValue(i), TrialValue(r)};
 }

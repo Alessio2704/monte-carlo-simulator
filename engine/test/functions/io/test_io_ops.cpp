@@ -1,6 +1,5 @@
 #include "test/test_helpers.h"
 
-// This test fixture sets up the necessary CSV files for testing reading operations.
 class CsvEngineTest : public FileCleanupTest
 {
 protected:
@@ -186,7 +185,6 @@ TEST_F(CsvEngineTest, ThrowsOnNonNumericData)
     }
 }
 
-// This fixture is for tests that do not require pre-made files.
 class IoOpsErrorTest : public FileCleanupTest
 {
 };

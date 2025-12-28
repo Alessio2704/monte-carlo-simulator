@@ -1,8 +1,5 @@
 #include "test/test_helpers.h"
 
-// This test suite is specifically for CORE ENGINE errors,
-// such as problems with the recipe structure or simulation setup,
-// not for errors that occur inside a specific ValuaScript function.
 class CoreEngineErrorTest : public FileCleanupTest
 {
 };

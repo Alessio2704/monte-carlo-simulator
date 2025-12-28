@@ -4,8 +4,6 @@
 #include <stdexcept>
 #include <cmath>
 
-// --- Registration Function ---
-
 void register_statistics_functions(FunctionRegistry &registry)
 {
     registry.register_function("Normal", []
@@ -24,8 +22,6 @@ void register_statistics_functions(FunctionRegistry &registry)
                                { return std::make_unique<TriangularSampler>(); });
 }
 
-// Helper to provide a thread-safe random number generator.
-// Each thread will have its own generator instance.
 inline std::mt19937 &get_thread_local_generator()
 {
     static thread_local std::mt19937 generator(std::random_device{}());

@@ -1,7 +1,6 @@
 #include "test/test_helpers.h"
 #include <nlohmann/json.hpp>
 
-// This macro will be defined by CMake via target_compile_definitions
 #ifndef VSE_EXECUTABLE_PATH
 #error "VSE_EXECUTABLE_PATH is not defined! Check engine/CMakeLists.txt"
 #endif

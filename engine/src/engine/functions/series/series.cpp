@@ -3,8 +3,6 @@
 #include <vector>
 #include <numeric>
 
-// --- Registration Function ---
-
 void register_series_functions(FunctionRegistry &registry)
 {
     registry.register_function("grow_series", []
@@ -28,9 +26,6 @@ void register_series_functions(FunctionRegistry &registry)
     registry.register_function("capitalize_expense", []
                                { return std::make_unique<CapitalizeExpenseOperation>(); });
 }
-
-// =====================================================================================
-// == SIMD-FRIENDLY HELPERS
 
 inline std::vector<double> interpolate_series_simd(double start_value, double end_value, int num_steps)
 {
@@ -61,10 +56,6 @@ inline std::vector<double> series_delta_simd(const std::vector<double> &series)
     }
     return delta_series;
 }
-
-// =====================================================================================
-// == Vector and Series Operations
-// =====================================================================================
 
 std::vector<TrialValue> GrowSeriesOperation::execute(const std::vector<TrialValue> &args) const
 {
