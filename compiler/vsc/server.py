@@ -6,6 +6,7 @@ import json
 import tempfile
 from collections import deque
 from urllib.parse import urlparse, unquote
+from urllib.request import url2pathname 
 from pathlib import Path
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
 from pygls.lsp.server import LanguageServer
@@ -43,8 +44,7 @@ server = LanguageServer("valuascript-server", "v1")
 def _uri_to_path(uri: str) -> str:
     """Converts a file URI to a platform-specific file path."""
     parsed = urlparse(uri)
-    return os.path.abspath(unquote(parsed.path))
-
+    return url2pathname(unquote(parsed.path))
 
 def _path_to_uri(path: str) -> str:
     """Converts a platform-specific file path to a file URI."""

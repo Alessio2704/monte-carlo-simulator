@@ -138,7 +138,7 @@ fi
 
 pipx ensurepath
 echo "Installing ValuaScript Compiler with pipx..."
-pipx install valuascript-compiler
+pipx install valuascript-compiler --force
 
 # --- Install VS Code Extension ---
 if [ -z "$DOWNLOAD_URL_VSIX" ]; then

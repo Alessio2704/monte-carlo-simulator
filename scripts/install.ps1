@@ -83,7 +83,7 @@ try {
     
     Write-Host "Installing valuascript-compiler with pipx..."
     # Now this command will work because pipx.exe is found in the session's PATH.
-    pipx install valuascript-compiler
+    pipx install valuascript-compiler --force
 
 } catch {
     Write-Host ""
