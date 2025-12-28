@@ -6,7 +6,7 @@ import json
 import tempfile
 from collections import deque
 from urllib.parse import urlparse, unquote
-from urllib.request import url2pathname 
+from urllib.request import url2pathname
 from pathlib import Path
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
 from pygls.lsp.server import LanguageServer
@@ -26,6 +26,7 @@ from lsprotocol.types import (
     CompletionList,
     CompletionItemKind,
     InsertTextFormat,
+    PublishDiagnosticsParams,
 )
 from pygls.workspace import TextDocument
 
@@ -45,6 +46,7 @@ def _uri_to_path(uri: str) -> str:
     """Converts a file URI to a platform-specific file path."""
     parsed = urlparse(uri)
     return url2pathname(unquote(parsed.path))
+
 
 def _path_to_uri(path: str) -> str:
     """Converts a platform-specific file path to a file URI."""
@@ -92,7 +94,7 @@ def _validate(ls, params):
     finally:
         sys.stdout.close()
         sys.stdout = original_stdout
-    ls.publish_diagnostics(params.text_document.uri, diagnostics)
+    ls.text_document_publish_diagnostics(PublishDiagnosticsParams(uri=params.text_document.uri, diagnostics=diagnostics))
 
 
 @server.feature("textDocument/didOpen")
