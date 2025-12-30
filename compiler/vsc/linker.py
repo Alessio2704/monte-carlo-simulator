@@ -33,7 +33,7 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
     output_variable_index = None
     if output_var:
         if output_var not in name_to_index_map:
-             raise ValuaScriptError(f"The final @output variable '{output_var}' was not found. It may have been eliminated as dead code.")
+            raise ValuaScriptError(f"The final @output variable '{output_var}' was not found. It may have been eliminated as dead code.")
         output_variable_index = name_to_index_map.get(output_var)
 
     def _resolve_expression_to_bytecode(arg):
@@ -66,14 +66,9 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
         for step in steps_to_rewrite:
             step_type = step["type"]
             if step_type == "literal_assignment":
-                new_step = {
-                    "type": "literal_assignment",
-                    "result": name_to_index_map[step["result"]],
-                    "line": step.get("line", -1),
-                    "value": step["value"]
-                }
+                new_step = {"type": "literal_assignment", "result": name_to_index_map[step["result"]], "line": step.get("line", -1), "value": step["value"]}
             elif step_type == "conditional_expression":
-                 new_step = {
+                new_step = {
                     "type": "conditional_assignment",
                     "result": name_to_index_map[step["result"]],
                     "line": step.get("line", -1),
@@ -81,11 +76,11 @@ def link_and_generate_bytecode(pre_trial_steps, per_trial_steps, sim_config, out
                     "then_expr": _resolve_expression_to_bytecode(step["then_expr"]),
                     "else_expr": _resolve_expression_to_bytecode(step["else_expr"]),
                 }
-            else: # execution_assignment or multi_assignment
+            else:
                 results = step.get("results") or [step.get("result")]
                 new_step = {
-                    "type": "execution_assignment", # ALWAYS this type
-                    "result": [name_to_index_map[r] for r in results], # ALWAYS this key
+                    "type": "execution_assignment",
+                    "result": [name_to_index_map[r] for r in results],
                     "line": step.get("line", -1),
                     "function": step["function"],
                     "args": [_resolve_expression_to_bytecode(a) for a in step.get("args", [])],

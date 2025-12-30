@@ -114,7 +114,7 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
         then_type = _infer_sub_expression_type(expression_dict["then_expr"], func_name_context)
         else_type = _infer_sub_expression_type(expression_dict["else_expr"], func_name_context)
         if then_type != else_type:
-            # Format types for a clearer error message, especially for tuples
+
             then_type_str = f"({', '.join(then_type)})" if isinstance(then_type, list) else then_type
             else_type_str = f"({', '.join(else_type)})" if isinstance(else_type, list) else else_type
             raise ValuaScriptError(ErrorCode.IF_ELSE_TYPE_MISMATCH, line=line_num, then_type=then_type_str, else_type=else_type_str)
@@ -123,12 +123,11 @@ def _infer_expression_type(expression_dict, defined_vars, line_num, current_resu
     if expr_type == "execution_assignment" or expr_type == "multi_assignment":
         if "expression" in expression_dict:
             sub_expr = expression_dict["expression"]
-            # Case 1: let a, b = if selector then func1() else func2()
+
             if sub_expr.get("type") == "conditional_expression":
-                # The type of the whole expression is the type of its branches, which must match.
+
                 return _infer_expression_type(sub_expr, defined_vars, line_num, current_result_var, all_signatures, func_name_context)
 
-            # Case 2: let a, b = some_function() -- promote the function call up.
             if isinstance(sub_expr, dict) and "function" in sub_expr:
                 expression_dict.update(sub_expr)
                 del expression_dict["expression"]
@@ -256,9 +255,7 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
     while True:
         made_change_in_main_pass = False
 
-        # --- PHASE 1: LIFTING ---
-        # Keep looping until a full pass over the code makes no changes.
-        # This ensures all nested calls are lifted, even those exposed by prior lifts.
+        # PHASE 1: LIFTING
         while True:
             lifted_in_sub_pass = False
             i = 0
@@ -300,7 +297,6 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
                         return Token("CNAME", temp_var_name)
                     return modified_expr
 
-                # We only want to lift from inside expressions, not top-level UDF calls.
                 if step.get("function") not in user_functions:
                     inlined_code[i] = lift_recursive_helper(step)
 
@@ -315,7 +311,7 @@ def validate_and_inline_udfs(execution_steps, user_functions, all_signatures, in
             if not lifted_in_sub_pass:
                 break
 
-        # --- PHASE 2: INLINING ---
+        # PHASE 2: INLINING
         udf_call_index = -1
         for i, step in enumerate(inlined_code):
             if step.get("type") in ("execution_assignment", "multi_assignment") and step.get("function") in user_functions:
@@ -463,7 +459,6 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode, file_path=
     for step in execution_steps:
         line = step["line"]
 
-        # Check for duplicate variables before defining them
         if step.get("type") == "multi_assignment":
             for r in step["results"]:
                 if r in defined_vars:
@@ -471,11 +466,10 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode, file_path=
             if len(set(step["results"])) != len(step["results"]):
                 raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name="a variable in the same assignment")
 
-        else:  # Single assignment
+        else:
             if step["result"] in defined_vars:
                 raise ValuaScriptError(ErrorCode.DUPLICATE_VARIABLE, line=line, name=step["result"])
 
-        # Check for assignment arity mismatch
         if "function" in step:
             func_name = step["function"]
             if func_name not in all_signatures:
@@ -488,11 +482,10 @@ def validate_semantics(main_ast, all_user_functions, is_preview_mode, file_path=
                     raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment for '{func_name}'", expected=1, provided=len(step["results"]))
                 if len(step["results"]) != len(return_type):
                     raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment for '{func_name}'", expected=len(return_type), provided=len(step["results"]))
-            else:  # Single assignment
+            else:
                 if is_multi_return:
                     raise ValuaScriptError(ErrorCode.ARGUMENT_COUNT_MISMATCH, line=line, name=f"assignment for '{func_name}'", expected=len(return_type), provided=1)
 
-        # Infer types and add to defined_vars
         if step.get("type") == "multi_assignment":
             rhs_types = _infer_expression_type(step, defined_vars, line, "", all_signatures)
             for i, result_var in enumerate(step["results"]):

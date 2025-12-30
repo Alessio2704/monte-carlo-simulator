@@ -3,7 +3,6 @@ Signatures for core mathematical, logical, and comparison functions.
 """
 
 SIGNATURES = {
-    # --- Internal Boolean & Comparison Operations (from operators) ---
     "__eq__": {"variadic": False, "arg_types": ["any", "any"], "return_type": "boolean", "is_stochastic": False},
     "__neq__": {"variadic": False, "arg_types": ["any", "any"], "return_type": "boolean", "is_stochastic": False},
     "__gt__": {"variadic": False, "arg_types": ["scalar", "scalar"], "return_type": "boolean", "is_stochastic": False},
@@ -13,7 +12,6 @@ SIGNATURES = {
     "__and__": {"variadic": True, "arg_types": ["boolean"], "return_type": "boolean", "is_stochastic": False},
     "__or__": {"variadic": True, "arg_types": ["boolean"], "return_type": "boolean", "is_stochastic": False},
     "__not__": {"variadic": False, "arg_types": ["boolean"], "return_type": "boolean", "is_stochastic": False},
-    # --- Mathematical & Logical Operations ---
     "add": {
         "variadic": True,
         "arg_types": [],

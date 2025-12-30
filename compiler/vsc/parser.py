@@ -7,20 +7,19 @@ from .config import MATH_OPERATOR_MAP, COMPARISON_OPERATOR_MAP, LOGICAL_OPERATOR
 LARK_PARSER = None
 
 try:
-    # Use importlib.resources for robust package data access
+
     from importlib.resources import files as pkg_files
 
     valuasc_grammar = (pkg_files("vsc") / "valuascript.lark").read_text()
     LARK_PARSER = Lark(valuasc_grammar, start="start", parser="earley")
 except Exception:
-    # Fallback for development environments or older Python versions
+
     grammar_path = os.path.join(os.path.dirname(__file__), "valuascript.lark")
     with open(grammar_path, "r") as f:
         valuasc_grammar = f.read()
     LARK_PARSER = Lark(valuasc_grammar, start="start", parser="earley")
 
 
-# A simple wrapper class to distinguish parsed strings from variable names
 class _StringLiteral:
     def __init__(self, value, line=-1):
         self.value = value
@@ -44,7 +43,7 @@ class ValuaScriptTransformer(Transformer):
         while i < len(items):
             op, right = items[i], items[i + 1]
             func_name = operator_map[op.value]
-            # Special handling for variadic functions (add, multiply, and, or)
+
             if isinstance(tree, dict) and tree.get("function") == func_name and func_name in ("add", "multiply", "__and__", "__or__"):
                 tree["args"].append(right)
             else:
@@ -56,7 +55,7 @@ class ValuaScriptTransformer(Transformer):
         return _StringLiteral(s.value[1:-1], s.line)
 
     def DOCSTRING(self, s):
-        # Remove the triple quotes and dedent the string
+
         content = s.value[3:-3]
         return dedent(content).strip()
 
@@ -76,30 +75,26 @@ class ValuaScriptTransformer(Transformer):
         return self._build_infix_tree(items, LOGICAL_OPERATOR_MAP)
 
     def not_expression(self, items):
-        # This transformer correctly handles both alternatives for the 'not_expression' rule.
-        # Case 1: `NOT not_expression` (e.g., "not is_active"). 'items' will be [Token, transformed_expr].
+
         if len(items) > 1 and isinstance(items[0], Token) and items[0].type == "NOT":
             return {"function": "__not__", "args": [items[1]]}
-        # Case 2: `comparison_expression`. 'items' will be a list with a single transformed expression.
+
         else:
             return items[0]
 
     def comparison_expression(self, items):
-        # This transformer correctly handles both alternatives for the 'comparison_expression' rule.
-        # Case 1: `add_expression OPERATOR add_expression`. 'items' will be [operand1, operator, operand2].
+
         if len(items) > 1:
             return self._build_infix_tree(items, COMPARISON_OPERATOR_MAP)
-        # Case 2: `add_expression`. 'items' will be a list with a single transformed expression.
+
         else:
             return items[0]
 
     def conditional_expression(self, items):
         if len(items) == 1:
-            return items[0]  # Not a conditional, just an or_expression
-        # is 'if' condition 'then' then_expr 'else' else_expr
+            return items[0]
         return {"type": "conditional_expression", "condition": items[1], "then_expr": items[3], "else_expr": items[5]}
 
-    # --- Pass-through rules to simplify the tree ---
     def expression(self, i):
         return i[0]
 
@@ -130,7 +125,6 @@ class ValuaScriptTransformer(Transformer):
     def boolean(self, i):
         return i[0]
 
-    # --- Terminal transformations ---
     def SIGNED_NUMBER(self, n):
         val = n.value.replace("_", "")
         return float(val) if "." in val or "e" in val.lower() else int(val)
@@ -138,7 +132,6 @@ class ValuaScriptTransformer(Transformer):
     def CNAME(self, c):
         return c
 
-    # --- Rule transformations ---
     def multi_assignment_vars(self, items):
         return items
 
@@ -146,11 +139,10 @@ class ValuaScriptTransformer(Transformer):
         return items
 
     def tuple_expression(self, items):
-        # FIX START: If a tuple_expression has only one item, it's just a
-        # parenthesized expression. Unwrap it to resolve the grammar ambiguity.
+
         if len(items) == 1:
             return items[0]
-        # FIX END
+
         return {"_is_tuple_return": True, "values": items}
 
     def return_statement(self, items):
@@ -194,12 +186,11 @@ class ValuaScriptTransformer(Transformer):
         if isinstance(var_items, list):
             results_as_strings = [str(v) for v in var_items]
             base_step = {"results": results_as_strings, "line": line, "type": "multi_assignment"}
-            # FIX: The check for illegal tuple assignment is moved to the validator.
-            # The parser now just constructs the AST node.
+
             if isinstance(expression, dict) and "function" in expression:
                 base_step.update(expression)
                 return base_step
-            # This will now correctly handle the AST for `let a,b = (1,2)`
+
             return {"results": results_as_strings, "line": line, "type": "multi_assignment", "expression": expression}
 
         base_step = {"result": str(var_items), "line": line}

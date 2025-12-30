@@ -12,12 +12,8 @@ def test_cli_successful_compilation_and_run(create_manual_test_structure):
     test_dir = create_manual_test_structure
     main_script_path = test_dir / "main.vs"
 
-    # The command to run. We use sys.executable to ensure we're using
-    # the python from the correct virtual environment.
     command = [sys.executable, "-m", "vsc", str(main_script_path), "--run"]
 
-    # We run the command from within the test directory so that relative
-    # imports like "@import 'modules/financials.vs'" can be found.
     result = subprocess.run(command, capture_output=True, text=True, cwd=test_dir)
 
     assert result.returncode == 0, f"CLI should have succeeded but failed with stderr:\n{result.stderr}"

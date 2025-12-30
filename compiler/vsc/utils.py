@@ -43,18 +43,15 @@ def format_lark_error(e, script_content: str) -> str:
 def find_engine_executable(provided_path):
     engine_name = "vse.exe" if sys.platform == "win32" else "vse"
 
-    # 1. Explicit path from --engine-path flag
     if provided_path and os.path.isfile(provided_path) and os.access(provided_path, os.X_OK):
         return provided_path
 
-    # 2. VSC_ENGINE_PATH environment variable
     env_path = os.environ.get("VSC_ENGINE_PATH")
     if env_path and os.path.isfile(env_path) and os.access(env_path, os.X_OK):
         return env_path
 
-    # 3. Portable mode: look in the same directory as the vsc executable
     try:
-        # sys.executable is the most reliable way to find the path to the running script/executable
+
         vsc_dir = os.path.dirname(os.path.abspath(sys.executable))
         portable_path = os.path.join(vsc_dir, engine_name)
         if os.path.isfile(portable_path) and os.access(portable_path, os.X_OK):
@@ -62,7 +59,6 @@ def find_engine_executable(provided_path):
     except Exception:
         pass
 
-    # 4. Developer mode: look in the build directory relative to this script
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         dev_path = os.path.join(script_dir, "..", "..", "build", "bin", "Release", engine_name) if sys.platform == "win32" else os.path.join(script_dir, "..", "..", "build", "bin", engine_name)
@@ -71,7 +67,6 @@ def find_engine_executable(provided_path):
     except NameError:
         pass
 
-    # 5. System PATH
     if which(engine_name):
         return which(engine_name)
 

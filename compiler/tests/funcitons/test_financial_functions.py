@@ -25,7 +25,7 @@ def test_financial_function_arities(func, provided_argc):
     """
     arg_types = FUNCTION_SIGNATURES[func]["arg_types"]
     args_list = []
-    # Use the correct literal type for each argument to avoid type mismatch errors
+
     for i in range(provided_argc):
         expected_type = arg_types[min(i, len(arg_types) - 1)]
         args_list.append(f'"arg"' if expected_type == "string" else "1")

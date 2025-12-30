@@ -1,7 +1,6 @@
-// A script is a sequence of directives and assignments in any order.
+
 start: (directive | assignment | function_def)*
 
-// A directive can be a setting with a value or a valueless flag.
 directive: directive_setting | valueless_directive | import_directive
 
 directive_setting: "@" CNAME "=" expression
@@ -12,7 +11,6 @@ assignment: LET (CNAME | multi_assignment_vars) "=" expression
 
 multi_assignment_vars: CNAME ("," CNAME)+
 
-// --- FUNCTION DEFINITION ---
 function_def: "func" CNAME "(" [param ("," param)*] ")" "->" return_type "{" [DOCSTRING] function_body "}"
 ?return_type: CNAME | tuple_type
 tuple_type: "(" CNAME ("," CNAME)* ")"
@@ -22,8 +20,6 @@ param: CNAME ":" CNAME
 return_statement: "return" (expression | tuple_expression)
 tuple_expression: "(" expression ("," expression)* ")"
 
-// --- HIERARCHY FOR ALL EXPRESSIONS (LOGICAL, COMPARISON, MATH) ---
-// The hierarchy defines operator precedence, from lowest (if/else) to highest (atoms).
 ?expression: conditional_expression
 
 conditional_expression: or_expression | IF or_expression THEN or_expression ELSE conditional_expression
@@ -49,7 +45,6 @@ conditional_expression: or_expression | IF or_expression THEN or_expression ELSE
      | tuple_expression
      | "(" expression ")"
 
-// --- Reusable Rule Definitions ---
 boolean: TRUE | FALSE
 vector: "[" [arg ("," arg)*] "]"
 function_call: CNAME "(" [arg ("," arg)*] ")"
@@ -57,11 +52,9 @@ element_access: CNAME "[" expression "]"
 delete_element_vector: CNAME "[" ":" expression "]"
 ?arg: expression
 
-// --- Terminal Definitions ---
 IMPORT_KEYWORD: "@import"
 LET: "let" /\b/
 
-// Keywords
 IF: "if" /\b/
 THEN: "then" /\b/
 ELSE: "else" /\b/
@@ -71,7 +64,6 @@ AND: "and" /\b/
 OR: "or" /\b/
 NOT: "not" /\b/
 
-// Operators
 ADD: "+"
 SUB: "-"
 MUL: "*"
@@ -87,7 +79,6 @@ LT: "<"
 STRING: /"[^"]*"/
 DOCSTRING: /"{3}(.|\n)*?"{3}/
 
-// --- Custom Number Terminal to support separators ---
 SIGNED_NUMBER: ["+"|"-"]? (FLOAT | INT)
 FLOAT: INT "." INT
 INT: DIGIT+ ("_" DIGIT+)*

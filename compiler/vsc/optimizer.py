@@ -10,10 +10,10 @@ def _get_dependencies_from_arg(arg):
     if isinstance(arg, Token):
         deps.add(str(arg))
     elif isinstance(arg, dict):
-        # Recurse into function arguments
+
         for sub_arg in arg.get("args", []):
             deps.update(_get_dependencies_from_arg(sub_arg))
-        # Recurse into conditional expression branches
+
         if "condition" in arg:
             deps.update(_get_dependencies_from_arg(arg.get("condition")))
             deps.update(_get_dependencies_from_arg(arg.get("then_expr")))
@@ -30,14 +30,13 @@ def _build_dependency_graph(execution_steps):
     """Builds forward (dependencies) and reverse (dependents) dependency graphs."""
     dependencies = {}
 
-    # Initialize dependents for all variables that will be created
     dependents = {}
     for step in execution_steps:
         for res_var in _get_step_results(step):
             dependents[res_var] = set()
 
     for step in execution_steps:
-        # The robust helper function can now parse the entire step dictionary
+
         step_deps = _get_dependencies_from_arg(step)
         for res_var in _get_step_results(step):
             dependencies[res_var] = step_deps
@@ -60,19 +59,16 @@ def _find_stochastic_variables(execution_steps, dependents):
         if not isinstance(expression_dict, dict):
             return False
 
-        # Check for a direct stochastic function call
         func_name = expression_dict.get("function")
         if func_name and FUNCTION_SIGNATURES.get(func_name, {}).get("is_stochastic", False):
             return True
 
-        # Recurse into function arguments
         for arg in expression_dict.get("args", []):
             if _expression_is_stochastic(arg):
                 return True
 
-        # Recurse into conditional expression branches
         if "condition" in expression_dict:
-            # The condition itself cannot be stochastic, but the branches can be.
+
             if _expression_is_stochastic(expression_dict.get("then_expr")):
                 return True
             if _expression_is_stochastic(expression_dict.get("else_expr")):
@@ -81,14 +77,13 @@ def _find_stochastic_variables(execution_steps, dependents):
         return False
 
     for step in execution_steps:
-        # Check the entire step for any stochastic sources
+
         if _expression_is_stochastic(step):
             for var_name in _get_step_results(step):
                 if var_name not in stochastic_vars:
                     stochastic_vars.add(var_name)
                     queue.append(var_name)
 
-    # Propagate stochasticity to all dependent variables
     while queue:
         current_var = queue.popleft()
         for dependent_var in dependents.get(current_var, []):
@@ -117,7 +112,7 @@ def _topological_sort_steps(steps, dependencies):
     step_map = {}
     for step in steps:
         for res in _get_step_results(step):
-            # Map each result var to its step. For multi-assign, they share a step.
+
             step_map[res] = step
 
     sorted_vars = []
@@ -135,18 +130,16 @@ def _topological_sort_steps(steps, dependencies):
         recursion_stack.remove(var)
         sorted_vars.append(var)
 
-    # Iterate through all variables defined in the steps to ensure all are visited
     all_step_vars = sorted(list(step_map.keys()))
     for var_name in all_step_vars:
         if var_name not in visited:
             visit(var_name)
 
-    # Reconstruct the sorted list of steps, ensuring no duplicates for multi-assignments
     sorted_steps = []
     seen_steps = set()
     for var in sorted_vars:
         step = step_map[var]
-        step_id = id(step)  # Use object ID to uniquely identify steps
+        step_id = id(step)
         if step_id not in seen_steps:
             sorted_steps.append(step)
             seen_steps.add(step_id)
@@ -165,7 +158,6 @@ def optimize_steps(execution_steps, output_var, defined_vars, do_dce, verbose):
         if verbose:
             print("\n--- Running Dead Code Elimination ---")
 
-        # Filter steps based on whether ANY of their results are live
         original_step_count = len(execution_steps)
         execution_steps = [step for step in execution_steps if any(res in live_variables for res in _get_step_results(step))]
         final_vars_after_dce = set()
@@ -178,7 +170,6 @@ def optimize_steps(execution_steps, output_var, defined_vars, do_dce, verbose):
         elif verbose:
             print("Optimization complete: No unused variables found to remove.")
 
-        # Rebuild dependency graph after DCE for the final partitioning
         dependencies, dependents = _build_dependency_graph(execution_steps)
 
     if verbose:
@@ -188,13 +179,12 @@ def optimize_steps(execution_steps, output_var, defined_vars, do_dce, verbose):
 
     pre_trial_steps_raw, per_trial_steps_raw = [], []
     for step in execution_steps:
-        # A step is per-trial if ANY of its results are stochastic
+
         if any(res in stochastic_vars for res in _get_step_results(step)):
             per_trial_steps_raw.append(step)
         else:
             pre_trial_steps_raw.append(step)
 
-    # Topologically sort the pre-trial (deterministic) steps
     pre_trial_vars = set()
     for step in pre_trial_steps_raw:
         pre_trial_vars.update(_get_step_results(step))
@@ -207,7 +197,6 @@ def optimize_steps(execution_steps, output_var, defined_vars, do_dce, verbose):
             moved_vars.extend(_get_step_results(step))
         print(f"Optimization complete: Moved {len(pre_trial_steps_sorted)} deterministic step(s) to the pre-trial phase, defining: {', '.join(sorted(moved_vars))}")
 
-    # Update defined_vars to reflect any removed variables from DCE
     final_vars_set = set()
     for step in pre_trial_steps_sorted + per_trial_steps_raw:
         final_vars_set.update(_get_step_results(step))

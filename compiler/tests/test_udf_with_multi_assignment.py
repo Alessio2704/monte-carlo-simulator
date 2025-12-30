@@ -2,13 +2,13 @@ import pytest
 import sys
 import os
 
-# Make the compiler module available for testing
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError
 
-# Import fixtures from the main integration test file for end-to-end testing
+
 from tests.test_integration import find_engine_path, run_preview_integration
 
 BASE_SCRIPT = "@iterations=1\n@output=result\n"
@@ -36,8 +36,6 @@ def test_udf_calling_builtin_with_multi_return():
     recipe = compile_valuascript(script)
     assert recipe is not None
 
-    # Verify that the inliner correctly processed the multi-assignment inside the UDF.
-    # We check for the mangled versions of the variables.
     registry = set(recipe["variable_registry"])
     assert "__calculate_rd_amortization_1__cap_asset" in registry
     assert "__calculate_rd_amortization_1__amortization" in registry
@@ -68,7 +66,6 @@ def test_udf_calling_another_udf_with_multi_return():
     recipe = compile_valuascript(script)
     assert recipe is not None
 
-    # Verify that the nested, multi-return UDF call was inlined correctly.
     registry = set(recipe["variable_registry"])
     assert "__process_coords_1__x_coord" in registry
     assert "__process_coords_1__y_coord" in registry
@@ -94,10 +91,9 @@ def test_end_to_end_udf_with_multi_assignment_integration(find_engine_path):
     let past_expenses = [90, 80, 70]
     let final_result = calculate_asset_and_return_value(100, past_expenses, 3)
     """
-    # ACT: Run the full compiler-to-engine pipeline and preview the final variable.
+
     result = run_preview_integration(script, "final_result", find_engine_path)
 
-    # ASSERT: Check that the engine produced the correct final value.
     assert result.get("status") == "success"
     assert result.get("type") == "scalar"
     assert pytest.approx(result.get("value"), abs=1e-2) == 106.67

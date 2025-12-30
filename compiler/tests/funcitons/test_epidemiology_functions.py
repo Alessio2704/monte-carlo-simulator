@@ -24,7 +24,7 @@ def test_scientific_function_arities(func, provided_argc):
     """
     args_list = ["1" for _ in range(provided_argc)]
     args = ", ".join(args_list)
-    # The function returns a tuple, so we must use multi-assignment
+
     script = BASE_SCRIPT + f"let s, i, r = {func}({args})"
 
     with pytest.raises(ValuaScriptError) as e:

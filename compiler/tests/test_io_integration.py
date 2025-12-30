@@ -5,11 +5,11 @@ import subprocess
 import json
 import tempfile
 
-# Ensure the compiler's modules can be imported
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vsc.compiler import compile_valuascript
 
-# Import the fixtures from the main integration test file
+
 from test_integration import find_engine_path, run_preview_integration
 
 

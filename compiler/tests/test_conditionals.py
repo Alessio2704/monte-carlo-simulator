@@ -2,13 +2,11 @@ import pytest
 import sys
 import os
 
-# Make the compiler module available for testing
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError, ErrorCode
-
-# --- 1. VALID CONDITIONAL EXPRESSIONS (IF/THEN/ELSE) ---
 
 
 def test_if_then_else_with_boolean_literals():
@@ -87,12 +85,9 @@ def test_if_then_else_inside_udf():
     """
     recipe = compile_valuascript(script)
     assert recipe is not None
-    # Check that the inliner produced the mangled variables for the function parameters
+
     assert "__max_val_1__a" in recipe["variable_registry"]
     assert "__max_val_1__b" in recipe["variable_registry"]
-
-
-# --- 2. VALID COMPARISON AND LOGICAL OPERATORS ---
 
 
 @pytest.mark.parametrize(
@@ -146,9 +141,6 @@ def test_all_logical_operators(expression, expected_outcome):
     assert recipe is not None
 
 
-# --- 3. ERROR HANDLING FOR INVALID CONDITIONAL LOGIC ---
-
-
 @pytest.mark.parametrize(
     "script_body, expected_code",
     [
@@ -170,9 +162,6 @@ def test_conditional_semantic_errors(script_body, expected_code):
     assert e.value.code == expected_code
 
 
-# --- 4. INTEGRATION WITH OPTIMIZATIONS ---
-
-
 def test_deterministic_if_is_moved_to_pre_trial():
     """
     Ensures that an if/else statement with deterministic inputs is correctly
@@ -189,19 +178,9 @@ def test_deterministic_if_is_moved_to_pre_trial():
     assert recipe is not None
 
     registry = recipe["variable_registry"]
-    pre_trial_vars = {
-        registry[index]
-        for step in recipe["pre_trial_steps"]
-        # This inner loop iterates over our normalized list
-        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
-    }
+    pre_trial_vars = {registry[index] for step in recipe["pre_trial_steps"] for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])}
 
-    per_trial_vars = {
-        registry[index]
-        for step in recipe["per_trial_steps"]
-        # This inner loop iterates over our normalized list
-        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
-    }
+    per_trial_vars = {registry[index] for step in recipe["per_trial_steps"] for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])}
 
     assert "result" in pre_trial_vars
     assert not per_trial_vars
@@ -217,26 +196,15 @@ def test_stochastic_if_branch_taints_result():
     @output=result
     let a = 10
     let b_sto = Normal(20, 5)
-    # The condition is deterministic, but a potential result is not.
     let result = if a > 0 then b_sto else a
     """
     recipe = compile_valuascript(script)
     assert recipe is not None
 
     registry = recipe["variable_registry"]
-    pre_trial_vars = {
-        registry[index]
-        for step in recipe["pre_trial_steps"]
-        # This inner loop iterates over our normalized list
-        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
-    }
+    pre_trial_vars = {registry[index] for step in recipe["pre_trial_steps"] for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])}
 
-    per_trial_vars = {
-        registry[index]
-        for step in recipe["per_trial_steps"]
-        # This inner loop iterates over our normalized list
-        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
-    }
+    per_trial_vars = {registry[index] for step in recipe["per_trial_steps"] for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])}
 
     assert "a" in pre_trial_vars
     assert "b_sto" in per_trial_vars
@@ -259,5 +227,4 @@ def test_dead_code_elimination_with_conditionals():
     recipe = compile_valuascript(script, optimize=True)
     assert recipe is not None
 
-    # After DCE, only the live variable 'final_result' should remain.
     assert set(recipe["variable_registry"]) == {"final_result"}

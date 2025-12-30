@@ -45,10 +45,9 @@ def _load_and_validate_module(module_path: str, base_dir: str, all_user_function
     for name, func_def in module_internal_functions.items():
         if name in all_user_functions:
             raise ValuaScriptError(ErrorCode.FUNCTION_NAME_COLLISION, line=func_def["line"], name=name, path=module_path)
-        # Store the function definition AND its source path.
+
         all_user_functions[name] = {"definition": func_def, "source_path": abs_module_path}
 
-    # Pass only the definitions to the validator.
     validate_semantics(module_ast, {k: v["definition"] for k, v in all_user_functions.items()}, is_preview_mode=True)
 
     visiting_stack.remove(abs_module_path)
@@ -82,7 +81,7 @@ def resolve_imports_and_functions(main_ast, file_path):
     for name, func_def in main_file_functions.items():
         if name in all_user_functions:
             raise ValuaScriptError(ErrorCode.FUNCTION_NAME_COLLISION, line=func_def["line"], name=name, path=main_file_path_for_error)
-        # Store the function definition AND its source path for main file functions.
+
         all_user_functions[name] = {"definition": func_def, "source_path": os.path.abspath(file_path) if file_path else None}
 
     return all_user_functions
@@ -101,9 +100,8 @@ def compile_valuascript(script_content: str, optimize=False, verbose=False, prev
 
     main_ast = parse_valuascript(script_content)
 
-    # The resolver now returns a map of {name: {definition, source_path}}.
     all_user_functions_with_meta = resolve_imports_and_functions(main_ast, file_path)
-    # The validator only needs the definitions.
+
     all_user_function_defs = {k: v["definition"] for k, v in all_user_functions_with_meta.items()}
 
     if any(d["name"] == "module" for d in main_ast.get("directives", [])):

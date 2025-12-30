@@ -6,7 +6,7 @@ import json
 import tempfile
 import pandas as pd
 
-# Ensure the compiler's modules can be imported for direct use
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError
@@ -35,7 +35,7 @@ def find_engine_path():
 
     for path in potential_paths:
         if os.path.exists(path):
-            return path  # Return the first valid path found
+            return path
 
     # If the executable was not found in any of the potential locations, skip the tests.
     pytest.skip(
@@ -52,24 +52,21 @@ def run_preview_integration(script_content: str, preview_var: str, engine_path: 
     3. Executing the C++ engine with the recipe.
     4. Parsing and returning the JSON output.
     """
-    # Step 1: Compile the script in-process using the new compiler orchestrator
-    # The file_path is now passed to the compiler to resolve imports.
+
     recipe = compile_valuascript(script_content, preview_variable=preview_var, file_path=file_path)
     assert recipe is not None, "Compiler failed to produce a recipe"
 
-    # Step 2: Write the generated recipe to a temporary file
-    # We use delete=False because we need to pass the file path to another process
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp_recipe_file:
         json.dump(recipe, tmp_recipe_file)
         recipe_path = tmp_recipe_file.name
 
     try:
-        # Step 3: Execute the C++ engine directly with the recipe path
-        result = subprocess.run([engine_path, "--preview", recipe_path], capture_output=True, text=True, check=True, timeout=10)  # This will raise an error on a non-zero exit code
-        # Step 4: Parse and return the JSON from the engine's stdout
+
+        result = subprocess.run([engine_path, "--preview", recipe_path], capture_output=True, text=True, check=True, timeout=10)
+
         return json.loads(result.stdout)
     finally:
-        # Step 5: Clean up the temporary recipe file
+
         os.remove(recipe_path)
 
 
@@ -115,7 +112,7 @@ def test_preview_integration(find_engine_path, script, preview_var, expected_typ
 
     assert result.get("status") == "success"
     assert result.get("type") == expected_type
-    # Use pytest.approx for floating point comparisons
+
     if isinstance(expected_value, list):
         assert all(pytest.approx(a) == b for a, b in zip(result.get("value"), expected_value))
     else:
@@ -129,20 +126,16 @@ def test_preview_integration_with_deeply_nested_imports(create_manual_test_struc
     This validates that the compiler and engine work together seamlessly
     to resolve and compute values across the entire project structure.
     """
-    # ARRANGE: The fixture sets up the complex file structure.
+
     test_dir = create_manual_test_structure
     main_script_path = test_dir / "main.vs"
     script_content = main_script_path.read_text()
 
-    # ACT: Call the integration helper to preview 'dcf_value'.
-    # This variable's calculation requires resolving the entire import chain.
     result = run_preview_integration(script_content=script_content, preview_var="dcf_value", engine_path=find_engine_path, file_path=str(main_script_path))
 
-    # ASSERT
     assert result.get("status") == "success"
     assert result.get("type") == "scalar"
-    # This asserts the final, calculated value is correct, proving the entire
-    # compiler -> engine toolchain worked across all imported modules.
+
     assert pytest.approx(result.get("value"), abs=1e-2) == 186.90
 
 
@@ -153,7 +146,7 @@ def test_full_run_and_csv_output_validation(find_engine_path, tmp_path):
     from compilation to engine execution to file output, is working correctly
     for a deterministic calculation.
     """
-    # ARRANGE: A simple, deterministic script.
+
     script = """
     @iterations = 1
     @output = c
@@ -168,18 +161,15 @@ def test_full_run_and_csv_output_validation(find_engine_path, tmp_path):
     recipe_path = tmp_path / "main.json"
     output_csv_path = tmp_path / "deterministic_out.csv"
 
-    # ACT 1: Compile the script using the CLI command structure.
     compile_command = [sys.executable, "-m", "vsc", str(script_path), "-o", str(recipe_path)]
     subprocess.run(compile_command, check=True)
     assert os.path.exists(recipe_path)
 
-    # ACT 2: Execute the engine on the compiled recipe.
     engine_path = find_engine_path
     engine_command = [engine_path, str(recipe_path)]
-    subprocess.run(engine_command, check=True, cwd=tmp_path)  # Run from tmp_path
+    subprocess.run(engine_command, check=True, cwd=tmp_path)
     assert os.path.exists(output_csv_path)
 
-    # ASSERT: Read the output CSV and verify its contents.
     df = pd.read_csv(output_csv_path)
     assert "Result" in df.columns
     assert len(df) == 1

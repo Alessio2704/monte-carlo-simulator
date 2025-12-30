@@ -7,8 +7,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError, ErrorCode
 
-# --- Fixture to set up file structures ---
-
 
 @pytest.fixture
 def create_files(tmp_path):
@@ -22,9 +20,6 @@ def create_files(tmp_path):
         return tmp_path
 
     return _create_files
-
-
-# --- 1. VALID IMPORT SCENARIOS ---
 
 
 def test_simple_valid_import(create_files):
@@ -167,9 +162,6 @@ def test_diamond_dependency_import(create_files):
     assert any(v.startswith("__process_c_") for v in recipe["variable_registry"])
 
 
-# --- 2. INVALID IMPORT SCENARIOS (ERROR HANDLING) ---
-
-
 @pytest.mark.parametrize(
     "files, main_script, expected_error_code",
     [
@@ -210,7 +202,6 @@ def test_diamond_dependency_import(create_files):
                 "importer.vs": '@module\n@import "nested.vs"',
                 "main.vs": '@import "importer.vs"\nfunc conflict() -> scalar { return 2 }',
             },
-            # This main_script is a placeholder; the file content is what matters.
             '@import "main.vs"',
             ErrorCode.FUNCTION_NAME_COLLISION,
             id="collision_main_and_nested_module",
@@ -219,7 +210,7 @@ def test_diamond_dependency_import(create_files):
 )
 def test_import_errors(create_files, files, main_script, expected_error_code):
     """A comprehensive test for various import-related compiler errors."""
-    # Special handling for tests defined by file content
+
     if "main.vs" in files:
         file_structure = create_files(files)
         main_path = file_structure / "main.vs"

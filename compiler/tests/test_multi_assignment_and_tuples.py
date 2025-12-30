@@ -3,17 +3,14 @@ import sys
 import os
 import json
 
-# Make the compiler module available
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError, ErrorCode
 
-# Import fixtures from the main integration test file for end-to-end testing
+
 from tests.test_integration import find_engine_path, run_preview_integration
-
-
-# --- 1. VALID MULTI-ASSIGNMENT AND TUPLE USAGE ---
 
 
 def test_udf_multi_return_and_assignment():
@@ -48,9 +45,6 @@ def test_builtin_function_multi_return():
     assert "amortization" in recipe["variable_registry"]
 
 
-# --- 2. ERROR HANDLING AND INVALID USAGE ---
-
-
 @pytest.mark.parametrize(
     "script_body, expected_error_code",
     [
@@ -70,9 +64,6 @@ def test_multi_assignment_semantic_errors(script_body, expected_error_code):
     with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(full_script)
     assert e.value.code == expected_error_code
-
-
-# --- 3. BYTECODE GENERATION & LINKER VERIFICATION ---
 
 
 def test_linker_bytecode_for_multi_assignment():
@@ -95,9 +86,6 @@ def test_linker_bytecode_for_multi_assignment():
     assert assign_step is not None, "capitalize_expense step not found in bytecode"
     assert assign_step["type"] == "execution_assignment"
     assert assign_step["result"] == [a_idx, b_idx]
-
-
-# --- 4. END-TO-END ENGINE INTEGRATION ---
 
 
 def test_end_to_end_multi_assignment_integration(find_engine_path):

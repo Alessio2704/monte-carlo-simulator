@@ -7,12 +7,12 @@ import time
 from lark.exceptions import UnexpectedInput, UnexpectedCharacters, UnexpectedToken
 
 try:
-    # This must be the first import to set up the path correctly
+
     from .compiler import compile_valuascript
     from .exceptions import ValuaScriptError
     from .utils import TerminalColors, format_lark_error, find_engine_executable, generate_and_show_plot
 except ImportError:
-    # If run directly, this might fail, so we add the parent dir to the path
+
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     from vsc.compiler import compile_valuascript
     from vsc.exceptions import ValuaScriptError
@@ -46,7 +46,6 @@ def main():
         if not args.input_file and sys.stdin.isatty() and not is_preview_mode:
             parser.error("input_file is required when not reading from a pipe or in preview mode.")
 
-        # Determine the absolute path for the output file
         raw_output_path = args.output_file or os.path.splitext(args.input_file)[0] + ".json" if args.input_file else "stdin.json"
         output_file_path = os.path.abspath(raw_output_path)
 
@@ -55,7 +54,7 @@ def main():
         try:
             if not args.input_file:
                 script_content = sys.stdin.read()
-                # When reading from stdin, file_path should be None to prevent import errors
+
                 input_file_path_abs = None
             else:
                 input_file_path_abs = os.path.abspath(args.input_file)
@@ -73,7 +72,6 @@ def main():
                 file_path=input_file_path_abs,
             )
 
-            # Ensure the output directory exists before writing the recipe
             os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
 
             with open(output_file_path, "w") as f:
@@ -89,11 +87,8 @@ def main():
                     print(f"\n{TerminalColors.RED}--- Execution Failed: Could not find the simulation engine. ---{TerminalColors.RESET}", file=sys.stderr)
                     sys.exit(1)
 
-                # The engine's working directory should be where the recipe is,
-                # so that relative paths in @output_file are handled correctly.
                 engine_cwd = os.path.dirname(output_file_path)
 
-                # We pass the absolute path of the recipe to the engine.
                 command_args = [engine_executable, output_file_path]
                 if is_preview_mode:
                     command_args.insert(1, "--preview")
@@ -107,7 +102,7 @@ def main():
                 if args.plot and not is_preview_mode:
                     output_file_from_recipe = final_recipe.get("simulation_config", {}).get("output_file")
                     if output_file_from_recipe:
-                        # Construct the full path to the output file relative to the engine's CWD
+
                         full_output_path = os.path.join(engine_cwd, output_file_from_recipe)
                         if os.path.exists(full_output_path):
                             generate_and_show_plot(full_output_path)

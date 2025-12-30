@@ -23,14 +23,11 @@ def test_io_function_arities(func, provided_argc):
     """
     Validates that I/O built-in functions correctly report argument count mismatches.
     """
-    # I/O functions expect string literals, so we must provide them to avoid type errors.
+
     args_list = ['"test"' for _ in range(provided_argc)]
     args = ", ".join(args_list) if provided_argc > 0 else ""
     script = BASE_SCRIPT + f"let result = {func}({args})"
 
-    # Note: These tests will fail on type errors if not run from a file context,
-    # but for arity, the argument count check happens first.
-    # We pass a dummy file_path to allow the check to proceed.
     with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script, file_path="dummy.vs")
     assert e.value.code == ErrorCode.ARGUMENT_COUNT_MISMATCH

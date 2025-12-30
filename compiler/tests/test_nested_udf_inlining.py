@@ -2,7 +2,7 @@ import pytest
 import sys
 import os
 
-# Make the compiler module available for testing
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from vsc.compiler import compile_valuascript
@@ -24,7 +24,6 @@ def test_udf_nested_in_simple_arithmetic():
     recipe = compile_valuascript(script)
     assert recipe is not None
 
-    # Check that the lifting mechanism created a temporary variable for the nested call
     registry = set(recipe["variable_registry"])
     assert "result" in registry
     assert any(v.startswith("__temp_") for v in registry)
@@ -63,7 +62,7 @@ def test_multiple_nested_udfs_in_one_expression():
     recipe = compile_valuascript(script)
     assert recipe is not None
     registry = set(recipe["variable_registry"])
-    # The lifter should create two separate temporary variables
+
     temp_vars = [v for v in registry if v.startswith("__temp_")]
     assert len(temp_vars) >= 2
 
@@ -129,25 +128,9 @@ def test_end_to_end_reproducing_wacc_bug(find_engine_path):
 
     let wacc = calculate_wacc()
     """
-    # ACT: Run the full compiler-to-engine pipeline.
+
     result = run_preview_integration(script, "wacc", find_engine_path)
 
-    # ASSERT: Check that the engine produced the correct final value.
-    # Manual Calculation:
-    # risk_free = 0.03
-    # spread = 0.015
-    # tax = 0.25
-    # cost_of_debt = (0.03 + 0.015) * (1 - 0.25) = 0.045 * 0.75 = 0.03375
-    #
-    # beta = 1.2
-    # erp = 0.05
-    # cost_of_equity = 0.03 + (1.2 * 0.05) = 0.03 + 0.06 = 0.09
-    #
-    # equity_value = 1.5M, debt_value = 0.5M, total = 2.0M
-    # equity_weight = 0.75, debt_weight = 0.25
-    #
-    # wacc = (0.75 * 0.09) + (0.25 * 0.03375)
-    # wacc = 0.0675 + 0.0084375 = 0.0759375
     assert result.get("status") == "success"
     assert result.get("type") == "scalar"
     assert pytest.approx(result.get("value")) == 0.0759

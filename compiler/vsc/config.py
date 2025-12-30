@@ -6,7 +6,7 @@ Function signatures are now loaded dynamically from the 'vsc.functions' package.
 
 DIRECTIVE_CONFIG = {
     "iterations": {
-        "required": lambda d: "module" not in d,  # Required only if not a module
+        "required": lambda d: "module" not in d,
         "value_type": int,
         "value_allowed": True,
         "allowed_in_module": False,
@@ -14,7 +14,7 @@ DIRECTIVE_CONFIG = {
         "error_type": "The value for @iterations must be a whole number (e.g., 10000).",
     },
     "output": {
-        "required": lambda d: "module" not in d,  # Required only if not a module
+        "required": lambda d: "module" not in d,
         "value_type": str,
         "value_allowed": True,
         "allowed_in_module": False,
@@ -31,7 +31,7 @@ DIRECTIVE_CONFIG = {
     "module": {
         "required": False,
         "value_type": bool,
-        "value_allowed": False,  # This is a flag, not a setting
+        "value_allowed": False,
         "allowed_in_module": True,
         "error_type": "The @module directive does not accept a value. It should be used as '@module'.",
     },

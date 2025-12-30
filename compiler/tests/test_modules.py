@@ -2,14 +2,12 @@ import pytest
 import sys
 import os
 
-# Make the compiler module available
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError, ErrorCode
 from lark.exceptions import UnexpectedInput, UnexpectedToken, UnexpectedCharacters
-
-# --- 1. VALID MODULE DEFINITIONS ---
 
 
 def test_valid_module_compiles_successfully(tmp_path):
@@ -33,7 +31,7 @@ def test_valid_module_compiles_successfully(tmp_path):
     module_path.write_text(script)
     recipe = compile_valuascript(script, file_path=str(module_path))
     assert recipe is not None
-    # A valid module should produce an empty, non-executable recipe
+
     assert recipe["simulation_config"] == {}
     assert recipe["variable_registry"] == []
     assert recipe["output_variable_index"] is None
@@ -47,9 +45,6 @@ def test_empty_module_is_valid(tmp_path):
     recipe = compile_valuascript(script, file_path=str(module_path))
     assert recipe is not None
     assert recipe["variable_registry"] == []
-
-
-# --- 2. INVALID MODULE STRUCTURE AND DIRECTIVES ---
 
 
 @pytest.mark.parametrize(
@@ -73,11 +68,6 @@ def test_invalid_module_structure(tmp_path, script, expected_code):
     with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script, file_path=str(path))
     assert e.value.code == expected_code
-
-
-# --- 3. SEMANTIC AND SYNTAX ERRORS INSIDE A MODULE'S FUNCTIONS ---
-# These tests ensure that even though a module isn't executed directly, the
-# functions it contains are still fully validated for correctness.
 
 
 def test_duplicate_function_names_in_module(tmp_path):
@@ -152,9 +142,6 @@ def test_syntax_error_inside_module_function_body(tmp_path):
     path.write_text(script)
     with pytest.raises((ValuaScriptError, UnexpectedInput, UnexpectedCharacters, UnexpectedToken)):
         compile_valuascript(script, file_path=str(path))
-
-
-# --- 4. RECURSION CHECKS IN MODULES ---
 
 
 def test_direct_recursion_in_module(tmp_path):

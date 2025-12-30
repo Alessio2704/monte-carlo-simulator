@@ -33,7 +33,7 @@ def test_valid_scripts_compile_successfully():
     compile_valuascript("@iterations=1\n@output=x\nlet x = -5_000")
 
     script = """
-    # This is a test model
+
     @iterations = 100
     @output     = final_value
     let initial = 10
@@ -60,7 +60,7 @@ def test_valid_scripts_compile_successfully():
     ],
 )
 def test_syntax_errors(malformed_snippet):
-    # Test the snippet in isolation to ensure it fails on its own.
+
     script = f"@iterations=1\n@output=x\n{malformed_snippet}"
     with pytest.raises((UnexpectedToken, UnexpectedInput, UnexpectedCharacters, ValuaScriptError)):
         compile_valuascript(script)
@@ -113,11 +113,6 @@ def test_semantic_errors(script_body, expected_code):
     assert e.value.code == expected_code
 
 
-# ==============================================================================
-# TESTS FOR LINKER AND BYTECODE GENERATION
-# ==============================================================================
-
-
 def test_linker_handles_nested_function_calls():
     """
     This is a regression test. It ensures that nested function calls in the AST
@@ -133,11 +128,9 @@ def test_linker_handles_nested_function_calls():
     recipe = compile_valuascript(script)
     assert recipe is not None
 
-    # Find the 'result' step in the bytecode
     registry = recipe["variable_registry"]
     result = registry.index("result")
 
-    # The step could be in pre_trial or per_trial, so we search both.
     all_steps = recipe["pre_trial_steps"] + recipe["per_trial_steps"]
     result_step = next(s for s in all_steps if (result in s["result"] if isinstance(s["result"], list) else s["result"] == result))
 
@@ -145,17 +138,11 @@ def test_linker_handles_nested_function_calls():
     assert result_step["function"] == "log"
     assert len(result_step["args"]) == 1
 
-    # The crucial assertion: check the nested argument
     nested_arg = result_step["args"][0]
     assert isinstance(nested_arg, dict)
     assert nested_arg.get("type") == "execution_assignment"
     assert nested_arg.get("function") == "exp"
     assert len(nested_arg.get("args", [])) == 1
-
-
-# ==============================================================================
-# TESTS FOR LOOP-INVARIANT CODE MOTION OPTIMIZATION
-# ==============================================================================
 
 
 @pytest.mark.parametrize(
@@ -178,29 +165,13 @@ def test_optimization_step_partitioning(script_body, expected_pre_trial_names, e
     recipe = compile_valuascript(script)
     assert recipe is not None, "Compilation failed unexpectedly"
 
-    # In the new bytecode, we verify by looking up the names from the indices
     registry = recipe["variable_registry"]
-    actual_pre_trial_names = {
-        registry[index]
-        for step in recipe["pre_trial_steps"]
-        # This inner loop iterates over our normalized list
-        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
-    }
+    actual_pre_trial_names = {registry[index] for step in recipe["pre_trial_steps"] for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])}
 
-    actual_per_trial_names = {
-        registry[index]
-        for step in recipe["per_trial_steps"]
-        # This inner loop iterates over our normalized list
-        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
-    }
+    actual_per_trial_names = {registry[index] for step in recipe["per_trial_steps"] for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])}
 
     assert set(actual_pre_trial_names) == set(expected_pre_trial_names)
     assert set(actual_per_trial_names) == set(expected_per_trial_names)
-
-
-# ==============================================================================
-# TESTS FOR DEAD CODE ELIMINATION
-# ==============================================================================
 
 
 @pytest.mark.parametrize(
@@ -220,7 +191,6 @@ def test_dead_code_elimination(script_body, output_var, expected_remaining_vars)
     recipe = compile_valuascript(script, optimize=True)
     assert recipe is not None, "Compilation failed unexpectedly"
 
-    # The variable_registry should now only contain the live variables.
     actual_remaining_vars = set(recipe["variable_registry"])
     assert actual_remaining_vars == expected_remaining_vars
 
@@ -232,13 +202,8 @@ def test_dead_code_elimination_is_disabled_by_default():
     script = "@iterations=1\n@output=live\nlet live = 1\nlet dead = 2"
     recipe = compile_valuascript(script, optimize=False)
     assert recipe is not None
-    # All variables should be present in the registry
+
     assert set(recipe["variable_registry"]) == {"live", "dead"}
-
-
-# ==============================================================================
-# TESTS FOR PREVIEW MODE (LIVE VARIABLE INSPECTION)
-# ==============================================================================
 
 
 @pytest.mark.parametrize(
@@ -260,15 +225,12 @@ def test_preview_mode_compilation(script_body, preview_var, expected_output_var_
     recipe = compile_valuascript(full_script, preview_variable=preview_var)
     assert recipe is not None, "Compilation failed unexpectedly in preview mode"
 
-    # 1. Check that the output variable index points to the correct variable name
     registry = recipe["variable_registry"]
     output_index = recipe["output_variable_index"]
     assert registry[output_index] == expected_output_var_name
 
-    # 2. Check that the number of trials was correctly overridden
     assert recipe["simulation_config"]["num_trials"] == expected_num_trials
 
-    # 3. Check that dead code was correctly eliminated (by checking the registry)
     assert set(registry) == expected_remaining_vars
 
 

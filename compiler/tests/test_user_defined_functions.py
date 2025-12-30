@@ -2,18 +2,15 @@ import pytest
 import sys
 import os
 
-# Make the compiler module available
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from vsc.compiler import compile_valuascript
 from vsc.exceptions import ValuaScriptError, ErrorCode
 from lark.exceptions import UnexpectedInput, UnexpectedToken, UnexpectedCharacters
 
-# Base script setup for tests
+
 BASE_SCRIPT = "@iterations=1\n@output=result\n"
-
-
-# --- 1. VALID FUNCTION DEFINITIONS AND CALLS ---
 
 
 def test_valid_scalar_function_with_docstring():
@@ -28,10 +25,10 @@ def test_valid_scalar_function_with_docstring():
     """
     recipe = compile_valuascript(script)
     assert recipe is not None
-    # Check that inlining happened and the final result is correct
+
     registry = recipe["variable_registry"]
     assert "result" in registry
-    # A simple check for inlining artifacts (mangled variable names)
+
     assert any("__add_one_1__x" in var_name for var_name in registry)
 
 
@@ -70,7 +67,7 @@ def test_multiple_calls_to_same_function():
     assert recipe is not None
     registry = recipe["variable_registry"]
     assert "result" in registry
-    # Check for mangling of the first and second call
+
     assert any("__my_add_1__a" in var_name for var_name in registry)
     assert any("__my_add_2__a" in var_name for var_name in registry)
 
@@ -90,9 +87,6 @@ def test_function_calling_builtin():
     assert "result" in recipe["variable_registry"]
 
 
-# --- 2. SYNTAX ERRORS IN FUNCTION DEFINITION ---
-
-
 @pytest.mark.parametrize(
     "func_snippet",
     [
@@ -105,12 +99,9 @@ def test_function_calling_builtin():
 )
 def test_syntax_errors_in_definition(func_snippet):
     script = f"{BASE_SCRIPT}{func_snippet}\nlet result = 1"
-    # Lark errors can be of different types depending on what's missing
+
     with pytest.raises((UnexpectedInput, UnexpectedToken, UnexpectedCharacters)):
         compile_valuascript(script)
-
-
-# --- 3. SEMANTIC ERRORS (TYPE MISMATCHES, ETC.) ---
 
 
 @pytest.mark.parametrize(
@@ -134,9 +125,6 @@ def test_semantic_type_errors(script_body, expected_code):
     assert e.value.code == expected_code
 
 
-# --- 4. SCOPING AND VARIABLE DECLARATION ERRORS ---
-
-
 @pytest.mark.parametrize(
     "script_body, expected_code",
     [
@@ -152,9 +140,6 @@ def test_scoping_and_declaration_errors(script_body, expected_code):
     with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
     assert e.value.code == expected_code
-
-
-# --- 5. VALIDATION CONSISTENCY (ERRORS INSIDE FUNCTION BODY) ---
 
 
 @pytest.mark.parametrize(
@@ -200,9 +185,6 @@ def test_syntax_errors_inside_body():
         compile_valuascript(script)
 
 
-# --- 6. INTER-FUNCTION CALLS AND RECURSION ---
-
-
 def test_udf_calling_another_udf():
     script = """
     @iterations=1
@@ -216,10 +198,10 @@ def test_udf_calling_another_udf():
     """
     recipe = compile_valuascript(script)
     assert recipe is not None
-    # Check that inlining was recursive
+
     all_vars = set(recipe["variable_registry"])
     assert "__add_and_double_1__s" in all_vars
-    # The call to double() inside add_and_double() gets its own unique mangling
+
     assert any(key.startswith("__double_") for key in all_vars)
 
 
@@ -250,9 +232,6 @@ def test_mutual_recursion_error():
     assert e.value.code == ErrorCode.RECURSIVE_CALL_DETECTED
 
 
-# --- 7. STOCHASTICITY PROPAGATION ---
-
-
 def test_stochastic_function_taints_caller():
     """
     CRITICAL TEST: Ensures that if a UDF is stochastic, the variable
@@ -271,13 +250,8 @@ def test_stochastic_function_taints_caller():
     recipe = compile_valuascript(script)
     assert recipe is not None
     registry = recipe["variable_registry"]
-    per_trial_vars = {
-        registry[index]
-        for step in recipe["per_trial_steps"]
-        # This inner loop iterates over our normalized list
-        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
-    }
-    # Check that all relevant variables were moved to the per_trial phase
+    per_trial_vars = {registry[index] for step in recipe["per_trial_steps"] for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])}
+
     assert "__get_random_1__r" in per_trial_vars
     assert "sto" in per_trial_vars
     assert "result" in per_trial_vars
@@ -294,19 +268,11 @@ def test_deterministic_function_with_stochastic_input():
     recipe = compile_valuascript(script)
     assert recipe is not None
     registry = recipe["variable_registry"]
-    per_trial_vars = {
-        registry[index]
-        for step in recipe["per_trial_steps"]
-        # This inner loop iterates over our normalized list
-        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
-    }
+    per_trial_vars = {registry[index] for step in recipe["per_trial_steps"] for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])}
 
     assert "rand_in" in per_trial_vars
     assert "result" in per_trial_vars
     assert "__add_one_1__x" in per_trial_vars
-
-
-# --- 8. INTERACTION WITH OPTIMIZATIONS (DEAD CODE ELIMINATION) ---
 
 
 def test_dce_removes_unused_udf_call():
@@ -354,9 +320,9 @@ def test_dce_on_unused_local_vars_in_udf():
     recipe = compile_valuascript(script, optimize=True)
     assert recipe is not None
     all_vars = set(recipe["variable_registry"])
-    # The mangled variable for the unused local should have been eliminated
+
     assert "__my_func_1__unused_local" not in all_vars
-    # The used parameter and the final result should still be present
+
     assert "__my_func_1__x" in all_vars
     assert "result" in all_vars
 
@@ -366,9 +332,6 @@ def test_script_with_only_uncalled_udf_fails():
     with pytest.raises(ValuaScriptError) as e:
         compile_valuascript(script)
     assert e.value.code == ErrorCode.MISSING_ITERATIONS_DIRECTIVE
-
-
-# --- 9. COMPLEX INTERACTIONS AND NESTING ---
 
 
 def test_deeply_nested_udf_call_chain():
@@ -388,7 +351,7 @@ def test_deeply_nested_udf_call_chain():
     recipe = compile_valuascript(script)
     assert recipe is not None
     registry = set(recipe["variable_registry"])
-    # Check that mangled variables from all levels of the call chain exist
+
     assert any(v.startswith("__f1_") for v in registry)
     assert any(v.startswith("__f2_") for v in registry)
     assert any(v.startswith("__f3_") for v in registry)
@@ -410,8 +373,7 @@ def test_udf_result_passed_to_another_udf():
     registry = set(recipe["variable_registry"])
     assert "base_val" in registry
     assert "result" in registry
-    # Check that the parameter for `process` was correctly inlined.
-    # This is robust against the internal call count of the inliner.
+
     assert any(v.startswith("__process_") and v.endswith("__n") for v in registry)
 
 
@@ -433,8 +395,7 @@ def test_dce_on_deeply_nested_unused_chain():
     recipe = compile_valuascript(script, optimize=True)
     assert recipe is not None
     registry = set(recipe["variable_registry"])
-    # The entire dead chain, from the initial variable to the deeply nested
-    # mangled variables, should be eliminated.
+
     assert registry == {"live_var"}
     assert "dead_var" not in registry
     assert not any(v.startswith("__dead") for v in registry)
@@ -459,20 +420,12 @@ def test_stochasticity_propagates_through_deep_chain():
     assert recipe is not None
     registry = recipe["variable_registry"]
 
-    per_trial_vars = {
-        registry[index]
-        for step in recipe["per_trial_steps"]
-        # This inner loop iterates over our normalized list
-        for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])
-    }
+    per_trial_vars = {registry[index] for step in recipe["per_trial_steps"] for index in (step["result"] if isinstance(step["result"], list) else [step["result"]])}
 
-    # Check that initial_value is pre-trial (deterministic)
     assert "initial_value" not in per_trial_vars
-    # Check that the final result is correctly marked as stochastic
+
     assert "final" in per_trial_vars
 
-    # Find the step for the Normal() call and verify it's in the per_trial phase.
-    # This is a robust way to confirm the stochastic source is handled correctly.
     normal_call_step = None
     all_steps = recipe["pre_trial_steps"] + recipe["per_trial_steps"]
     for step in all_steps:
@@ -482,6 +435,5 @@ def test_stochasticity_propagates_through_deep_chain():
 
     assert normal_call_step is not None, "Normal call step not found in bytecode"
 
-    # Here i used [0] because I know that the normal function returns NO TUPLE
     normal_call_result_var = registry[normal_call_step["result"][0]]
     assert normal_call_result_var in per_trial_vars, "Stochastic source from Normal() was not moved to per_trial phase"
