@@ -2,8 +2,8 @@
 **/build/
 
 /gemini/
-examples/*.json
-examples/*.csv
+examples/**/**.json
+examples/**/**.csv
 
 CMakeCache.txt
 CMakeFiles/
